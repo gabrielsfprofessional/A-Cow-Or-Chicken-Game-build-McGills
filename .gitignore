@@ -1,0 +1,17 @@
+# Godot 4+
+.godot/
+/android/
+
+# Never commit these (private or generated)
+/exports/
+/saves/
+/server.cfg
+/_bakeoff/
+
+# Claude Code personal settings
+.claude/settings.local.json
+
+# OS clutter
+Thumbs.db
+desktop.ini
+.DS_Store

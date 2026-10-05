@@ -1,0 +1,67 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://game/ui/main_menu.gd" id="1_menu"]
+
+[node name="MainMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_menu")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.11, 0.12, 0.16, 1)
+
+[node name="Center" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Menu" type="VBoxContainer" parent="Center"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="Title" type="Label" parent="Center/Menu"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 96
+text = "A Cow or Chicken"
+horizontal_alignment = 1
+
+[node name="Version" type="Label" parent="Center/Menu"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "Version"
+horizontal_alignment = 1
+
+[node name="PlayButton" type="Button" parent="Center/Menu"]
+custom_minimum_size = Vector2(520, 72)
+layout_mode = 2
+theme_override_font_sizes/font_size = 32
+disabled = true
+text = "Play (card T06)"
+
+[node name="PracticeButton" type="Button" parent="Center/Menu"]
+custom_minimum_size = Vector2(520, 72)
+layout_mode = 2
+theme_override_font_sizes/font_size = 32
+disabled = true
+text = "Practice Range (card T20)"
+
+[node name="QuitButton" type="Button" parent="Center/Menu"]
+custom_minimum_size = Vector2(520, 72)
+layout_mode = 2
+theme_override_font_sizes/font_size = 32
+text = "Quit"
+
+[connection signal="pressed" from="Center/Menu/QuitButton" to="." method="_on_quit_pressed"]
