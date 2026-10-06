@@ -37,9 +37,11 @@ Measured Tue Oct 6 2026, 6:50 pm, over Wi-Fi.
 **Still pending:** reachable from another house. Gabe and John test it the evening of Tue Oct 6 2026;
 the real proof arrives with T06, when there is a server to connect to.
 
-**Watch for later:** ping goes 25 ms to 107 ms while the line is uploading. That is bufferbloat, and
-the server uploads constantly to every player. If matches feel laggy at 8+ players, this is the first
-suspect, and the fix is a router queue setting, not game code (see T06).
+**Watch for later:** Ping rises from 25 ms to 107 ms only when the upload is maxed out, which the
+speed test does on purpose. The game server needs about 1-3 Mbps of the 31, so on its own it stays
+near 25 ms. The risk is something else maxing the upload during a match: OneDrive, phone photo
+backups, video calls. Pause them while hosting. The Xfinity gateway has no queue setting to fix this.
 
 **Wired, not wireless:** this PC is on Wi-Fi today. Plug the server into Ethernet before the playtest.
-That changes its local address, so the port forward must be redone for the Ethernet adapter.
+That changes its local address, so the port forward must be redone for the Ethernet adapter, and set
+the Ethernet network to Private so the firewall rule applies.

@@ -5,7 +5,7 @@ Every change follows the same 7 steps. Claude Code does the typing. You decide a
 ## One card, start to finish
 1. **Pick** your card on the Projects board. Cards are GitHub Issues titled like `T05: Arena graybox v0`.
 2. **Start fresh:** in the Claude app's Code tab, start a new session on the game folder.
-3. **Type** `/build-card 12` (12 = the issue number). Claude reads the card, updates main, creates your branch and shows a plan.
+3. **Type** `/build-card T12` (T12 = the card number from the backlog, not the issue number). Claude reads the card, updates main, creates your branch and shows a plan.
 4. **Approve** the plan by typing `go`, or say what to change.
 5. **Test** in Godot: **F5** runs the whole game, **F6** runs the scene you have open. Do the card's "Done when" checks. Tell Claude what's wrong in plain words; drag a screenshot into the chat.
 6. **Ship:** type `ship it`. Claude runs the smoke test, commits, pushes and opens the pull request.
@@ -24,7 +24,7 @@ Every change follows the same 7 steps. Claude Code does the typing. You decide a
 
 | You want to... | Type |
 | --- | --- |
-| Start a card | `/build-card 12` |
+| Start a card | `/build-card T12` |
 | Fix a bug card | `/fix-bug 31` |
 | See the plan before any change | `Plan first. Don't edit anything yet.` |
 | Undo the last change | `Undo your last change.` |

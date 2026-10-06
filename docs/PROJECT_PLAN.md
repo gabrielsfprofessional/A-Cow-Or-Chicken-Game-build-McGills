@@ -1,8 +1,8 @@
 # A Cow or Chicken: Project Plan
 
-v1.0 · Oct 3, 2026 · Owner: Gabe · Engine: Godot 4.7.2
+v1.1 · Oct 6, 2026 · Owner: Gabe · Engine: Godot 4.7.2
 
-**Bottom line:** a 2D top-down fantasy and sci-fi hero shooter for 5-16 family players. **Arena** mode ships for the Thanksgiving playtest (Thu Nov 26, 2026). **Battle Royale with unlocks** ships as v1 (Sat Feb 27, 2027). The plan fits only if each builder gives about 5 hours a week (Gabe about 8) and Gabe's workload stays protected.
+**Bottom line:** a 2D top-down fantasy and sci-fi hero shooter for 5-16 family players. **Arena** mode ships for the Thanksgiving playtest (Thu Nov 26, 2026). **Battle Royale with unlocks** ships as v1 (Sat Feb 27, 2027). The plan fits only if each builder gives about 5 hours a week (Gabe 7 to Nov 25, then 5) and Gabe's workload stays protected. At those hours the margin is about zero, so cuts come early, not late.
 
 [1 Decisions](#1-decisions) · [2 Expert calls](#2-expert-calls) · [3 Game design](#3-game-design-v1) · [4 Architecture](#4-architecture) · [5 Team](#5-team-and-capacity) · [6 Roadmap](#6-roadmap) · [7 Testing and release](#7-testing-and-release) · [8 Risks](#8-risks) · [9 Open decisions](#9-open-decisions)
 
@@ -32,7 +32,7 @@ Made at the Oct 3 kickoff. Fixed unless the whole team agrees to change them.
 These shape the whole plan. Ordered by how badly each problem would hurt.
 
 1. **Gabe holds the two hardest jobs** (tech lead plus Heroes & Combat: 13 of the 37 cards before Thanksgiving). Combat is data-driven so Adam builds weapons as data and John owns visuals. A 4th builder would take test bots and balance.
-2. **Home hosting has three traps:** CGNAT blocks hosting, weak upload causes lag, and players in Gabe's house can't join by his public address. Test in week 1 (T03), require 10 Mbps upload, add LAN discovery.
+2. **Home hosting has three traps:** CGNAT blocks hosting, weak upload causes lag, and players in Gabe's house can't join by his public address. Test in week 1 (T03), require 10 Mbps upload, add LAN discovery. **Settled Oct 6:** cable, no CGNAT, 31 Mbps upload, UDP 7777 forwarded. Home hosting works; the cloud VM is off the table. Same-house joining still needs the LAN discovery in T10.
 3. **Unlocks never add power.** Every hero is free from day one, weapon unlocks are sidegrades, cosmetics are looks only. Otherwise the 12-year-old and the 65-year-old lose every match.
 4. **20-minute matches punish early deaths.** Arena's score limit is tuned so matches usually end in 12-15 minutes (20-minute cap). Battle Royale lets players redeploy until the zone's second close.
 5. **15+ players in one match needs 15+ Windows PCs in one place.** Count working laptops by Nov 1; run rotations of 8-10 if short.
@@ -200,14 +200,15 @@ tests/          Gabe GUT unit tests
 
 | Person | Role | Assumed hours/week |
 | --- | --- | --- |
-| Gabe | Tech lead + Heroes & Combat; reviews and merges every pull request, releases, runs the server | 8 |
+| Gabe | Tech lead + Heroes & Combat; reviews and merges every pull request, releases, runs the server | 7 until Nov 25, then 5 |
 | Adam | Maps & Modes; Arena and Battle Royale rules, zone, loot, weapon data, balance passes | 5 |
 | John | Look, Sound & Players; art, sound, menus, HUD, profiles, leaderboard; runs playtests and the bug list | 5 |
 | 4th builder (if any) | Test & Balance (suggested): test bots, bug reproduction, balance passes | 5 |
 
-- **Available:** 18 hours a week x 21 weeks to Feb 27 is about 380 hours; minus Thanksgiving and Christmas weeks, about 340.
+- **Available:** 17 hours a week to Nov 25 (Gabe 7, Adam 5, John 5), then 15. Across 21 weeks to Feb 27 that is about 330 hours; minus Thanksgiving and Christmas weeks, about 300.
 - **Needed:** about 80 cards at roughly 3 hours each (build, test, fix) is 240 hours, plus about 60 hours of syncs and playtests: about 300.
-- **Margin is about 12%.** If anyone averages under 4 hours a week, cut in this order: ultimates, weapon sidegrades, Battle Royale squads (solo only), then Battle Royale moves to v1.1.
+- **Margin is now about zero** (it was 12% when Gabe was assumed at 8 hours). The plan fits only if nothing goes wrong, so expect to use the cut order: ultimates, weapon sidegrades, Battle Royale squads (solo only), then Battle Royale moves to v1.1. Cut early rather than late.
+- **Gabe's weeks 3 and 4 are the pinch.** Four of his cards fall in each (T07, T08, T13, T14, then T09, T18, T21, T22): about 12 hours of work against 7 available. Move cards out or accept slipping into weeks 4 and 5.
 - **Critical path:** Gabe's online foundation (T06-T08) blocks online testing. Adam and John start with work that doesn't need it.
 - **Plan B for Thanksgiving:** if Gabe loses two or more weeks, ship a LAN-only Arena with 2 heroes and placeholder art.
 - **Claude limits:** Gabe will use the most Claude Code. If he hits his Pro limit 3+ days a week, move cards to others first; upgrading only his plan is the fallback.
@@ -237,7 +238,7 @@ gantt
 
 | Gate | Date | Pass when | If it fails |
 | --- | --- | --- | --- |
-| Gate 1 | Sat Oct 17 | Adam's and John's PCs join Gabe's server from their own houses; 8 bots run 10 minutes without a disconnect; art pack picked | Fix hosting before anything else |
+| Gate 1 | Sat Oct 17 | T06 merged; John and Adam join Gabe's server from their own houses; art pack picked | Fix hosting before anything else |
 | Gate 2 | Sat Nov 14 | An 8-player Arena match with plain art is fun and has no crash bugs | Change the rules before adding art, or switch to Plan B |
 | Gate 3 | Sat Jan 16 | Every v1 feature works end to end | After this date, only fixes and balance |
 
@@ -264,7 +265,7 @@ Cadence: a 30-minute sync every week, merges on three fixed days a week, family 
 5. Stop the server, back up the saves, start the new server build.
 6. Post in the family chat: version, what's new, the link.
 
-**Server runbook (Gabe's PC):** a desktop shortcut starts the headless server; Windows never sleeps while it runs; Task Scheduler copies the saves folder to Google Drive every night at 3 a.m.; to restore, stop the server, copy the backup over the saves folder, start it again. If the server is down at a gathering, run the server build on any laptop there; LAN discovery finds it.
+**Server runbook (Gabe's PC):** pause OneDrive, backups and video calls while hosting, since anything that maxes the upload adds about 80 ms of lag for every player; a desktop shortcut starts the headless server; Windows never sleeps while it runs; Task Scheduler copies the saves folder to Google Drive every night at 3 a.m.; to restore, stop the server, copy the backup over the saves folder, start it again. If the server is down at a gathering, run the server build on any laptop there; LAN discovery finds it.
 
 **Family install guide (one page, John):** open the Drive link and download the game; if Windows says "Windows protected your PC", click More info, then Run anyway; if Windows asks about network access, click Allow; pick a name and a color, then click Play.
 
@@ -275,11 +276,11 @@ Reviewed by John at every weekly sync.
 | # | Risk | Severity | Early warning | Mitigation | Owner |
 | --- | --- | --- | --- | --- | --- |
 | 1 | Gabe overloaded or unavailable | High | His cards slip two weeks in a row | Data-driven combat, a 4th builder, Plan B for Thanksgiving | Gabe |
-| 2 | Home hosting fails: CGNAT, slow upload, same-house joining | High | T03 fails | LAN discovery; free cloud VM fallback; run the server at the gathering | Gabe |
+| 2 | Home hosting fails: CGNAT, slow upload, same-house joining | ~~High~~ Low | ~~T03 fails~~ T03 passed Oct 6 | Hosting confirmed: cable, no CGNAT, 31 Mbps up. Cloud VM no longer needed. Still open: same-house joining needs LAN discovery (T10), and the server PC should be wired before the playtest | Gabe |
 | 3 | Scope creep | High | New ideas land in "This week"; Alpha slips past Jan 16 | Later list, Jan 16 feature freeze, the cut order in section 5 | All |
 | 4 | Not enough PCs at Thanksgiving | High | Fewer than 10 laptops named by Nov 1 | Borrow laptops; rotations of 8-10; practice range for waiting players | John |
 | 5 | Skill gap ruins it for casual players | Medium | Youngest or oldest players rate fun under 3 | Rating-based balance, sidegrade-only unlocks, spawn protection | Adam |
-| 6 | Online play feels laggy | Medium | Playtesters report late hits | Slower visible bullets; draw your own shots instantly while the server still decides hits | Gabe |
+| 6 | Online play feels laggy | Medium | Playtesters report late hits | Slower visible bullets; draw your own shots instantly while the server still decides hits. Gabe's line jumps 25 ms to 107 ms when its upload is maxed, so pause OneDrive, backups and video calls while hosting | Gabe |
 | 7 | Family on mismatched versions | Medium | Players can't join after a release | Exact version check with a clear message, one Drive link, a release post | Gabe |
 | 8 | Wi-Fi congestion at Thanksgiving | Medium | Stutter at the Nov 21 dress rehearsal | Server on a wired PC, 5 GHz Wi-Fi, fewer other devices online | Gabe |
 | 9 | Art looks inconsistent | Medium | Bake-off screenshots don't match | One pack family; John approves every new asset | John |
@@ -290,13 +291,13 @@ Reviewed by John at every weekly sync.
 
 ## 9. Open decisions
 
-| Decision | Owner | Due | Default if undecided |
+| Decision | Owner | Due | Decided, or the default if not |
 | --- | --- | --- | --- |
-| Who is tech lead | Gabe | Oct 4 | Gabe, as this plan assumes |
-| Weekly sync day and time | All | Oct 4 | Sunday evening, 30 minutes, video call |
-| Real hours per week per person | All | Oct 4 | Gabe 8, Adam 5, John 5 (filled in by T02) |
+| ~~Who is tech lead~~ **Decided Oct 6** | Gabe | Oct 4 | **Gabe.** |
+| ~~Weekly sync day and time~~ **Decided Oct 6** | All | Oct 4 | **Thursday 5:00 pm**, 30 minutes. |
+| Real hours per week per person | All | Oct 4 | **Gabe 7 until Nov 25, then 5** (decided Oct 6). Adam and John still to confirm in T02. |
 | Is there a 4th builder, and in which role | Gabe | Oct 10 | No; Gabe keeps T09 test bots |
-| Gabe's internet: type, upload speed, CGNAT | Gabe | Oct 10 | If CGNAT, a free cloud VM runs the server |
+| ~~Gabe's internet: type, upload speed, CGNAT~~ **Decided Oct 6 (T03)** | Gabe | Oct 10 | **Cable (Xfinity), 31 Mbps upload, no CGNAT. Home hosting is confirmed; no cloud VM needed.** |
 | Repo stays public or goes private | Gabe | Oct 10 | Public, with server address and saves git-ignored |
 | Art pack family | John | Oct 17 | The bake-off winner |
 | Hero names and looks; cows and chickens or not | John, Gabe | Oct 17 | The working names in section 3 |

@@ -38,4 +38,4 @@ Rules: only change files in _bakeoff/, docs/art-bakeoff/ and docs/team/john.md. 
 - Anything else: screenshot it and send it to the family chat.
 
 ## After this
-Your next cards: T10 (Join screen), T11 (profile), T16 (lobby and hero select), T17 (HUD), T26 (Thanksgiving logistics). Start each in a fresh session with `/build-card <issue number>`.
+Your next cards: T10 (Join screen), T11 (profile), T16 (lobby and hero select), T17 (HUD), T26 (Thanksgiving logistics). Start each in a fresh session with `/build-card T<NN>`.

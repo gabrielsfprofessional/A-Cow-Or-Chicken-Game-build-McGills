@@ -29,7 +29,7 @@ I'm Gabe: tech lead and Heroes & Combat owner for "A Cow or Chicken". I copied t
 
 4. Card T03, home network check, on branch gabe/t03-network-check. I do the router and admin steps; you give exact instructions for: a CGNAT test (router WAN IP vs. public IP), an upload speed test (need 10 Mbps or more), forwarding UDP 7777 to this PC, and the admin PowerShell command for an inbound Windows Firewall rule on UDP 7777. Record yes/no answers and Mbps in docs/team/gabe.md, never my IP address. Ship it as a pull request that closes the T03 issue, then merge it once "smoke" is green.
 
-5. Write the message I'll post in the family chat: the repo is ready, accept the GitHub invite, then follow README.md "Start here". Then stop. Next session I start T06 with /build-card.
+5. Write the message I'll post in the family chat: the repo is ready, accept the GitHub invite, then follow README.md "Start here". Then stop. Next session I start T06 with /build-card T06.
 ```
 
 ## What happens
@@ -45,4 +45,4 @@ I'm Gabe: tech lead and Heroes & Combat owner for "A Cow or Chicken". I copied t
 - CGNAT confirmed (T03): tell Claude; the fallback is a free cloud VM for the server (PROJECT_PLAN section 9).
 
 ## After this
-Your next cards: T06, T07, T08, T09, then T13, T14. Start each in a fresh session with `/build-card <issue number>`. Review and merge Adam's and John's pull requests on your three fixed review days.
+Your next cards: T06, T07, T08, T09, then T13, T14. Start each in a fresh session with `/build-card T<NN>`. Review and merge Adam's and John's pull requests on your three fixed review days.
