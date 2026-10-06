@@ -1,6 +1,6 @@
 # Backlog
 
-Every task is a card. Gabe turns each row below into a GitHub Issue titled `TNN: Card` (his Prompt 1, step 3). Work any card with `/build-card <issue number>`.
+Every task is a card. Gabe turns each row below into a GitHub Issue titled `TNN: Card` (his Prompt 1, step 3). Work any card with `/build-card T<NN>`, using the card number in the first column. Issue numbers drift away from card numbers because pull requests take numbers too.
 
 ## Labels
 `core` `net` `server` `heroes` `weapons` `maps` `modes` `items` `ui` `players` `art` `audio` `docs` `tests` `bug` `blocker`
@@ -17,7 +17,7 @@ Every task is a card. Gabe turns each row below into a GitHub Issue titled `TNN:
 
 Weeks: 1 = Oct 4-10 · 2 = Oct 11-17 · 3 = Oct 18-24 · 4 = Oct 25-31 · 5 = Nov 1-7 · 6 = Nov 8-14 · 7 = Nov 15-21 · 8 = Nov 22-25
 
-## To Thanksgiving: Arena mode (T01-T37)
+## To Thanksgiving: Arena mode (T01-T38)
 
 | # | Card | Owner | Week | Label | Depends on | Done when |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -26,13 +26,13 @@ Weeks: 1 = Oct 4-10 · 2 = Oct 11-17 · 3 = Oct 18-24 · 4 = Oct 25-31 · 5 = No
 | T03 | Home network check: CGNAT test, upload speed, UDP 7777 forward, firewall rule | Gabe | 1 | net | none | Upload is 10 Mbps or more; port reachable from Adam's house |
 | T04 | Art bake-off: one mock scene from each of two Kenney packs | John | 1 | art | T01 | Team picks one pack family |
 | T05 | Arena graybox v0: walls, cover, 8 spawn points, fly camera | Adam | 1 | maps | T01 | Walkable map with no dead ends |
-| T06 | Online foundation: headless server, join by address, one hero per connection, version check | Gabe | 1-2 | net | T01, T03 | Two PCs in different houses see each other |
-| T07 | Movement: own hero moves locally; others smoothed 100 ms behind | Gabe | 2 | net | T06 | Smooth motion with 4 windows open |
-| T08 | First weapon: server-decided hits, health, death, 4 s respawn | Gabe | 2 | heroes | T07 | Two players can eliminate each other |
-| T09 | Test bots: headless clients that join, wander and shoot; smoke test starts server + 2 bots | Gabe | 2 | tests | T08 | One PC runs 8 bots for 10 minutes, no disconnects |
-| T10 | Main menu Play button and Join screen with LAN server list | John | 2 | ui | T06 | A same-house PC finds the server without typing |
-| T11 | Profile: name, color, device token | John | 2 | players | T10 | Profile survives a restart; names show above heroes |
-| T12 | Team spawns and 2 s spawn protection | Adam | 2 | modes | T05, T08 | No spawn eliminations in a 10-minute bot test |
+| T06 | Online foundation: headless server, join by address, one hero per connection, version check | Gabe | 1-2 | net | T01, T03 | Three run instances show 2 squares in each client; a version-mismatch client is refused; John joins from his house |
+| T07 | Movement: own hero moves locally; others smoothed 100 ms behind | Gabe | 3 | net | T06, T11 | Smooth motion with 4 windows open; names show above heroes |
+| T08 | First weapon: server-decided hits, health, death, 4 s respawn | Gabe | 3 | heroes | T07 | Two players can eliminate each other |
+| T09 | Test bots: headless clients that join, wander and shoot; smoke test starts server + 2 bots | Gabe | 4 | tests | T08 | One PC runs 8 bots for 10 minutes, no disconnects |
+| T10 | Main menu Play button and Join screen with LAN server list | John | 2 | ui | T06 | A second PC on the same Wi-Fi sees the server in the list and joins without typing |
+| T11 | Profile: name, color, device token | John | 2 | players | none | First launch opens the profile screen; after Save and a restart the menu shows "Playing as <name>" |
+| T12 | Team spawns and 2 s spawn protection | Adam | 3 | modes | T05, T08 | No spawn eliminations in a 10-minute bot test |
 | T13 | HeroData and WeaponData resources; all numbers in .tres files | Gabe | 3 | heroes | T08 | Changing a number in the Inspector changes the game |
 | T14 | Hero 1 (Fantasy Bruiser) with Shield Charge | Gabe | 3 | heroes | T13 | Ability works online with its cooldown |
 | T15 | Arena rules: 2 teams, auto-balance, score limit, 20-minute cap | Adam | 3 | modes | T12 | A full match ends and declares a winner |
@@ -58,12 +58,13 @@ Weeks: 1 = Oct 4-10 · 2 = Oct 11-17 · 3 = Oct 18-24 · 4 = Oct 25-31 · 5 = No
 | T35 | Dress rehearsal, Sat Nov 21, at the Thanksgiving house | All | 7 | tests | T29 | 8+ laptops play 3 full matches on that Wi-Fi |
 | T36 | Rehearsal fixes; build freeze Tue Nov 24; copies on Drive and 2 USB sticks | Gabe | 8 | core | T35 | Final build installed on every laptop |
 | T37 | Printed quick-start card: install, controls, joining | John | 8 | docs | T29 | A first-timer joins without help |
+| T38 | Settings screen: volume, UI scale, window mode, test sound | John | 3 | ui | T11 | Every setting survives a restart; the test sound follows the SFX and Master sliders; no text is cut off at 150% in a 1280x720 window |
 
 ## Gates
 
 | Gate | Date | Pass when | If it fails |
 | --- | --- | --- | --- |
-| Gate 1 | Sat Oct 17 (after T12) | Adam's and John's PCs join Gabe's server from their own houses; 8 bots run 10 minutes without a disconnect; art pack picked | Fix hosting before anything else |
+| Gate 1 | Sat Oct 17 (after T06) | T06 merged; John and Adam join Gabe's server from their own houses; art pack picked | Fix hosting before anything else |
 | Gate 2 | Sat Nov 14 (T30) | An 8-player Arena match with plain art is fun and has no crash bugs | Change the rules before adding art, or switch to Plan B |
 | Gate 3 | Sat Jan 16 | Every v1 feature works end to end | Only fixes and balance after this date |
 

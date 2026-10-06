@@ -23,7 +23,7 @@ Built with **Godot 4.7.2** and **Claude Code**.
 > Do **not** use the green **Code > Download ZIP** button. A ZIP can't send your work back.
 > Clone with GitHub Desktop ([docs/SETUP.md](docs/SETUP.md), step 6).
 
-After Prompt 1, every task starts the same way: type `/build-card <issue number>` in Claude Code.
+After Prompt 1, every task starts the same way: type `/build-card T<NN>` in Claude Code (T05, T12 and so on).
 See [docs/WORKFLOW.md](docs/WORKFLOW.md).
 
 ## Who owns what

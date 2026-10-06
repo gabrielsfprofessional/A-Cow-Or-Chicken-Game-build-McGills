@@ -35,4 +35,4 @@ Rules: only change files in game/maps/ and docs/team/adam.md. Never push to main
 - Anything else: screenshot it and send it to the family chat.
 
 ## After this
-Your next cards: T12 (team spawns), T15 (Arena rules), T19 (weapon data), T20 (practice range), T23 (Arena map v1). Start each in a fresh session with `/build-card <issue number>`.
+Your next cards: T12 (team spawns), T15 (Arena rules), T19 (weapon data), T20 (practice range), T23 (Arena map v1). Start each in a fresh session with `/build-card T<NN>`.
