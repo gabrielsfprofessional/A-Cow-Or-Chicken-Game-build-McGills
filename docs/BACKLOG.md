@@ -27,7 +27,7 @@ Weeks: 1 = Oct 4-10 · 2 = Oct 11-17 · 3 = Oct 18-24 · 4 = Oct 25-31 · 5 = No
 | T04 | Art bake-off: one mock scene from each of two Kenney packs | John | 1 | art | T01 | Team picks one pack family |
 | T05 | Arena graybox v0: walls, cover, 8 spawn points, fly camera | Adam | 1 | maps | T01 | Walkable map with no dead ends |
 | T06 | Online foundation: headless server, join by address, one hero per connection, version check | Gabe | 1-2 | net | T01, T03 | Three run instances show 2 squares in each client; a version-mismatch client is refused; John joins from his house |
-| T07 | Movement: own hero moves locally; others smoothed 100 ms behind | Gabe | 3 | net | T06, T11 | Smooth motion with 4 windows open; names show above heroes |
+| T07 | Movement: own hero moves locally; others smoothed 100 ms behind | Gabe | 3 | net | T06 | Smooth motion with 4 windows open |
 | T08 | First weapon: server-decided hits, health, death, 4 s respawn | Gabe | 3 | heroes | T07 | Two players can eliminate each other |
 | T09 | Test bots: headless clients that join, wander and shoot; smoke test starts server + 2 bots | Gabe | 4 | tests | T08 | One PC runs 8 bots for 10 minutes, no disconnects |
 | T10 | Main menu Play button and Join screen with LAN server list | John | 2 | ui | T06 | A second PC on the same Wi-Fi sees the server in the list and joins without typing |
@@ -37,7 +37,7 @@ Weeks: 1 = Oct 4-10 · 2 = Oct 11-17 · 3 = Oct 18-24 · 4 = Oct 25-31 · 5 = No
 | T14 | Hero 1 (Fantasy Bruiser) with Shield Charge | Gabe | 3 | heroes | T13 | Ability works online with its cooldown |
 | T15 | Arena rules: 2 teams, auto-balance, score limit, 20-minute cap | Adam | 3 | modes | T12 | A full match ends and declares a winner |
 | T16 | Lobby and hero select | John | 3 | ui | T11, T13 | 4 players pick heroes and start a match |
-| T17 | HUD: health, Q cooldown, team scores, timer | John | 3 | ui | T13 | All values update live online |
+| T17 | HUD: health, Q cooldown, team scores, timer | John | 3 | ui | T13 | All values update live online; names show above heroes |
 | T18 | Heroes 2-4 with their Q abilities | Gabe | 4 | heroes | T14 | All 4 heroes playable online |
 | T19 | Six base weapons as data files | Adam | 4 | weapons | T13 | All 6 usable in the practice range |
 | T20 | Practice range with target dummies | Adam | 4 | maps | T08 | Dummies show damage numbers |
@@ -50,7 +50,7 @@ Weeks: 1 = Oct 4-10 · 2 = Oct 11-17 · 3 = Oct 18-24 · 4 = Oct 25-31 · 5 = No
 | T27 | Balance pass 1 (data only) | Adam | 5 | weapons | T18, T19 | No hero or weapon wins every bot test |
 | T28 | Family leaderboard screen | John | 6 | ui | T22 | Top 10 by wins and by eliminations |
 | T29 | Release pipeline: client .exe, server build, version bump, server.cfg in export, Godot license in credits, Drive upload, install guide | Gabe | 6 | core | T06 | A non-builder installs and joins in 5 minutes |
-| T30 | Internal 8-player playtest and bug bash | All | 6 | tests | T23-T29 | Gate 2 passed |
+| T30 | Internal 8-player playtest and bug bash | All | 6 | tests | T09, T14, T15, T16, T17, T19, T23, T25 | Gate 2 passed |
 | T31 | Art pass: heroes, weapons, tiles, projectiles | John | 7 | art | T04, T18 | No placeholder art left in Arena |
 | T32 | Sound pass: weapons, abilities, UI, one music loop | John | 7 | audio | T18 | Every action has a sound |
 | T33 | Motion polish: walk bob, recoil, hit squash, elimination puff (code-driven, no frame animation) | John | 7 | art | T31 | Heroes feel alive |
