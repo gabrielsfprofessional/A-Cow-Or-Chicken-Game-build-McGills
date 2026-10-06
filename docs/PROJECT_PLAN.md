@@ -208,6 +208,9 @@ tests/          Gabe GUT unit tests
 - **Available:** 17 hours a week to Nov 25 (Gabe 7, Adam 5, John 5), then 15. Across 21 weeks to Feb 27 that is about 330 hours; minus Thanksgiving and Christmas weeks, about 300.
 - **Needed:** about 80 cards at roughly 3 hours each (build, test, fix) is 240 hours, plus about 60 hours of syncs and playtests: about 300.
 - **Margin is now about zero** (it was 12% when Gabe was assumed at 8 hours). The plan fits only if nothing goes wrong, so expect to use the cut order: ultimates, weapon sidegrades, Battle Royale squads (solo only), then Battle Royale moves to v1.1. Cut early rather than late.
+- **Pre-Thanksgiving cuts.** The cut order above only removes Alpha and v1 work, so it frees no time before Nov 26. These two rules do:
+  - T08 builds its weapon on a WeaponData resource from the start, so T13 only adds HeroData.
+  - If T14 isn't merged by Sun Nov 1, T18 ships one hero (Sci-fi Scout), and Mage and Medic move to Alpha.
 - **Gabe's weeks 3 and 4 are the pinch.** Four of his cards fall in each (T07, T08, T13, T14, then T09, T18, T21, T22): about 12 hours of work against 7 available. Move cards out or accept slipping into weeks 4 and 5.
 - **Critical path:** Gabe's online foundation (T06-T08) blocks online testing. Adam and John start with work that doesn't need it.
 - **Plan B for Thanksgiving:** if Gabe loses two or more weeks, ship a LAN-only Arena with 2 heroes and placeholder art.
