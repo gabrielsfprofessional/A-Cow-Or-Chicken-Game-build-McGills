@@ -56,12 +56,20 @@ signals and shows the reason, drop the `_return_to_menu` call from `game/core/ne
 
 ## Running it
 
-Server (headless, no window):
+Nobody needs to type any of this. Double-click the two launchers in `tools/`:
+
+| Double-click | What happens |
+| --- | --- |
+| `tools/run_server.bat` | Starts the server on this PC. A black window opens and says `server up`. Leave it open while everyone plays; close it to stop the server. |
+| `tools/join_game.bat` | Asks `Server address (Enter = this PC)`, then opens the game and joins. Enter alone means `127.0.0.1`. You can also drop an address on it, or pass one: `join_game.bat 192.168.1.20`. |
+
+`run_server.bat` uses the console build at `C:\Godot`, or the `GODOT` environment
+variable when it is set. Both launchers run from the repo root no matter where
+they are started from.
+
+The same thing by hand, for a terminal:
 
     C:\Godot\Godot_v4.7.2-stable_win64_console.exe --headless --path . -- --server
-
-Client (skips the main menu and goes straight into the test world):
-
     C:\Godot\Godot_v4.7.2-stable_win64.exe --path . -- --join=127.0.0.1
 
 `-- --join` with no address uses `Net.server_address()`. In the editor use
