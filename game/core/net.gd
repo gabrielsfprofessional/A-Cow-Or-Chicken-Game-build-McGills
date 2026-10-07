@@ -24,6 +24,8 @@ const MAX_PLAYERS: int = 16
 const CONFIG_PATH: String = "res://server.cfg"
 ## How long a client waits for the server before it gives up.
 const JOIN_TIMEOUT: float = 5.0
+## How long the server waits before dropping a version-mismatched peer.
+const REFUSE_DELAY: float = 1.0
 const TEST_WORLD: String = "res://game/net/test_world.tscn"
 const MAIN_MENU: String = "res://game/ui/main_menu.tscn"
 ## Frames the auto-join waits for the world to load before it gives up.
@@ -224,7 +226,9 @@ func _on_auth(id: int, data: PackedByteArray) -> void:
 		if peer_version != mine:
 			_log("refused peer %d: version mismatch (server %s, peer %s)" % [id, mine, peer_version])
 			_peer_versions.erase(id)
-			api.disconnect_peer.call_deferred(id)
+			# Disconnecting now would clear the outgoing queue and drop the
+			# version we just sent, so the client could not name it.
+			_refuse_later(id)
 			return
 		api.complete_auth(id)
 		return
@@ -236,6 +240,14 @@ func _on_auth(id: int, data: PackedByteArray) -> void:
 		_fail_join.call_deferred(_mismatch_reason(peer_version, mine))
 		return
 	api.complete_auth(id)
+
+
+## Disconnects a refused peer after REFUSE_DELAY, if it hasn't already left.
+func _refuse_later(id: int) -> void:
+	await get_tree().create_timer(REFUSE_DELAY).timeout
+	var api := multiplayer as SceneMultiplayer
+	if api != null and id in api.get_authenticating_peers():
+		api.disconnect_peer(id)
 
 
 func _on_peer_authentication_failed(id: int) -> void:
