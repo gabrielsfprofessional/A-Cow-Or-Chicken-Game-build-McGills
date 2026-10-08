@@ -25,6 +25,6 @@ Both mocks draw every sprite at exactly 3x (48 px, the size of our T06 heroes) a
 
 How the ratings were made: Claude looked at the sprites in each pack's tilesheet and in the mock screenshots. Anyone can change a rating before the vote.
 
-**Family vote:**
+**Family vote:** Oct 8, 2026. Everyone said they want both packs (A and B).
 
-**Decision (date and pack):**
+**Decision (date and pack):** Oct 8, 2026. Both packs: A (Kenney 1-Bit Pack) and B (Kenney Tiny Dungeon). Gabe to confirm how they mix.
