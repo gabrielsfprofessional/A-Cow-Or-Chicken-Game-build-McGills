@@ -17,9 +17,9 @@ Both mocks draw every sprite at exactly 3x (48 px, the size of our T06 heroes) a
 | Pickups | yes | partly |
 | Team colors readable at a glance | yes | partly |
 | Cow and chicken sprites (our title) | yes for the cow, partly for the chicken ([animals.png](animals.png)) | no, B has none |
-| Heroes easy to see at 48 px | partly | yes |
+| Heroes easy to see at 48 px | yes | yes |
 
-**A, Missing:** a clear sniper rifle for long range; sci-fi heroes are only robots and astronaut helmets; no bullet or rocket sprites (arrows only); the chicken is a round blob with a comb and looks a bit like a duck, though the cow is clearly a cow (see [animals.png](animals.png), pack A at 8x). A's heroes are thin white outlines that we tint, so at 48 px they are small and easy to lose against the busy floor.
+**A, Missing:** a clear sniper rifle for long range; sci-fi heroes are only robots and astronaut helmets; no bullet or rocket sprites (arrows only); the chicken is a round blob with a comb and looks a bit like a duck, though the cow is clearly a cow (see [animals.png](animals.png), pack A at 8x). A's heroes are thin outlines that we tint, so at 48 px they are small, but on a plain near-black floor (the pack's own white-on-black look) the blue and orange tints stand out clearly; the busy dotted floor tile is what hid them before, so we can skip it.
 
 **B, Missing:** every sci-fi hero (the mock shows "missing" boxes); all guns (only swords, axes and a hammer); a shield pickup (the mock uses a blue potion); a health bar, score and timer pieces; cow and chicken.
 
