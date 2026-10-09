@@ -1,6 +1,7 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://game/ui/main_menu.gd" id="1_menu"]
+[ext_resource type="Script" path="res://game/ui/ui_scaler.gd" id="2_scaler"]
 
 [node name="MainMenu" type="Control"]
 layout_mode = 3
@@ -58,10 +59,20 @@ theme_override_font_sizes/font_size = 32
 disabled = true
 text = "Practice Range (card T20)"
 
+[node name="SettingsButton" type="Button" parent="Center/Menu"]
+custom_minimum_size = Vector2(520, 72)
+layout_mode = 2
+theme_override_font_sizes/font_size = 32
+text = "Settings"
+
 [node name="QuitButton" type="Button" parent="Center/Menu"]
 custom_minimum_size = Vector2(520, 72)
 layout_mode = 2
 theme_override_font_sizes/font_size = 32
 text = "Quit"
 
+[node name="UiScaler" type="Node" parent="."]
+script = ExtResource("2_scaler")
+
+[connection signal="pressed" from="Center/Menu/SettingsButton" to="." method="_on_settings_pressed"]
 [connection signal="pressed" from="Center/Menu/QuitButton" to="." method="_on_quit_pressed"]

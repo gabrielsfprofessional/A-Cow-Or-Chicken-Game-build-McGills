@@ -5,5 +5,6 @@ Every asset in the game is CC0 or made by us. Add one row per pack or file the d
 | Asset | Author | License | Link | Added by |
 | --- | --- | --- | --- | --- |
 | Godot Engine 4.7.2 | Godot Foundation and contributors | MIT | https://godotengine.org/license | Gabe |
+| UI Audio (audio/ui/click.ogg, from click1.ogg) | Kenney (kenney.nl) | CC0 | https://kenney.nl/assets/ui-audio | John |
 
 Godot's MIT license text must ship with the game. Card T29 adds it to an in-game credits screen.

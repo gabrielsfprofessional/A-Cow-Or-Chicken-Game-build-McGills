@@ -1,0 +1,149 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://game/ui/settings_screen.gd" id="1_screen"]
+[ext_resource type="Script" path="res://game/ui/ui_scaler.gd" id="2_scaler"]
+[ext_resource type="AudioStream" path="res://audio/ui/click.ogg" id="3_click"]
+
+[node name="SettingsScreen" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_screen")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.11, 0.12, 0.16, 1)
+
+[node name="Center" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Rows" type="VBoxContainer" parent="Center"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="Title" type="Label" parent="Center/Rows"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 72
+text = "Settings"
+horizontal_alignment = 1
+
+[node name="Grid" type="GridContainer" parent="Center/Rows"]
+layout_mode = 2
+theme_override_constants/h_separation = 32
+theme_override_constants/v_separation = 18
+columns = 3
+
+[node name="MasterLabel" type="Label" parent="Center/Rows/Grid"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 32
+text = "Master volume"
+
+[node name="MasterSlider" type="HSlider" parent="Center/Rows/Grid"]
+custom_minimum_size = Vector2(480, 40)
+layout_mode = 2
+size_flags_vertical = 4
+step = 1.0
+value = 100.0
+
+[node name="MasterValue" type="Label" parent="Center/Rows/Grid"]
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 32
+text = "100%"
+horizontal_alignment = 2
+
+[node name="MusicLabel" type="Label" parent="Center/Rows/Grid"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 32
+text = "Music volume"
+
+[node name="MusicSlider" type="HSlider" parent="Center/Rows/Grid"]
+custom_minimum_size = Vector2(480, 40)
+layout_mode = 2
+size_flags_vertical = 4
+step = 1.0
+value = 100.0
+
+[node name="MusicValue" type="Label" parent="Center/Rows/Grid"]
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 32
+text = "100%"
+horizontal_alignment = 2
+
+[node name="SfxLabel" type="Label" parent="Center/Rows/Grid"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 32
+text = "SFX volume"
+
+[node name="SfxSlider" type="HSlider" parent="Center/Rows/Grid"]
+custom_minimum_size = Vector2(480, 40)
+layout_mode = 2
+size_flags_vertical = 4
+step = 1.0
+value = 100.0
+
+[node name="SfxValue" type="Label" parent="Center/Rows/Grid"]
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 32
+text = "100%"
+horizontal_alignment = 2
+
+[node name="ScaleLabel" type="Label" parent="Center/Rows/Grid"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 32
+text = "UI scale"
+
+[node name="ScaleOption" type="OptionButton" parent="Center/Rows/Grid"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 32
+
+[node name="ScaleSpacer" type="Control" parent="Center/Rows/Grid"]
+layout_mode = 2
+
+[node name="WindowLabel" type="Label" parent="Center/Rows/Grid"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 32
+text = "Window mode"
+
+[node name="WindowOption" type="OptionButton" parent="Center/Rows/Grid"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 32
+
+[node name="WindowSpacer" type="Control" parent="Center/Rows/Grid"]
+layout_mode = 2
+
+[node name="TestButton" type="Button" parent="Center/Rows"]
+custom_minimum_size = Vector2(520, 64)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 32
+text = "Test sound"
+
+[node name="BackButton" type="Button" parent="Center/Rows"]
+custom_minimum_size = Vector2(520, 64)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 32
+text = "Back"
+
+[node name="TestPlayer" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("3_click")
+bus = &"SFX"
+
+[node name="UiScaler" type="Node" parent="."]
+script = ExtResource("2_scaler")
