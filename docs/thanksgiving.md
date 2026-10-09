@@ -23,14 +23,14 @@ Works = it runs the game. Windows = it is a Windows PC. Goal: 10 or more "yes" i
 |---|---|---|---|
 | John (desktop) | yes | yes | John, many times |
 | Gabe (laptop) | yes | yes | Gabe and the team, many times |
-| Gabe (second laptop) | yes | yes | Gabe and the team, many times |
-| Gabe (third laptop) | yes | yes | Gabe and the team, many times |
+| Gabe (second laptop) | yes | not tested | |
+| Gabe (third laptop) | yes | not tested | |
 | Adam (laptop) | yes | yes | Adam and the team, many times |
 | Frank (laptop) | yes | yes | Frank and the team, many times |
-| Frank (desktop) | yes | yes | Frank and the team, many times |
-| Frank (second laptop) | yes | yes | Frank and the team, many times |
-| Frank (third laptop) | yes | yes | Frank and the team, many times |
-| Frank (fourth laptop) | yes | yes | Frank and the team, many times |
+| Frank (desktop) | yes | not tested | |
+| Frank (second laptop) | yes | not tested | |
+| Frank (third laptop) | yes | not tested | |
+| Frank (fourth laptop) | yes | not tested | |
 
 ## If we are short
 - Fewer than 10 working laptops by Nov 1: borrow laptops.
