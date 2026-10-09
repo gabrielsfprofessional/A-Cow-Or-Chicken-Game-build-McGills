@@ -302,7 +302,7 @@ Reviewed by John at every weekly sync.
 | Is there a 4th builder, and in which role | Gabe | Oct 10 | No; Gabe keeps T09 test bots |
 | ~~Gabe's internet: type, upload speed, CGNAT~~ **Decided Oct 6 (T03)** | Gabe | Oct 10 | **Cable (Xfinity), 31 Mbps upload, no CGNAT. Home hosting is confirmed; no cloud VM needed.** |
 | Repo stays public or goes private | Gabe | Oct 10 | Public, with server address and saves git-ignored |
-| Art pack family | John | Oct 17 | The bake-off winner |
+| ~~Art pack family~~ **Decided Oct 8 (T04)** | John | Oct 17 | **Both packs: A (Kenney 1-Bit Pack) and B (Kenney Tiny Dungeon).** The family vote wanted both; Gabe to confirm how they mix. |
 | Hero names and looks; cows and chickens or not | John, Gabe | Oct 17 | The working names in section 3 |
 | Final key bindings | Gabe | Oct 24 | As in the Controls table |
 | Thanksgiving location and laptop count | John | Nov 1 | Gabe's house, server on site |
