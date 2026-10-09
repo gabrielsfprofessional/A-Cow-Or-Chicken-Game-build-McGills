@@ -17,7 +17,7 @@ No street addresses, phone numbers, Wi-Fi names or passwords. Those stay in the 
 - [ ] Tested at the Nov 21 rehearsal with 8 or more laptops.
 
 ## Laptop list
-Works = it runs the game. Windows = it is a Windows PC. Goal: 10 or more "yes" in the Works column.
+Works = it runs the game. Windows = it is a Windows PC. Goal: 10 or more Windows laptops named by Nov 1. Works is checked with the first installer (card T29, from Nov 14).
 
 | Person (first name) | Windows? | Works? | Tested by |
 |---|---|---|---|
