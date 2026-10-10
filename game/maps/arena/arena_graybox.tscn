@@ -49,12 +49,12 @@ position = Vector2(3024, 1632)
 size = Vector2(240, 48)
 
 [node name="Cover05" parent="Cover" instance=ExtResource("2_block")]
-position = Vector2(672, 912)
-size = Vector2(48, 336)
+position = Vector2(672, 816)
+size = Vector2(48, 528)
 
 [node name="Cover06" parent="Cover" instance=ExtResource("2_block")]
-position = Vector2(3120, 912)
-size = Vector2(48, 336)
+position = Vector2(3120, 816)
+size = Vector2(48, 528)
 
 [node name="Cover07" parent="Cover" instance=ExtResource("2_block")]
 position = Vector2(1104, 624)

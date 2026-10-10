@@ -92,6 +92,7 @@ func find_problems() -> PackedStringArray:
 		problems.append("There are %d cover blocks; the arena needs %d-%d." % [cover.size(), MIN_COVER, MAX_COVER])
 	_check_gaps(all, problems)
 	var spawns: Dictionary = _check_spawns(all, problems)
+	_check_sight(all, spawns, problems)
 	if spawns.has("SpawnA1"):
 		_check_walkable(all, spawns, problems)
 	return problems
@@ -210,6 +211,30 @@ func _check_spawns(blocks: Array[ArenaBlock], problems: PackedStringArray) -> Di
 				break
 		points[spawn_name] = point
 	return points
+
+
+## Every straight line from an A spawn to a B spawn must cross a block, so nobody spawns
+## in an enemy's sights. A line that only grazes a corner does not count as crossing.
+func _check_sight(blocks: Array[ArenaBlock], spawns: Dictionary, problems: PackedStringArray) -> void:
+	var outlines: Array[PackedVector2Array] = []
+	for block: ArenaBlock in blocks:
+		var rect: Rect2 = block_rect(block)
+		outlines.append(PackedVector2Array([rect.position, Vector2(rect.end.x, rect.position.y), rect.end, Vector2(rect.position.x, rect.end.y)]))
+	for a_name: String in spawns:
+		if not a_name.begins_with("SpawnA"):
+			continue
+		for b_name: String in spawns:
+			if b_name.begins_with("SpawnB") and not _line_blocked(spawns[a_name], spawns[b_name], outlines):
+				problems.append("%s and %s can see each other. Move cover between them." % [a_name, b_name])
+
+
+func _line_blocked(from: Vector2, to: Vector2, outlines: Array[PackedVector2Array]) -> bool:
+	var line: PackedVector2Array = PackedVector2Array([from, to])
+	for outline: PackedVector2Array in outlines:
+		for piece: PackedVector2Array in Geometry2D.intersect_polyline_with_polygon(line, outline):
+			if piece[0].distance_to(piece[piece.size() - 1]) > 1.0:
+				return true
+	return false
 
 
 ## Flood fill over 48 px cells from SpawnA1. A cell is open when no block covers any of it.

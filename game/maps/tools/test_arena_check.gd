@@ -28,6 +28,8 @@ func _initialize() -> void:
 	_expect("Cover07 scaled", _scale_block, "scaled or rotated")
 	_expect("a sealed pocket under the top wall", _seal_pocket, "can't be reached")
 	_expect("map size off the grid", _bad_map_size, "multiple of 48")
+	_expect("SpawnA1 and SpawnB1 on a clear line", _open_sight, "SpawnA1 and SpawnB1 can see each other")
+	_expect("a block 48 px from Cover07, corner to corner", _crowd_corner, "Cover/Cover07 and Cover/CornerBlock are 68 px apart")
 	print("ARENA TEST: %s (%d cases)" % ["PASS" if _failed == 0 else "FAIL, %d wrong" % _failed, _count])
 	quit(0 if _failed == 0 else 1)
 
@@ -107,3 +109,14 @@ func _seal_pocket(map: ArenaMap) -> void:
 
 func _bad_map_size(map: ArenaMap) -> void:
 	map.map_size = Vector2(3850, 2160)
+
+
+## y = 264 runs above all cover, so nothing stands between the two spawns.
+func _open_sight(map: ArenaMap) -> void:
+	(map.get_node("Spawns/SpawnA1") as Marker2D).position.y = 264.0
+	(map.get_node("Spawns/SpawnB1") as Marker2D).position.y = 264.0
+
+
+## Cover07 ends at (1296, 816); this block starts 48 px right and 48 px down.
+func _crowd_corner(map: ArenaMap) -> void:
+	_new_block(map.get_node("Cover"), "CornerBlock", Vector2(1344, 864), Vector2(48, 48))
