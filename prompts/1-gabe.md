@@ -5,7 +5,7 @@
 ## Before you paste
 1. Do [docs/SETUP.md](../docs/SETUP.md) steps 2-5 and 8 (Git, GitHub Desktop, GitHub CLI with `gh auth login`, Godot 4.7.2 in `C:\Godot`, the Claude app).
 2. Clone the empty repo with GitHub Desktop (SETUP step 6). An "empty repository" message is expected.
-3. Extract the starter kit zip. Open the extracted folder, press **Ctrl+A** (this includes `.claude`, `.github`, `.gitignore`, `.gitattributes`), copy, and paste into `Documents\GitHub\A-Cow-Or-Chicken-Game-build-McGills`. `README.md` must sit directly in that folder.
+3. Extract the starter kit zip. Open the extracted folder, press **Ctrl+A** (this includes `.claude`, `.github`, `.gitignore`, `.gitattributes`), copy, and paste into `C:\Dev\A-Cow-Or-Chicken-Game-build-McGills`. `README.md` must sit directly in that folder.
 4. Open Claude Code on that folder (SETUP step 8).
 5. Have Adam's and John's GitHub usernames ready.
 
