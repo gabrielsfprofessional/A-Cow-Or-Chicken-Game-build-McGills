@@ -61,15 +61,16 @@ It prints `4.7.2.stable.official...`.
 Never install another Godot version for this game. Godot 4.8 will come out during the project; ignore it until Gabe says otherwise.
 
 ## 6. Clone the game (not Download ZIP)
-1. GitHub Desktop > **File > Clone repository... >** the **URL** tab.
-2. Paste: `https://github.com/gabrielsfprofessional/A-Cow-Or-Chicken-Game-build-McGills`
-3. Keep the local path `C:\Users\<you>\Documents\GitHub\A-Cow-Or-Chicken-Game-build-McGills` and click **Clone**.
+1. Create the folder `C:\Dev` first: File Explorer > **This PC > Local Disk (C:)**, right-click an empty spot > **New > Folder**, name it `Dev`. Never clone into a folder whose path contains `OneDrive` (on many PCs Documents and Desktop do): OneDrive can corrupt or roll back git repos.
+2. GitHub Desktop > **File > Clone repository... >** the **URL** tab.
+3. Paste: `https://github.com/gabrielsfprofessional/A-Cow-Or-Chicken-Game-build-McGills`
+4. Set the local path to `C:\Dev\A-Cow-Or-Chicken-Game-build-McGills` and click **Clone**.
 
 **Check:** GitHub Desktop shows **Current branch: main** and **No local changes**.
 
 ## 7. Open the game in Godot
 1. Double-click `C:\Godot\Godot_v4.7.2-stable_win64.exe`. If Windows says "Windows protected your PC", click **More info > Run anyway**.
-2. In the Project Manager click **Import**, browse to the cloned folder, select `project.godot`, then confirm the import (**Import** or **Import & Edit**).
+2. In the Project Manager click **Import**, browse to `C:\Dev\A-Cow-Or-Chicken-Game-build-McGills`, select `project.godot`, then confirm the import (**Import** or **Import & Edit**).
 3. Wait for the first import (1-2 minutes).
 4. Press **F5**. A dark screen titled "A Cow or Chicken" with a version number appears. Close it.
 
@@ -79,13 +80,24 @@ If Godot offers to convert or upgrade the project, click **Cancel** and tell Gab
 ## 8. Install Claude and open the game in the Code tab
 1. Download the Claude desktop app for Windows from https://claude.com/download, install it, open it from the Start menu and sign in with your Claude Pro account.
 2. Click the **Code** tab at the top center. If it asks for Git for Windows, finish step 2, then restart the app.
-3. Choose **Local**, click **Select folder**, pick `Documents\GitHub\A-Cow-Or-Chicken-Game-build-McGills`.
+3. Choose **Local**, click **Select folder**, pick `C:\Dev\A-Cow-Or-Chicken-Game-build-McGills`.
 4. Model: pick **Sonnet** in the dropdown next to the send button. Use Opus only for hard bugs.
 5. Permission mode: **Manual** for your first session (you approve each change). Switch to **Accept edits** once you're comfortable.
 
 **Check:** type `Which folder are you working in?` and send. Claude names the game folder.
 
+Prefer a terminal? Press **Win+R**, paste `cmd /k cd /d "C:\Dev\A-Cow-Or-Chicken-Game-build-McGills" && claude` and press **Enter**. Never run Claude or a terminal as administrator: the window title must not start with **Administrator**.
+
 You're ready. Go back to the README and paste your Prompt 1.
+
+## Move your clone out of OneDrive
+Do this if your game folder's path contains `OneDrive` (for example `C:\Users\<you>\OneDrive\Documents\GitHub\A-Cow-Or-Chicken-Game-build-McGills`) instead of `C:\Dev`.
+1. Push your work: ask Claude `Commit and push my branch.` (or use GitHub Desktop: **Commit**, then **Push origin**).
+2. Close Godot and Claude.
+3. Clone the game again to `C:\Dev\A-Cow-Or-Chicken-Game-build-McGills` with GitHub Desktop (step 6).
+4. In Godot's Project Manager, **Import** the new `project.godot` (step 7). Then click the old entry and click **Remove** (this only takes it off the list).
+5. Start Claude in the new folder (step 8).
+6. In GitHub Desktop, open the **Current repository** list, right-click the old copy > **Remove...**, tick **Also move this repository to the Recycle Bin** and click **Remove**.
 
 ## Troubleshooting
 
