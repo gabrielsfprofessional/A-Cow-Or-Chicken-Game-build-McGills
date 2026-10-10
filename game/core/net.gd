@@ -28,6 +28,12 @@ const CHANNEL_COUNT: int = 1
 ## Movement messages (T07). See game/net/README.md.
 const MOVE_CHANNEL: int = 1
 const MAX_PLAYERS: int = 16
+## ENet throttle on every connection (see game/net/README.md, "ENet throttle").
+## Deceleration 0: ENet never throttles our packets down. Acceleration at full
+## scale: a dip from before the call recovers on the next steady ack.
+const THROTTLE_INTERVAL_MSEC: int = 5000
+const THROTTLE_ACCELERATION: int = ENetPacketPeer.PACKET_THROTTLE_SCALE
+const THROTTLE_DECELERATION: int = 0
 const CONFIG_PATH: String = "res://server.cfg"
 ## How long a client waits for the server before it gives up.
 const JOIN_TIMEOUT: float = 5.0
@@ -325,6 +331,7 @@ func _mismatch_reason(server_version: String, my_version: String) -> String:
 func _on_peer_connected(id: int) -> void:
 	if not multiplayer.is_server():
 		return
+	_stop_throttle(id)
 	_log("join: peer %d version %s (%d connected)" % [
 		id, _peer_versions.get(id, "unknown"), multiplayer.get_peers().size(),
 	])
@@ -344,6 +351,7 @@ func _on_connected_to_server() -> void:
 	if state != State.CONNECTING:
 		return  # Already given up on this attempt. Do not resurrect it.
 	state = State.CLIENT
+	_stop_throttle(1)
 	_log("connected as peer %d after %s (server version %s)" % [
 		multiplayer.get_unique_id(), _since_join(), _server_version,
 	])
@@ -376,6 +384,16 @@ func _lose_server() -> void:
 
 
 # --- plumbing ----------------------------------------------------------------
+
+## Stops ENet's RTT-based throttle from dropping our unreliable moves on the
+## connection to peer `id`. At about 600 B/s per player it only ever hurts.
+func _stop_throttle(id: int) -> void:
+	var enet := multiplayer.multiplayer_peer as ENetMultiplayerPeer
+	if enet == null:
+		return
+	var packet_peer := enet.get_peer(id)
+	if packet_peer != null:
+		packet_peer.throttle_configure(THROTTLE_INTERVAL_MSEC, THROTTLE_ACCELERATION, THROTTLE_DECELERATION)
 
 func _fail_join(reason: String) -> void:
 	if state != State.CONNECTING and state != State.CLIENT:
