@@ -149,9 +149,13 @@ All three live on `NetHero` (`Heroes/<peer id>`, the same path on every peer).
 | `snap_back` | server -> owner only (`rpc_id`) | `any_peer`, ignored unless the sender is 1 | `reliable` | 0 | `sequence: int, position: Vector2` (the server's last good position) |
 
 Movement has its own ENet channel so lost or late moves never hold up reliable
-traffic. `Net.CHANNEL_COUNT` (1) is passed to both `create_server` and
-`create_client`. `snap_back` stays on channel 0 so channel 1 only ever carries
-unreliable-ordered packets.
+traffic. `Net.CHANNEL_COUNT` (1) goes to `create_client` only: it sets the
+channels on each connection, and the server host already allows ENet's maximum.
+`create_server` gets no channel count because Godot 4.7.2 passes that number as
+ENet's incoming bandwidth (`max_channels + SYSCH_MAX`, about 3 bytes/s). Clients
+then throttle their unreliable moves to 1/32 for a few seconds after joining.
+`snap_back` stays on channel 0 so channel 1 only ever carries unreliable-ordered
+packets.
 
 ### The server's check (MoveCheck)
 
