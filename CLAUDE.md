@@ -2,6 +2,11 @@
 
 Read this before every task. Plan: docs/PROJECT_PLAN.md. Tasks: docs/BACKLOG.md. Workflow: docs/WORKFLOW.md.
 
+## First
+- If the repo path contains OneDrive, stop and tell the user to follow 'Move your clone out of OneDrive' in docs/SETUP.md.
+- If you were started outside the game folder (for example C:\Windows\System32), stop and tell the user to restart
+  Claude in the game folder the docs/SETUP.md way.
+
 ## The game
 2D top-down hero shooter, fantasy and sci-fi, for 5-16 family players aged 12-65.
 Windows only. Keyboard and mouse. Arena mode for Thanksgiving (Nov 26, 2026), Battle Royale at v1 (Feb 27, 2027).
@@ -32,6 +37,8 @@ The same test runs on every pull request on GitHub (the "smoke" check).
 - Bullets: the server sends spawn events (origin, direction, speed); clients draw the flight.
 - Tunable numbers live in Resources (.tres) in a data/ folder. Never hard-code a number someone
   might want to tune.
+- Network plumbing (port, player cap, timeouts, send rates, channels) stays as constants in the net code;
+  the .tres rule is for gameplay numbers a non-coder tunes.
 - Systems talk through signals on the Events autoload. Keys are defined only in game/core/game.gd.
 - Never put the server address, a join key or player saves in the repo. They live in git-ignored
   files (server.cfg, saves/).
