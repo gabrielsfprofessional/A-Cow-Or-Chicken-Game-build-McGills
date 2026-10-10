@@ -23,7 +23,7 @@ const DEFAULT_PORT: int = 7777
 ## Wire format version (T06 = 1, T07 = 2). Bump it on every change to RPCs,
 ## channels or payloads: builds with a different number refuse each other.
 const NET_PROTOCOL: int = 2
-## ENet channels on top of the default one (channel 0). Both ends pass the same count.
+## ENet channels on top of the default one (channel 0). Only create_client takes it (see host()).
 const CHANNEL_COUNT: int = 1
 ## Movement messages (T07). See game/net/README.md.
 const MOVE_CHANNEL: int = 1
@@ -162,7 +162,9 @@ func host() -> Error:
 	if state != State.OFFLINE:
 		_close_peer()
 	var peer := ENetMultiplayerPeer.new()
-	var err := peer.create_server(DEFAULT_PORT, MAX_PLAYERS, CHANNEL_COUNT)
+	# No channel count: Godot 4.7.2's create_server passes max_channels as ENet's incoming
+	# bandwidth, which throttles every client's moves. 0 channels = ENet's maximum.
+	var err := peer.create_server(DEFAULT_PORT, MAX_PLAYERS)
 	if err != OK:
 		_log("could not host on UDP %d (error %d). Is a server already running?" % [DEFAULT_PORT, err])
 		_alert("Could not host on UDP %d. Is a server already running?" % DEFAULT_PORT)
