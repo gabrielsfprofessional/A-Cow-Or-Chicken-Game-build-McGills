@@ -13,7 +13,7 @@ extends CharacterBody2D
 const SEND_RATE: int = 20
 ## The server snaps an owner back at most this often while their moves keep failing.
 const SNAP_INTERVAL_MSEC: int = 500
-## [Move] log lines per hero at most this often.
+## [Move] (server rejects) and [Remote] (underruns) lines per hero at most this often.
 const LOG_INTERVAL_MSEC: int = 1000
 const MOVEMENT: MovementData = preload("res://game/net/data/movement.tres")
 
@@ -214,7 +214,7 @@ func _log_underruns() -> void:
 	if now - _last_log_msec < LOG_INTERVAL_MSEC:
 		return
 	_last_log_msec = now
-	print("[Move] peer %d: remote buffer ran dry %d time(s) (%d total)" % [
+	print("[Remote] peer %d: remote buffer ran dry %d time(s) (%d total)" % [
 		owner_peer, _timeline.underruns - _underruns_logged, _timeline.underruns,
 	])
 	_underruns_logged = _timeline.underruns

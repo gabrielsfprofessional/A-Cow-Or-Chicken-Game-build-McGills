@@ -157,6 +157,23 @@ then throttle their unreliable moves to 1/32 for a few seconds after joining.
 `snap_back` stays on channel 0 so channel 1 only ever carries unreliable-ordered
 packets.
 
+### ENet throttle
+
+ENet has its own congestion control: when a round trip comes back slower than
+usual it drops a share of each peer's unreliable packets, and creeps back up
+over several seconds. A round-trip spike while connecting (a server still
+starting up, a busy laptop) used to cost 1-41 moves and made remote heroes
+stutter. A player sends about 600 B/s, far too little to congest anything, so
+that throttle only ever hurt us. `Net` calls
+`throttle_configure(5000, ENetPacketPeer.PACKET_THROTTLE_SCALE, 0)` on every
+connection: the server for each peer in `_on_peer_connected`, the client for
+peer 1 in `_on_connected_to_server`. Deceleration 0 means ENet never throttles
+down; acceleration 32 (full scale) means a dip from before the call recovers on
+the next steady ack. The constants are `Net.THROTTLE_INTERVAL_MSEC`,
+`THROTTLE_ACCELERATION` and `THROTTLE_DECELERATION`. ENet also passes the
+setting to the other end in its own protocol, so it is not a change to our wire
+format and `NET_PROTOCOL` stays 2.
+
 ### The server's check (MoveCheck)
 
 In order, the first failure wins:
@@ -185,8 +202,9 @@ then holds (an "underrun"). A jump of more than 200 px clears the buffer and sna
 
 The status line under the title shows `P<id> buf <ms> ur <n>` for each remote
 hero: how far ahead its buffer reaches, and its underrun count. **Smooth means
-`ur` stays 0 for 60 s at `--sim-lag=150 --sim-jitter=50`.** `[Move]` lines also
-report underruns, at most once a second per hero.
+`ur` stays 0 for 60 s at `--sim-lag=150 --sim-jitter=50`.** `[Remote]` lines
+also report underruns, at most once a second per hero; `[Move]` lines only ever
+mean a server reject.
 
 Constants (network plumbing, not .tres): `NetHero.SEND_RATE`,
 `RemoteTimeline.DELAY_SEC`, `MAX_EXTRAPOLATE_SEC`, `SNAP_DISTANCE`,
