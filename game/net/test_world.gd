@@ -1,23 +1,29 @@
 extends Node2D
-## Proving ground for card T06: one 48 px square per connected player.
-## Owner: Gabe (game/net). T16 replaces it with the real arena.
+## Proving ground for cards T06 and T07: one hero per connected player, walls to
+## bump into. Owner: Gabe (game/net). T16 replaces it with the real arena.
 ##
 ## The server spawns a hero for a client only after that client says its world
-## is loaded, so nobody gets a hero they cannot draw yet.
-## No movement here: that is T07.
+## is loaded, so nobody gets a hero they cannot draw yet. Movement lives in
+## net_hero.gd (T07).
 
-const HERO_SIZE: float = 48.0
-const NAME_HEIGHT: float = 28.0
-const NAME_WIDTH: float = 160.0
+const HERO_SCENE: PackedScene = preload("res://game/net/net_hero.tscn")
 const RING_RADIUS: float = 260.0
 ## Middle of the 1920x1080 viewport. This world has no camera.
 const WORLD_CENTER: Vector2 = Vector2(960.0, 540.0)
 ## Golden-ratio step, so nearby peer ids land far apart on the ring.
 const RING_STEP: float = 0.618034
+## How often the status lines refresh, in seconds.
+const STATUS_INTERVAL: float = 0.5
+
+## Server only: peers that said client_ready, so relays never reach a peer
+## whose world is not loaded yet.
+var _ready_peers: Dictionary[int, bool] = {}
+var _status_wait: float = 0.0
 
 @onready var _heroes: Node2D = $Heroes
 @onready var _spawner: MultiplayerSpawner = $HeroSpawner
 @onready var _status: Label = $Hud/Status
+@onready var _remotes: Label = $Hud/Remotes
 
 
 func _ready() -> void:
@@ -37,12 +43,26 @@ func _ready() -> void:
 	_refresh_status()
 
 
+func _process(delta: float) -> void:
+	_status_wait -= delta
+	if _status_wait > 0.0:
+		return
+	_status_wait = STATUS_INTERVAL
+	_refresh_remotes()
+
+
+## Server only: true once the peer has said client_ready.
+func is_peer_ready(peer_id: int) -> bool:
+	return _ready_peers.has(peer_id)
+
+
 ## A client telling the server its world is ready. The server answers with a hero.
 @rpc("any_peer", "call_remote", "reliable")
 func client_ready() -> void:
 	if not multiplayer.is_server():
 		return
 	var peer_id := multiplayer.get_remote_sender_id()
+	_ready_peers[peer_id] = true
 	if _heroes.has_node(NodePath(str(peer_id))):
 		return  # Already has a hero. A repeated hello changes nothing.
 	_spawner.spawn(peer_id)
@@ -55,39 +75,20 @@ func _say_hello() -> void:
 
 
 func _remove_hero(peer_id: int) -> void:
+	_ready_peers.erase(peer_id)
 	var hero := _heroes.get_node_or_null(NodePath(str(peer_id)))
 	if hero == null:
 		return
-	hero.queue_free()  # The spawner takes the square off every client too.
+	hero.queue_free()  # The spawner takes the hero off every client too.
 	print("[TestWorld] hero removed for peer %d" % peer_id)
 
 
 ## Runs on every peer, server included, through the spawner.
 func _make_hero(data: Variant) -> Node:
 	var peer_id := int(data)
-	var hero := Node2D.new()
-	hero.name = str(peer_id)
-	hero.position = _spawn_point(peer_id)
-	# The owning client drives this hero from T07 on.
-	hero.set_multiplayer_authority(peer_id)
-
-	var body := ColorRect.new()
-	body.name = "Body"
-	body.color = _hero_color(peer_id)
-	body.size = Vector2(HERO_SIZE, HERO_SIZE)
-	body.position = -body.size * 0.5
-	body.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hero.add_child(body)
-
-	var label := Label.new()
-	label.name = "PlayerName"
-	label.text = "Player %d" % peer_id
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.size = Vector2(NAME_WIDTH, NAME_HEIGHT)
-	label.position = Vector2(-NAME_WIDTH * 0.5, -HERO_SIZE * 0.5 - NAME_HEIGHT - 6.0)
-	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hero.add_child(label)
-
+	var hero := HERO_SCENE.instantiate() as NetHero
+	# The owning client drives this hero; setup() makes it the authority.
+	hero.setup(peer_id, _spawn_point(peer_id), _hero_color(peer_id))
 	return hero
 
 
@@ -108,10 +109,22 @@ func _on_heroes_changed(_hero: Node) -> void:
 
 func _refresh_status() -> void:
 	var count := _heroes.get_child_count()
-	_status.text = "Test world (card T06)  |  version %s  |  %s  |  %d in the world" % [
-		Net.version(), _role_text(), count,
+	var flags := Net.debug_flags_text()
+	_status.text = "Test world (card T07)  |  version %s  |  %s  |  %d in the world%s" % [
+		Net.version(), _role_text(), count, "  |  " + flags if flags != "" else "",
 	]
 	print("[TestWorld] heroes in the world: %d" % count)
+
+
+## Each remote hero's buffer depth and underrun count. "Smooth" = ur stays 0.
+func _refresh_remotes() -> void:
+	var parts: PackedStringArray = []
+	for child: Node in _heroes.get_children():
+		var hero := child as NetHero
+		if hero == null or hero.is_owned() or Net.state != Net.State.CLIENT:
+			continue
+		parts.append("P%d buf %d ms ur %d" % [hero.owner_peer, hero.buffer_depth_msec(), hero.underruns()])
+	_remotes.text = "  |  ".join(parts)
 
 
 func _role_text() -> String:
