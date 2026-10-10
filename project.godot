@@ -21,6 +21,11 @@ config/icon="res://icon.svg"
 Events="*res://game/core/events.gd"
 Game="*res://game/core/game.gd"
 Net="*res://game/core/net.gd"
+Settings="*res://game/ui/settings.gd"
+
+[audio]
+
+buses/default_bus_layout="res://audio/default_bus_layout.tres"
 
 [display]
 
