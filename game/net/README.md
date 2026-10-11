@@ -269,7 +269,8 @@ eliminated, the owner sends nothing and its move sequence stands still (it never
 restarts). On respawn the server calls `MoveCheck.reset(spawn, now)` (full
 budget, last sequence kept) and every client snaps the hero with
 `RemoteTimeline.reset(spawn)`. Clients don't sample an eliminated remote hero,
-so a death never counts as an underrun.
+so a death doesn't add an underrun, unless a resent elimination message lets
+playback run dry just before the hero vanishes.
 
 ### Combat messages
 
@@ -283,7 +284,7 @@ only to peers that have said `client_ready`.
 | `receive_damage` | `NetHero` (victim) | server -> every ready peer | `any_peer`, sender 1 | `reliable` | 0 | `attacker: int, shot_id: int, amount: int, health_after: int, hit_position: Vector2` |
 | `receive_elimination` | `NetHero` (victim) | server -> every ready peer | `any_peer`, sender 1 | `reliable` | 0 | `attacker: int` |
 | `receive_respawn` | `NetHero` | server -> every ready peer | `any_peer`, sender 1 | `reliable` | 0 | `position: Vector2, life: int` |
-| `receive_combat_state` | `NetHero` | server -> a peer that just joined | `any_peer`, sender 1 | `reliable` | 0 | `life: int, health: int, eliminated: bool, respawn_in_sec: float` |
+| `receive_combat_state` | `NetHero` | server -> a peer that just joined | `any_peer`, sender 1 | `reliable` | 0 | `life: int, health: int, eliminated: bool, respawn_in: float` |
 
 Damage, elimination and respawn share channel 0, so they always arrive in
 order and don't need a life number. Each one makes every peer emit

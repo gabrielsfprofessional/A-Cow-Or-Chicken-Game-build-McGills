@@ -21,7 +21,6 @@ const SNAP_INTERVAL_MSEC: int = 500
 ## [Move] (server rejects) and [Remote] (underruns) lines per hero at most this often.
 const LOG_INTERVAL_MSEC: int = 1000
 const MOVEMENT: MovementData = preload("res://game/net/data/movement.tres")
-const COMBAT: CombatData = preload("res://game/heroes/data/combat.tres")
 
 var owner_peer: int = 0
 var color: Color = Color.WHITE
@@ -142,7 +141,7 @@ func _physics_process(delta: float) -> void:
 			_move_own(delta)
 		_drain_outgoing()
 	elif _timeline != null and is_alive():
-		# Never sampled while eliminated, so a death is not an underrun.
+		# Never sampled while eliminated, so the death itself adds no underrun.
 		global_position = _timeline.sample(_clock_sec())
 		if _timeline.take_snap():
 			reset_physics_interpolation()
@@ -233,7 +232,7 @@ func receive_combat_state(life_number: int, health: int, eliminated: bool, respa
 		return
 	life = life_number
 	_health.sync(health, eliminated)
-	_respawn_at_sec = _now_sec() + clampf(respawn_in, 0.0, COMBAT.respawn_sec)
+	_respawn_at_sec = _now_sec() + clampf(respawn_in, 0.0, _health.combat.respawn_sec)
 	_show_eliminated(eliminated)
 	_update_label()
 
@@ -318,7 +317,7 @@ func _on_damaged(amount: int, attacker: int, shot_id: int, health_after: int, hi
 
 
 func _on_eliminated(attacker: int) -> void:
-	_respawn_at_sec = _now_sec() + COMBAT.respawn_sec
+	_respawn_at_sec = _now_sec() + _health.combat.respawn_sec
 	_show_eliminated(true)
 	_update_label()
 	if multiplayer.is_server():
