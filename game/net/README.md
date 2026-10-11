@@ -10,12 +10,14 @@ Only the owner's cards change this folder. See CLAUDE.md, "Folders and owners".
 
 | File | What it is |
 | --- | --- |
-| `test_world.tscn` / `test_world.gd` | Temporary proving ground from T06/T07: one hero per player, a border wall and two inner walls. T16 replaces it with the real arena. |
-| `net_hero.tscn` / `net_hero.gd` | `NetHero`, the T07 hero: moves, sends, checks and smooths. T13/T14 move it into `game/heroes`. |
+| `test_world.tscn` / `test_world.gd` | Temporary proving ground from T06-T08: one hero per player, a border wall and two inner walls, the Shots node. T16 replaces it with the real arena. |
+| `net_hero.tscn` / `net_hero.gd` | `NetHero`, the T07/T08 hero: moves, sends, checks and smooths; carries a Weapon and a Health, hides on elimination and respawns. T13/T14 move it into `game/heroes`. |
 | `move_check.gd` | `MoveCheck`: the server's check on each movement update. Pure, tested by `tests/move_check_test.gd`. |
 | `remote_timeline.gd` | `RemoteTimeline`: plays other players' heroes back 100 ms behind. Pure, tested by `tests/remote_timeline_test.gd`. |
 | `delay_queue.gd` | `DelayQueue`: fakes a slow network for `--sim-lag` / `--sim-jitter`. Tested by `tests/delay_queue_test.gd`. |
 | `data/movement.tres` | `MovementData`: move speed (px/s). Tune it in the Inspector. T13 moves it into HeroData. |
+
+Combat (T08) lives next door: `game/weapons/` (Weapon, Shots, ShotSim, ShotCheck, WeaponData) and `game/heroes/` (Health, HealthState, CombatData). See "Combat (card T08)" below.
 
 The connection code itself lives in `game/core/net.gd` (autoload `Net`), because
 every folder needs it.
@@ -51,7 +53,7 @@ and `join()` always ends in exactly one of `joined` or `join_failed`.
 Reasons players can see today, all written for a 12-year-old:
 
 - `Could not reach the server at <address> on UDP 7777 within 5 seconds. Is the server running?`
-- `Update the game from the Drive folder (server v0.0.1+net2, you v0.0.1)` (a T06 build sends a bare version)
+- `Update the game from the Drive folder (server v0.0.1+net3, you v0.0.1+net2)` (an older build)
 - `The server refused the connection. It may be full, or running a different version.`
 - `Lost connection to the server. It may have been closed.`
 
@@ -85,7 +87,7 @@ The first time Godot hosts, Windows asks to allow it through the firewall. Click
 
 ## The version check
 
-The handshake sends `"<version>+net<NET_PROTOCOL>"`, for example `0.0.1+net2`:
+The handshake sends `"<version>+net<NET_PROTOCOL>"`, for example `0.0.1+net3`:
 the game version (`application/config/version` in `project.godot`) plus the wire
 format number `NET_PROTOCOL` in `game/core/net.gd`. It rides along inside the
 ENet connect handshake, using `SceneMultiplayer`'s `auth_callback`, `send_auth`
@@ -94,7 +96,7 @@ message. A mismatch is refused before the peer counts as connected: the client
 shows `Update the game from the Drive folder (server vX, you vY)` and the server
 logs `refused peer <id>: version mismatch`.
 
-**NET_PROTOCOL** is 1 for T06 (which sent a bare version) and 2 from T07. Bump it
+**NET_PROTOCOL** is 1 for T06 (which sent a bare version), 2 for T07 and 3 from T08. Bump it
 in the same pull request as any change to an RPC, its arguments, its channel or
 the channel count. A build with a different wire format is then refused by name
 instead of failing later with channel or RPC errors.
@@ -141,12 +143,13 @@ mismatched build into a family game.
 ### Messages
 
 All three live on `NetHero` (`Heroes/<peer id>`, the same path on every peer).
+Since T08 each carries the hero's life number first (see "Life numbers" below).
 
 | RPC | Direction | Mode | Transfer | Channel | Payload |
 | --- | --- | --- | --- | --- | --- |
-| `submit_move` | owner -> server (`rpc_id(1)`) | `authority` + server checks `get_remote_sender_id()` is the owner | `unreliable_ordered` | `Net.MOVE_CHANNEL` (1) | `sequence: int, position: Vector2` |
-| `relay_move` | server -> each ready peer except the owner (`rpc_id`) | `any_peer`, ignored unless the sender is 1 | `unreliable_ordered` | `Net.MOVE_CHANNEL` (1) | `sequence: int, position: Vector2` |
-| `snap_back` | server -> owner only (`rpc_id`) | `any_peer`, ignored unless the sender is 1 | `reliable` | 0 | `sequence: int, position: Vector2` (the server's last good position) |
+| `submit_move` | owner -> server (`rpc_id(1)`) | `authority` + server checks `get_remote_sender_id()` is the owner | `unreliable_ordered` | `Net.MOVE_CHANNEL` (1) | `life: int, sequence: int, position: Vector2` |
+| `relay_move` | server -> each ready peer except the owner (`rpc_id`) | `any_peer`, ignored unless the sender is 1 | `unreliable_ordered` | `Net.MOVE_CHANNEL` (1) | `life: int, sequence: int, position: Vector2` |
+| `snap_back` | server -> owner only (`rpc_id`) | `any_peer`, ignored unless the sender is 1 | `reliable` | 0 | `life: int, sequence: int, position: Vector2` (the server's last good position) |
 
 Movement has its own ENet channel so lost or late moves never hold up reliable
 traffic. `Net.CHANNEL_COUNT` (1) goes to `create_client` only: it sets the
@@ -172,7 +175,7 @@ down; acceleration 32 (full scale) means a dip from before the call recovers on
 the next steady ack. The constants are `Net.THROTTLE_INTERVAL_MSEC`,
 `THROTTLE_ACCELERATION` and `THROTTLE_DECELERATION`. ENet also passes the
 setting to the other end in its own protocol, so it is not a change to our wire
-format and `NET_PROTOCOL` stays 2.
+format and did not bump `NET_PROTOCOL`.
 
 ### The server's check (MoveCheck)
 
@@ -221,7 +224,100 @@ window). A release build ignores them. The status line lists the active ones.
 | `--sim-lag=<ms>` | Delays this client's movement messages by `<ms>`, both ways. |
 | `--sim-jitter=<ms>` | Adds a random 0 to `<ms>` on top. Messages never overtake each other. |
 | `--speed-cheat=<x>` | Multiplies this client's own speed. 2 gets it snapped back. |
+| `--fire-cheat=<x>` | Multiplies this client's fire rate (T08, parsed in `game/weapons/weapon.gd`). 2 gets extra shots refused. |
 | `--version-override=<v>` | Pretends to be version `<v>` (see above). |
 
-The fake lag delays movement messages only, not the handshake or spawns. The
+The fake lag delays movement messages and outgoing fire (T08) only, not the
+handshake, spawns or incoming combat messages. The
 launchers in `tools/` never pass these flags.
+
+## Combat (card T08)
+
+Heroes shoot and eliminate each other; the server decides every hit.
+
+- **Weapon** (`game/weapons/weapon.gd`, child `Weapon` of each hero): the owner
+  aims at the mouse and, while fire (left click) is held, fires every
+  `fire_interval_sec` of `game/weapons/data/sidearm.tres`, counted on physics
+  ticks. The owner draws its own shot at once. Remote barrels turn to each
+  accepted shot's direction; aim itself is not sent.
+- **Server shots** (`ShotSim`, run by the `Shots` node in the test world):
+  each accepted shot starts at the server's own copy of the shooter's center
+  (never a client-sent origin). Every physics tick it first checks what it
+  overlaps (`intersect_shape`, zero motion), then sweeps the tick's motion
+  (`cast_motion`) against layers 1 and 2 with the shooter excluded. Godot's
+  `cast_motion` ignores anything the shape starts inside, so the overlap check
+  is what catches a hero who stepped onto a shot. A wall stops it, a body with a
+  live `Health` child takes damage, `range_px` expires it. A shot that would
+  start inside a wall is never started or sent.
+- **Health** (`game/heroes/health.gd`, child `Health`): server-only damage,
+  floor at 0, eliminated exactly once, mirrored on clients. It only emits
+  signals; `NetHero` hides the hero, turns its collider off (at once, not
+  deferred), ignores its moves and fire, and respawns it after `respawn_sec`
+  (`game/heroes/data/combat.tres`) at `respawn_point(peer_id)` (the T06 ring).
+- **Shot visuals** (`Shots` on clients): `origin + direction x speed x age`,
+  drawn below the heroes, ending at the first wall, at `range_px`, or at the
+  server's hit position from `receive_damage` (it flies there and stops, or
+  goes at once if already past).
+
+### Life numbers
+
+Each hero has a `life`, 0 at spawn and +1 on every respawn. `submit_move`,
+`relay_move`, `snap_back` and `fire` carry the life they were sent in, and a
+message from another life is dropped silently (not a reject, not logged). So
+moves from before a death never teleport anyone or log `[Move]`. While
+eliminated, the owner sends nothing and its move sequence stands still (it never
+restarts). On respawn the server calls `MoveCheck.reset(spawn, now)` (full
+budget, last sequence kept) and every client snaps the hero with
+`RemoteTimeline.reset(spawn)`. Clients don't sample an eliminated remote hero,
+so a death never counts as an underrun.
+
+### Combat messages
+
+Every combat message is `reliable` on channel 0. Server-to-client messages go
+only to peers that have said `client_ready`.
+
+| RPC | On | Direction | Mode | Transfer | Channel | Payload |
+| --- | --- | --- | --- | --- | --- | --- |
+| `fire` | `Weapon` | owner -> server | `authority` + `ShotCheck` checks the sender is the owner | `reliable` | 0 | `life: int, shot_id: int, direction: Vector2` |
+| `receive_shot` | `Weapon` | server -> each ready peer except the shooter | `any_peer`, ignored unless the sender is 1 | `reliable` | 0 | `shot_id: int, origin: Vector2, direction: Vector2` |
+| `receive_damage` | `NetHero` (victim) | server -> every ready peer | `any_peer`, sender 1 | `reliable` | 0 | `attacker: int, shot_id: int, amount: int, health_after: int, hit_position: Vector2` |
+| `receive_elimination` | `NetHero` (victim) | server -> every ready peer | `any_peer`, sender 1 | `reliable` | 0 | `attacker: int` |
+| `receive_respawn` | `NetHero` | server -> every ready peer | `any_peer`, sender 1 | `reliable` | 0 | `position: Vector2, life: int` |
+| `receive_combat_state` | `NetHero` | server -> a peer that just joined | `any_peer`, sender 1 | `reliable` | 0 | `life: int, health: int, eliminated: bool, respawn_in_sec: float` |
+
+Damage, elimination and respawn share channel 0, so they always arrive in
+order and don't need a life number. Each one makes every peer emit
+`Events.hero_damaged`, `hero_eliminated` or `hero_respawned` (the server when it
+decides, clients when the message arrives); the test world prints one
+`[Combat]` line per signal.
+
+### The server's check (ShotCheck)
+
+In order, the first failure wins:
+
+1. Not from the hero's owner, or a shot id not newer than the last: dropped.
+2. Fired in another life, or the shooter is eliminated: dropped.
+3. NaN, INF or zero direction: refused. The server normalizes the rest.
+4. **Rate, as a schedule:** refused if `now < next - 0.25 s`. Each accepted
+   shot sets `next = max(now, next) + fire_interval_sec x 0.9`. One late shot
+   never makes the next on-time one look early, up to 0.25 s of jitter never
+   refuses an honest shot, the sustained rate stays within 1/0.9 of the
+   weapon's, and a pause buys at most 0.25 s of extra fire.
+
+Refusals log `[Shot] peer <id>: refused <n> shot(s), last: <reason>` at most
+once a second per hero. Constants: `ShotCheck.JITTER_SEC`, `RATE_SLACK`,
+`ShotSim.CAPACITY`, `Shots.VISUAL_CAPACITY`.
+
+### Late join
+
+The spawner rebuilds existing heroes from their spawn data, so a newcomer would
+see everyone at full health and life 0, and drop every relay from a hero that
+has respawned. In `client_ready`, right after the spawn, the server sends that
+peer `receive_combat_state` for every hero: life, health, eliminated and
+seconds to respawn.
+
+### Status line and labels
+
+Until John's T17 HUD, each hero's label reads `Player <id>  <health>`, and the
+owner's status line adds `Eliminated, back in N s` while it is down, plus
+`fire-cheat=<x>` when that flag is on.

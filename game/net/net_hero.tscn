@@ -1,6 +1,8 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://game/net/net_hero.gd" id="1_hero"]
+[ext_resource type="PackedScene" path="res://game/weapons/weapon.tscn" id="2_weapon"]
+[ext_resource type="PackedScene" path="res://game/heroes/health.tscn" id="3_health"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_hero"]
 radius = 20.0
@@ -20,6 +22,10 @@ offset_top = -24.0
 offset_right = 24.0
 offset_bottom = 24.0
 mouse_filter = 2
+
+[node name="Weapon" parent="." instance=ExtResource("2_weapon")]
+
+[node name="Health" parent="." instance=ExtResource("3_health")]
 
 [node name="PlayerName" type="Label" parent="."]
 offset_left = -80.0

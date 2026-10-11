@@ -61,6 +61,14 @@ func check(sender_id: int, sequence: int, new_position: Vector2, now_sec: float)
 	return result
 
 
+## Respawn (T08): the hero is back at new_position with a full budget.
+## last_sequence and rejected stay: the owner's sequence never restarts.
+func reset(new_position: Vector2, now_sec: float) -> void:
+	position = new_position
+	budget_sec = BUDGET_MAX_SEC
+	_last_refill_sec = now_sec
+
+
 func _judge(gap: int, new_position: Vector2) -> Result:
 	if not new_position.is_finite():
 		return Result.NOT_FINITE

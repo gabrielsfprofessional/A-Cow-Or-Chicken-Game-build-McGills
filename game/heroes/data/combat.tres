@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="CombatData" format=3]
+
+[ext_resource type="Script" path="res://game/heroes/combat_data.gd" id="1_combat"]
+
+[resource]
+script = ExtResource("1_combat")
+max_health = 100
+respawn_sec = 4.0

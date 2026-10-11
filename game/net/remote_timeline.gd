@@ -96,6 +96,21 @@ func sample(now_sec: float) -> Vector2:
 	return position
 
 
+## Respawn (T08): forget everything buffered, draw the hero at new_position and
+## start playback afresh from the next update. The sender's clock stood still
+## while the hero was eliminated, so the old clock offset is wrong too.
+## Keeps the underrun count and the newest sequence (sequences never restart).
+func reset(new_position: Vector2) -> void:
+	_count = 0
+	_head = 0
+	position = new_position
+	playback_sec = 0.0
+	_has_offset = false
+	_started = false
+	_starved = false
+	_snapped = false
+
+
 ## True once after a snap, so the hero can reset physics interpolation.
 func take_snap() -> bool:
 	var snapped := _snapped

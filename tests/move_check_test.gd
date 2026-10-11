@@ -24,6 +24,7 @@ func _initialize() -> void:
 	_not_finite()
 	_out_of_bounds()
 	_lags_as_they_join()
+	_reset_on_respawn()
 	print("MOVE CHECK TEST: %s (%d checks)" % ["PASS" if _failed == 0 else "FAIL, %d wrong" % _failed, _count])
 	quit(0 if _failed == 0 else 1)
 
@@ -123,6 +124,22 @@ func _lags_as_they_join() -> void:
 		position += Vector2(SPEED * STEP, 0) if sequence % 40 < 20 else Vector2(-SPEED * STEP, 0)
 		all_ok = all_ok and check.check(OWNER, sequence, position, 5.0 + sequence * STEP) == MoveCheck.Result.ACCEPTED
 	_expect_true("a player who lags as they join then moves normally is never rejected", all_ok and check.rejected == 0)
+
+
+func _reset_on_respawn() -> void:
+	# A burst drains the budget, then the hero dies and respawns far away (T08).
+	var check := _new_check()
+	for sequence: int in range(1, 31):
+		check.check(OWNER, sequence, START, sequence * STEP * 0.25)
+	var spent := check.budget_sec
+	var spawn := Vector2(1500.0, 800.0)
+	check.reset(spawn, 5.0)
+	_expect_true("reset refills the budget (was %.2f s)" % spent, spent < MoveCheck.BUDGET_MAX_SEC and check.budget_sec == MoveCheck.BUDGET_MAX_SEC)
+	_expect_true("reset moves the server's copy and keeps the last sequence", check.position == spawn and check.last_sequence == 30)
+	_expect("a sequence from before the death is still old", check.check(OWNER, 30, spawn, 5.05), MoveCheck.Result.OLD_SEQUENCE)
+	# Moves in flight at the death were dropped, so the first one back has a gap.
+	_expect("the first move after respawn passes", check.check(OWNER, 36, spawn + Vector2(30, 0), 5.1), MoveCheck.Result.ACCEPTED)
+	_expect("a move from where the hero died is too far", check.check(OWNER, 37, START, 5.15), MoveCheck.Result.TOO_FAR)
 
 
 func _expect(case_name: String, got: MoveCheck.Result, wanted: MoveCheck.Result) -> void:

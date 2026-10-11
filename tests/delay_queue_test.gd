@@ -14,6 +14,7 @@ func _initialize() -> void:
 	_never_reorders_and_delays_within_range()
 	_inactive_without_flags()
 	_full_queue_drops_oldest()
+	_carries_life()
 	print("DELAY QUEUE TEST: %s (%d checks)" % ["PASS" if _failed == 0 else "FAIL, %d wrong" % _failed, _count])
 	quit(0 if _failed == 0 else 1)
 
@@ -57,6 +58,18 @@ func _full_queue_drops_oldest() -> void:
 		queue.push(sequence, Vector2.ZERO, 0.0)
 	_expect_true("a full queue keeps its size", queue.size() == DelayQueue.CAPACITY)
 	_expect_true("and the oldest went first", queue.peek_sequence() == 2)
+
+
+func _carries_life() -> void:
+	var queue: DelayQueue = DelayQueueScript.new(100, 0, 1)
+	queue.push(1, Vector2(1, 0), 0.0, 3)
+	queue.push(2, Vector2(2, 0), 0.0, 4)
+	queue.push(3, Vector2(3, 0), 0.0)
+	var lives: Array[int] = []
+	while queue.is_due(1.0):
+		lives.append(queue.peek_life())
+		queue.pop()
+	_expect_true("each message keeps its life, 0 when not given (saw %s)" % [lives], lives == [3, 4, 0])
 
 
 func _expect_true(case_name: String, ok: bool) -> void:
