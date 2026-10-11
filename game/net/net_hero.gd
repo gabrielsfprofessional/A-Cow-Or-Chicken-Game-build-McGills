@@ -1,10 +1,13 @@
 class_name NetHero
 extends CharacterBody2D
 ## A test-world hero that moves and fights online. Owner: Gabe (game/net).
-## Cards T07, T08. T13/T14 move it into game/heroes. Messages: see game/net/README.md.
+## Cards T07, T08, T09. T13/T14 move it into game/heroes. Messages: see game/net/README.md.
 ##
-## - The owner moves it every physics tick from the keyboard and sends
+## - The owner moves it every physics tick from its `input` and sends
 ##   (life, sequence, position) to the server 20 times a second. It never waits.
+## - `input` (T09) is the owner's HeroInput child: the keyboard and mouse, or a
+##   test bot's BotBrain with "--bot=<seed>". This hero and its Weapon read move,
+##   aim and fire only from it; only _make_input() knows bots exist.
 ## - The server checks each update with MoveCheck, keeps the result as its copy
 ##   and relays accepted ones to everyone else.
 ## - Everyone else plays it back 100 ms behind with RemoteTimeline.
@@ -26,6 +29,8 @@ var owner_peer: int = 0
 var color: Color = Color.WHITE
 ## Raised by every respawn; 0 when the hero spawns.
 var life: int = 0
+## The owner's move, aim and fire (T09). Null on the server and on everyone else's copy.
+var input: HeroInput = null
 
 var _ticks_per_send: int = 3
 var _tick: int = 0
@@ -73,6 +78,8 @@ func _ready() -> void:
 		_check = MoveCheck.new(owner_peer, position, _speed, _now_sec())
 	elif is_owned():
 		_speed *= Net.speed_cheat()
+		input = _make_input()
+		add_child(input)
 	else:
 		_timeline = RemoteTimeline.new(position)
 	if not multiplayer.is_server():
@@ -82,6 +89,23 @@ func _ready() -> void:
 	_health.eliminated.connect(_on_eliminated)
 	_update_label()
 	reset_physics_interpolation()
+
+
+## The owner's input: the keyboard and mouse, or a test bot when the game was
+## started with "-- --bot=<seed>" (debug builds only). The one place that knows
+## bots exist.
+func _make_input() -> HeroInput:
+	var made: HeroInput
+	var bot_seed := Net.debug_flag(OS.is_debug_build(), OS.get_cmdline_user_args(), "--bot=")
+	if bot_seed != "":
+		var bot := BotBrain.new()
+		bot.bot_seed = bot_seed.to_int()
+		made = bot
+	else:
+		made = HeroInput.new()
+	made.name = "Input"
+	made.hero = self
+	return made
 
 
 ## True on the client that drives this hero.
@@ -149,8 +173,7 @@ func _physics_process(delta: float) -> void:
 
 
 func _move_own(_delta: float) -> void:
-	var input := Input.get_vector(&"move_left", &"move_right", &"move_up", &"move_down")
-	velocity = input * _speed
+	velocity = input.move().limit_length(1.0) * _speed
 	move_and_slide()
 	_tick += 1
 	if _tick % _ticks_per_send != 0:

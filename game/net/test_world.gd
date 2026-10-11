@@ -1,7 +1,7 @@
 extends Node2D
-## Proving ground for cards T06, T07 and T08: one hero per connected player,
-## walls to bump into and shoot at. Owner: Gabe (game/net). T16 replaces it
-## with the real arena.
+## Proving ground for cards T06-T09: one hero per connected player, walls to
+## bump into and shoot at, room for test bots. Owner: Gabe (game/net). T16
+## replaces it with the real arena.
 ##
 ## The server spawns a hero for a client only after that client says its world
 ## is loaded, so nobody gets a hero they cannot draw yet. Movement and combat
@@ -15,6 +15,8 @@ const WORLD_CENTER: Vector2 = Vector2(960.0, 540.0)
 const RING_STEP: float = 0.618034
 ## How often the status lines refresh, in seconds.
 const STATUS_INTERVAL: float = 0.5
+## The floor inside the 32 px border walls, kept 32 px clear of them (T09).
+const BOT_AREA: Rect2 = Rect2(64.0, 64.0, 1792.0, 952.0)
 
 ## Server only: peers that said client_ready, so relays never reach a peer
 ## whose world is not loaded yet.
@@ -72,6 +74,13 @@ func shots() -> Shots:
 func respawn_point(peer_id: int) -> Vector2:
 	var angle := fposmod(float(peer_id) * RING_STEP, 1.0) * TAU
 	return WORLD_CENTER + Vector2(cos(angle), sin(angle)) * RING_RADIUS
+
+
+## Where test bots wander (T09): BotBrain walks to random points in it. Points
+## inside the inner walls are fine; a bot that can't reach one picks another.
+## T16's arena needs one too.
+func bot_area() -> Rect2:
+	return BOT_AREA
 
 
 ## A client telling the server its world is ready. The server answers with a
