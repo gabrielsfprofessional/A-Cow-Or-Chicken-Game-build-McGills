@@ -1,14 +1,17 @@
 class_name Weapon
 extends Node2D
 ## A hero's gun: a child named "Weapon" of a NetHero. Owner: Gabe (game/weapons).
-## Card T08. Messages: see game/net/README.md.
+## Cards T08, T09. Messages: see game/net/README.md.
 ##
-## - The owner aims at the mouse (no camera yet: mouse = world position) and,
-##   while fire is held, fires every fire_interval_sec, counted on physics
-##   ticks. Its own shot is drawn at once; the server's copy decides hits.
+## - The owner aims and fires from its hero's `input` (T09: the mouse, or a test
+##   bot) and, while fire is held, fires every fire_interval_sec, counted on
+##   physics ticks. Its own shot is drawn at once; the server's copy decides hits.
 ## - The server checks each fire message with ShotCheck, starts the shot at its
 ##   own copy of the hero's center and tells everyone else.
 ## - Everyone else draws the shot and turns this barrel to its direction.
+
+## The owner fired its shot `shot_id`. Own shots only; T09's bots count them.
+signal fired(shot_id: int)
 
 ## [Shot] (server refusals) lines per hero at most this often.
 const LOG_INTERVAL_MSEC: int = 1000
@@ -50,12 +53,15 @@ func _ready() -> void:
 
 func _physics_process(delta: float) -> void:
 	_drain_outgoing()
-	var wants := Input.is_action_pressed(&"fire") if data.automatic else Input.is_action_just_pressed(&"fire")
+	var input := _hero.input
+	if input == null:
+		return
+	var wants := input.fire_held() if data.automatic else input.fire_pressed()
 	_cooldown_sec -= delta
 	if not _hero.is_alive():
 		_cooldown_sec = maxf(_cooldown_sec, 0.0)
 		return
-	var aim := get_global_mouse_position() - _hero.global_position
+	var aim := input.aim()
 	if not aim.is_zero_approx():
 		rotation = aim.angle()
 	if wants and _cooldown_sec <= COOLDOWN_SLACK_SEC:
@@ -76,6 +82,7 @@ func _fire_own(direction: Vector2) -> void:
 		_out_queue.push(_shot_id, direction, _now_sec(), _hero.life)
 	else:
 		fire.rpc_id(1, _hero.life, _shot_id, direction)
+	fired.emit(_shot_id)
 
 
 # --- messages (table in game/net/README.md) ------------------------------------
