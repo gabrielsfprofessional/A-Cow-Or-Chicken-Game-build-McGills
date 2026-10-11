@@ -11,7 +11,7 @@ Only the owner's cards change this folder. See CLAUDE.md, "Folders and owners".
 | File | What it is |
 | --- | --- |
 | `test_world.tscn` / `test_world.gd` | Temporary proving ground from T06-T09: one hero per player, a border wall and two inner walls, the Shots node, `bot_area()` for test bots, and `ServerStats` on the server. T16 replaces it with the real arena. |
-| `net_hero.tscn` / `net_hero.gd` | `NetHero`, the T07/T08 hero: moves, sends, checks and smooths; carries a Weapon and a Health, hides on elimination and respawns. T13/T14 move it into `game/heroes`. |
+| `net_hero.tscn` / `net_hero.gd` | `NetHero`, the T07/T08 hero: moves, sends, checks and smooths; carries a Weapon and a Health, hides on elimination and respawns. `setup()` gives it its HeroData (T13). T14 moves it into `game/heroes`. |
 | `hero_input.gd` | `HeroInput` (T09): the owner's move, aim and fire. NetHero and Weapon read only this. Reads the keyboard and mouse. |
 | `bot_brain.gd` | `BotBrain` (T09): the `HeroInput` of a test bot. See "Test bots (card T09)". |
 | `bot_rules.gd` | `BotRules` (T09): a test bot's decisions. Pure, tested by `tests/bot_rules_test.gd`. |
@@ -19,7 +19,7 @@ Only the owner's cards change this folder. See CLAUDE.md, "Folders and owners".
 | `move_check.gd` | `MoveCheck`: the server's check on each movement update. Pure, tested by `tests/move_check_test.gd`. |
 | `remote_timeline.gd` | `RemoteTimeline`: plays other players' heroes back 100 ms behind. Pure, tested by `tests/remote_timeline_test.gd`. |
 | `delay_queue.gd` | `DelayQueue`: fakes a slow network for `--sim-lag` / `--sim-jitter`. Tested by `tests/delay_queue_test.gd`. |
-| `data/movement.tres` | `MovementData`: move speed (px/s). Tune it in the Inspector. T13 moves it into HeroData. |
+| (no data here) | Since T13 every hero number is in its HeroData (`game/heroes/data/*.tres`); the net code keeps only network plumbing and check tolerances as constants. See "Where the numbers live (card T13)". |
 
 Combat (T08) lives next door: `game/weapons/` (Weapon, Shots, ShotSim, ShotCheck, WeaponData) and `game/heroes/` (Health, HealthState, CombatData). See "Combat (card T08)" below.
 
@@ -131,7 +131,7 @@ mismatched build into a family game.
 
 - **Your own hero** moves the instant you press a key: a `CharacterBody2D` in
   floating mode, moved every physics tick with `Input.get_vector` on the
-  `move_*` actions, at `data/movement.tres` speed. It never waits on the server.
+  `move_*` actions, at its HeroData's `move_speed`. It never waits on the server.
 - Physics layer 1 is `world` (walls, Adam's blocks), layer 2 is `heroes`.
   Heroes sit on layer 2 and collide only with layer 1, so they pass through
   each other. The collider is a 40 px circle, so heroes slide round corners.
@@ -193,7 +193,7 @@ In order, the first failure wins:
    refills at 1.1x real time, and each accepted update spends its sequence gap
    x 50 ms. An update that would overspend is rejected (this also stops a huge
    sequence jump). A player who lags as they join is fine: the budget is full.
-5. Moved further than speed x 1.25 x (sequence gap x 50 ms): rejected.
+5. Moved further than speed (the HeroData's `move_speed`) x 1.25 x (sequence gap x 50 ms): rejected.
 
 On a reject the server keeps the last good position, advances the last
 sequence, sends the owner a `snap_back` (at most every 0.5 s while rejects
@@ -245,7 +245,7 @@ Heroes shoot and eliminate each other; the server decides every hit.
 
 - **Weapon** (`game/weapons/weapon.gd`, child `Weapon` of each hero): the owner
   aims at the mouse and, while fire (left click) is held, fires every
-  `fire_interval_sec` of `game/weapons/data/sidearm.tres`, counted on physics
+  `fire_interval_sec` of its WeaponData (the HeroData's `default_weapon`), counted on physics
   ticks. The owner draws its own shot at once. Remote barrels turn to each
   accepted shot's direction; aim itself is not sent.
 - **Server shots** (`ShotSim`, run by the `Shots` node in the test world):
@@ -262,6 +262,7 @@ Heroes shoot and eliminate each other; the server decides every hit.
   signals; `NetHero` hides the hero, turns its collider off (at once, not
   deferred), ignores its moves and fire, and respawns it after `respawn_sec`
   (`game/heroes/data/combat.tres`) at `respawn_point(peer_id)` (the T06 ring).
+  Health starts at the HeroData's `max_health`.
 - **Shot visuals** (`Shots` on clients): `origin + direction x speed x age`,
   drawn below the heroes, ending at the first wall, at `range_px`, or at the
   server's hit position from `receive_damage` (it flies there and stops, or
@@ -330,6 +331,31 @@ seconds to respawn.
 Until John's T17 HUD, each hero's label reads `Player <id>  <health>`, and the
 owner's status line adds `Eliminated, back in N s` while it is down, plus
 `fire-cheat=<x>` when that flag is on.
+
+## Where the numbers live (card T13)
+
+Every gameplay number a non-coder tunes is a `.tres` file, edited in the
+Inspector and checked by `tests/data_test.gd` on every pull request:
+
+| Number | File |
+| --- | --- |
+| Move speed, max health, default weapon | The hero's HeroData: `game/heroes/data/bruiser.tres`, `mage.tres`, `scout.tres`, `medic.tres` |
+| Which heroes, in what order | `game/heroes/data/roster.tres` (everyone plays the first until T16) |
+| Damage, fire rate, shot speed, size and range | The weapon's WeaponData: `game/weapons/data/sidearm.tres` (Adam's) |
+| Respawn time | `game/heroes/data/combat.tres` (until T15's mode rules) |
+
+- **One spawn path:** `test_world.gd`'s spawn function runs on every peer and
+  calls `NetHero.setup(..., ROSTER.first())`. The spawner still sends only the
+  peer id, so nothing changed on the wire (`NET_PROTOCOL` stays 3).
+- `setup()` runs before the hero enters the tree, so it sets the Weapon's
+  `data` and Health's `max_health` before their own `_ready`.
+- **One speed:** the owner moves at `move_speed` (x `--speed-cheat`), and the
+  server builds its MoveCheck with the same `move_speed`. Both read the same
+  HeroData, so tuning it never causes `TOO_FAR` rejects.
+- What stays as constants in the net code: network plumbing (port, send rate,
+  channels, log and snap intervals) and the server's check tolerances
+  (MoveCheck's 1.25x slack and 1 s budget, ShotCheck's timing slack), per
+  CLAUDE.md.
 
 ## Test bots (card T09)
 

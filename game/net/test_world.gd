@@ -1,5 +1,5 @@
 extends Node2D
-## Proving ground for cards T06-T09: one hero per connected player, walls to
+## Proving ground for cards T06-T09, T13: one hero per connected player, walls to
 ## bump into and shoot at, room for test bots. Owner: Gabe (game/net). T16
 ## replaces it with the real arena.
 ##
@@ -8,6 +8,8 @@ extends Node2D
 ## live in net_hero.gd; shots in game/weapons.
 
 const HERO_SCENE: PackedScene = preload("res://game/net/net_hero.tscn")
+## Everyone plays the roster's first hero until T16's hero select (T13).
+const ROSTER: HeroRoster = preload("res://game/heroes/data/roster.tres")
 const RING_RADIUS: float = 260.0
 ## Middle of the 1920x1080 viewport. This world has no camera.
 const WORLD_CENTER: Vector2 = Vector2(960.0, 540.0)
@@ -118,12 +120,13 @@ func _remove_hero(peer_id: int) -> void:
 	print("[TestWorld] hero removed for peer %d" % peer_id)
 
 
-## Runs on every peer, server included, through the spawner.
+## Runs on every peer, server included, through the spawner. The spawn data is
+## the peer id alone; every peer picks the same HeroData from the same roster.
 func _make_hero(data: Variant) -> Node:
 	var peer_id := int(data)
 	var hero := HERO_SCENE.instantiate() as NetHero
 	# The owning client drives this hero; setup() makes it the authority.
-	hero.setup(peer_id, respawn_point(peer_id), _hero_color(peer_id))
+	hero.setup(peer_id, respawn_point(peer_id), _hero_color(peer_id), ROSTER.first())
 	return hero
 
 
