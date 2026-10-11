@@ -10,8 +10,12 @@ Only the owner's cards change this folder. See CLAUDE.md, "Folders and owners".
 
 | File | What it is |
 | --- | --- |
-| `test_world.tscn` / `test_world.gd` | Temporary proving ground from T06-T08: one hero per player, a border wall and two inner walls, the Shots node. T16 replaces it with the real arena. |
+| `test_world.tscn` / `test_world.gd` | Temporary proving ground from T06-T09: one hero per player, a border wall and two inner walls, the Shots node, `bot_area()` for test bots, and `ServerStats` on the server. T16 replaces it with the real arena. |
 | `net_hero.tscn` / `net_hero.gd` | `NetHero`, the T07/T08 hero: moves, sends, checks and smooths; carries a Weapon and a Health, hides on elimination and respawns. T13/T14 move it into `game/heroes`. |
+| `hero_input.gd` | `HeroInput` (T09): the owner's move, aim and fire. NetHero and Weapon read only this. Reads the keyboard and mouse. |
+| `bot_brain.gd` | `BotBrain` (T09): the `HeroInput` of a test bot. See "Test bots (card T09)". |
+| `bot_rules.gd` | `BotRules` (T09): a test bot's decisions. Pure, tested by `tests/bot_rules_test.gd`. |
+| `server_stats.gd` | `ServerStats` (T09): the server's `[Stats]` line every 10 s. |
 | `move_check.gd` | `MoveCheck`: the server's check on each movement update. Pure, tested by `tests/move_check_test.gd`. |
 | `remote_timeline.gd` | `RemoteTimeline`: plays other players' heroes back 100 ms behind. Pure, tested by `tests/remote_timeline_test.gd`. |
 | `delay_queue.gd` | `DelayQueue`: fakes a slow network for `--sim-lag` / `--sim-jitter`. Tested by `tests/delay_queue_test.gd`. |
@@ -63,12 +67,13 @@ signals and shows the reason, drop the `_return_to_menu` call from `game/core/ne
 
 ## Running it
 
-Nobody needs to type any of this. Double-click the two launchers in `tools/`:
+Nobody needs to type any of this. Double-click the launchers in `tools/`:
 
 | Double-click | What happens |
 | --- | --- |
 | `tools/run_server.bat` | Starts the server on this PC. A black window opens and says `server up`. Leave it open while everyone plays; close it to stop the server. |
 | `tools/join_game.bat` | Asks `Server address (Enter = this PC)`, then opens the game and joins. Enter alone means `127.0.0.1`. You can also drop an address on it, or pass one: `join_game.bat 192.168.1.20`. |
+| `tools/run_bots.bat` | Load test (T09): 8 test bots join the server on this PC for 10 minutes. Start `run_server.bat` first. See "Test bots (card T09)". |
 
 `run_server.bat` uses the console build at `C:\Godot`, or the `GODOT` environment
 variable when it is set. Both launchers run from the repo root no matter where
@@ -226,10 +231,13 @@ window). A release build ignores them. The status line lists the active ones.
 | `--speed-cheat=<x>` | Multiplies this client's own speed. 2 gets it snapped back. |
 | `--fire-cheat=<x>` | Multiplies this client's fire rate (T08, parsed in `game/weapons/weapon.gd`). 2 gets extra shots refused. |
 | `--version-override=<v>` | Pretends to be version `<v>` (see above). |
+| `--bot=<seed>` | Makes this client a test bot (T09): a `BotBrain` drives its hero. Use with `--headless`, `--join=<address>` and `--quit-after-sec`. See "Test bots (card T09)". |
+| `--quit-after-sec=<n>` | Ends the run after n seconds with exit code 0 or 1 (T09, `game/core/game.gd`). Works for the server too. See "Test bots (card T09)". |
 
 The fake lag delays movement messages and outgoing fire (T08) only, not the
-handshake, spawns or incoming combat messages. The
-launchers in `tools/` never pass these flags.
+handshake, spawns or incoming combat messages. `run_server.bat` and
+`join_game.bat` never pass these flags; `run_bots` passes `--bot` and
+`--quit-after-sec`.
 
 ## Combat (card T08)
 
@@ -322,3 +330,110 @@ seconds to respawn.
 Until John's T17 HUD, each hero's label reads `Player <id>  <health>`, and the
 owner's status line adds `Eliminated, back in N s` while it is down, plus
 `fire-cheat=<x>` when that flag is on.
+
+## Test bots (card T09)
+
+A test bot is the real game, headless, joining like a person: the same
+handshake, world load, `client_ready`, MoveCheck and ShotCheck. The server can't
+tell bots from people, and the wire format did not change (`NET_PROTOCOL`
+stays 3). Debug builds only: a release build ignores `--bot` and
+`--quit-after-sec`. One bot by hand:
+
+    C:\Godot\Godot_v4.7.2-stable_win64_console.exe --headless --path . -- --join=127.0.0.1 --bot=1 --quit-after-sec=60
+
+### The input hook
+
+The owner's NetHero makes one `HeroInput` child, named `Input`, in `_ready`.
+NetHero and Weapon read move, aim and fire only from it: `move()`, `aim()`,
+`fire_held()` and `fire_pressed()`. The base reads the keyboard and mouse. With
+`--bot=<seed>`, `NetHero._make_input()` makes a `BotBrain` instead; it is the
+one place that knows bots exist. T14's Q ability adds its key to `HeroInput`.
+
+### What a bot does
+
+- **Walks** to random points in the world's `bot_area()` (the test world: the
+  floor inside its border walls). It picks a new point on arrival (24 px),
+  after 1 s without getting 8 px closer, or every 4-8 s. There is no
+  pathfinding: a bot stuck at a wall just picks another point (T23 adds
+  pathfinding if 16 bots jam). A world without `bot_area()` gets bots that
+  stand and shoot.
+- **Every 0.25 s** it targets the nearest live hero within its weapon's
+  `range_px` that it can see (`intersect_ray` on layer 1, the world), people
+  included. Each look rolls a new aim error of up to ±6°.
+- **With a target** it fires in 0.5-1.5 s bursts with 0.3-1 s pauses. With none
+  it aims where it walks and holds fire. While eliminated it idles; on respawn
+  it starts over.
+- **BotRules** holds these decisions: pure, with the clock and a seeded
+  RandomNumberGenerator passed in, so the same seed and inputs make the same
+  choices. Its numbers are test-tool constants in `bot_rules.gd`, not gameplay
+  `.tres` files.
+
+Each bot prints `[Bot] seed <n> is peer <id>` when its hero spawns, then
+`[Bot] seed <n>: <shots> shots, <hits> hits, <eliminations> eliminations, <deaths> deaths`
+every 30 s and when it leaves. Shots come from `Weapon.fired` (its own shots
+only), the rest from Events.
+
+### The run timer (--quit-after-sec)
+
+`-- --quit-after-sec=<n>` (debug builds) ends any run, server or client, after n
+seconds with an exit code a script can check. It lives in `game/core/game.gd`,
+so it survives scene changes.
+
+| Exit | When |
+| --- | --- |
+| 0 | A server that hosted, or a client that joined and never lost the connection |
+| 1 | Anything else. A timed client whose join fails, or that loses its server, quits with 1 at once |
+
+At the end it logs `[Game] quit-after-sec=<n>: exit <code>` and hangs up with
+`Net.leave()` before quitting, so the shutdown logs stay clean. A bot with no
+server exits 1 after about 5 s (Net's join timeout). Smoke and `run_bots` always
+pass the timer; a bot started by hand without it stays on the headless menu
+after a failed join.
+
+### Load test (run_bots)
+
+1. Double-click `tools/run_server.bat` and wait for `server up`.
+2. Double-click `tools/run_bots.bat`: 8 bots join this PC for 10 minutes.
+
+From a terminal: `tools\run_bots.ps1 [-Count 8] [-Address 127.0.0.1] [-Minutes 10]`
+(`run_bots.bat` passes the same options on). It:
+
+- says which address the bots join, and stops at once when nothing listens on
+  UDP 7777 on this PC;
+- starts the bots 1 s apart (`--bot=1` to `--bot=<Count>`,
+  `--quit-after-sec=<Minutes x 60>`), with logs in `%TEMP%\acoc-bots\bot<n>.log`;
+- every 10 s prints how many bots are alive and, when the server runs on this
+  PC (whoever owns UDP 7777), the server's CPU (% of one core and of the whole
+  PC) and memory (working set);
+- at the end shows each bot's exit code and last `[Bot]` line, the server's
+  average and peak CPU and peak memory, then PASS when every bot exited 0.
+  Ctrl+C stops the bots too.
+
+`[Move]` and `[Shot]` lines would show in the server window; an honest bot never
+causes one.
+
+Bots start, and so leave, 1 s apart on purpose. When two peers leave in the same
+server frame, Godot's server relay tells the second about the first after ENet
+has already dropped it, and the server logs
+`ERROR: Unable to send packet on channel 0, max channels: 0`. It is harmless,
+but smoke fails on any `ERROR:`. Turning off `multiplayer.server_relay` in `Net`
+would remove it (we never send messages client to client); that is a `net.gd`
+decision for Gabe.
+
+### Server stats
+
+The dedicated server prints one line every 10 s. It comes from `ServerStats`,
+which the test world adds on the server; T16's arena must add it too.
+
+    [Stats] peers 2, fps 145, worst frame 16.2 ms, memory 31.8 MB, up 1.2 KB/s, down 1.1 KB/s
+
+| Field | Meaning |
+| --- | --- |
+| `peers` | Connected peers |
+| `fps` | Frames per second. A headless server runs at about 145. |
+| `worst frame` | The longest gap between two frames in those 10 s |
+| `memory` | Godot's own count (`OS.get_static_memory_usage()`) in MiB; 0 in release exports. `run_bots` shows what Windows sees. |
+| `up` / `down` | ENet bytes sent and received per second, from the host's `pop_statistic` (reset on each pop), without IP/UDP headers. KB = 1000 bytes, so Mbps = KB/s x 0.008: Gate 2's 5 Mbps upload budget is 625 KB/s. |
+
+It reads traffic only while the peer is an active ENet host: on an inactive
+one, reading `host` or popping a statistic prints an `ERROR:`.

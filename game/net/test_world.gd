@@ -41,6 +41,9 @@ func _ready() -> void:
 	Events.hero_respawned.connect(_on_hero_respawned)
 	if Net.state == Net.State.SERVER:
 		multiplayer.peer_disconnected.connect(_remove_hero)
+		var stats := ServerStats.new()
+		stats.name = "ServerStats"
+		add_child(stats)
 	else:
 		# Net loads this world before it joins, so the usual path is: connect,
 		# then hello. The state check covers a caller that joins first.
