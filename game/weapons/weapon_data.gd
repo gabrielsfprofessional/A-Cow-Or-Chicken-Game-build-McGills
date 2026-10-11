@@ -1,7 +1,7 @@
 class_name WeaponData
 extends Resource
 ## One weapon's numbers, tuned in the Inspector. Owner: Gabe (logic); the .tres
-## files in data/ are Adam's. Card T08. T19 adds the other five weapons.
+## files in data/ are Adam's. Cards T08, T13. T19 adds the other five weapons.
 
 ## Name shown in menus and the HUD.
 @export var display_name: String = ""
@@ -21,3 +21,11 @@ extends Resource
 @export_range(0.0, 45.0, 0.5, "suffix:deg") var spread_deg: float = 0.0
 ## Shots per trigger pull. Not used until T19.
 @export_range(1, 20, 1) var pellets: int = 1
+
+
+## This weapon's problems in plain words. Empty when the file is fine.
+func validate() -> PackedStringArray:
+	var problems := PackedStringArray()
+	DataCheck.require_text(problems, "display_name", display_name)
+	problems.append_array(DataCheck.ranges(self))
+	return problems
