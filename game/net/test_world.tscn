@@ -1,6 +1,7 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://game/net/test_world.gd" id="1_world"]
+[ext_resource type="PackedScene" path="res://game/weapons/shots.tscn" id="2_shots"]
 
 [sub_resource type="RectangleShape2D" id="Rect_horizontal"]
 size = Vector2(1920, 32)
@@ -112,6 +113,8 @@ offset_bottom = 240.0
 mouse_filter = 2
 color = Color(0.36, 0.38, 0.44, 1)
 
+[node name="Shots" parent="." instance=ExtResource("2_shots")]
+
 [node name="Heroes" type="Node2D" parent="."]
 
 [node name="HeroSpawner" type="MultiplayerSpawner" parent="."]
@@ -125,7 +128,7 @@ offset_top = 40.0
 offset_right = 1872.0
 offset_bottom = 76.0
 theme_override_font_sizes/font_size = 24
-text = "Test world (card T07)"
+text = "Test world (card T08)"
 
 [node name="Remotes" type="Label" parent="Hud"]
 offset_left = 48.0

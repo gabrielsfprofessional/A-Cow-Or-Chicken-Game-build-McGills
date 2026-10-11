@@ -1,10 +1,11 @@
 extends Node2D
-## Proving ground for cards T06 and T07: one hero per connected player, walls to
-## bump into. Owner: Gabe (game/net). T16 replaces it with the real arena.
+## Proving ground for cards T06, T07 and T08: one hero per connected player,
+## walls to bump into and shoot at. Owner: Gabe (game/net). T16 replaces it
+## with the real arena.
 ##
 ## The server spawns a hero for a client only after that client says its world
-## is loaded, so nobody gets a hero they cannot draw yet. Movement lives in
-## net_hero.gd (T07).
+## is loaded, so nobody gets a hero they cannot draw yet. Movement and combat
+## live in net_hero.gd; shots in game/weapons.
 
 const HERO_SCENE: PackedScene = preload("res://game/net/net_hero.tscn")
 const RING_RADIUS: float = 260.0
@@ -21,6 +22,7 @@ var _ready_peers: Dictionary[int, bool] = {}
 var _status_wait: float = 0.0
 
 @onready var _heroes: Node2D = $Heroes
+@onready var _shots: Shots = $Shots
 @onready var _spawner: MultiplayerSpawner = $HeroSpawner
 @onready var _status: Label = $Hud/Status
 @onready var _remotes: Label = $Hud/Remotes
@@ -32,6 +34,9 @@ func _ready() -> void:
 	_spawner.spawn_function = _make_hero
 	_heroes.child_entered_tree.connect(_on_heroes_changed)
 	_heroes.child_exiting_tree.connect(_on_heroes_changed)
+	Events.hero_damaged.connect(_on_hero_damaged)
+	Events.hero_eliminated.connect(_on_hero_eliminated)
+	Events.hero_respawned.connect(_on_hero_respawned)
 	if Net.state == Net.State.SERVER:
 		multiplayer.peer_disconnected.connect(_remove_hero)
 	else:
@@ -48,6 +53,7 @@ func _process(delta: float) -> void:
 	if _status_wait > 0.0:
 		return
 	_status_wait = STATUS_INTERVAL
+	_refresh_status()
 	_refresh_remotes()
 
 
@@ -56,7 +62,20 @@ func is_peer_ready(peer_id: int) -> bool:
 	return _ready_peers.has(peer_id)
 
 
-## A client telling the server its world is ready. The server answers with a hero.
+## The world's shots: the server's simulation and every client's drawing.
+func shots() -> Shots:
+	return _shots
+
+
+## Where a hero spawns and respawns. Same spot on every peer: the peer id alone
+## decides it (the T06 ring). T12 replaces it with team spawns.
+func respawn_point(peer_id: int) -> Vector2:
+	var angle := fposmod(float(peer_id) * RING_STEP, 1.0) * TAU
+	return WORLD_CENTER + Vector2(cos(angle), sin(angle)) * RING_RADIUS
+
+
+## A client telling the server its world is ready. The server answers with a
+## hero, then each hero's combat state (the spawner only knows spawn data).
 @rpc("any_peer", "call_remote", "reliable")
 func client_ready() -> void:
 	if not multiplayer.is_server():
@@ -67,6 +86,10 @@ func client_ready() -> void:
 		return  # Already has a hero. A repeated hello changes nothing.
 	_spawner.spawn(peer_id)
 	print("[TestWorld] hero spawned for peer %d" % peer_id)
+	for child: Node in _heroes.get_children():
+		var hero := child as NetHero
+		if hero != null:
+			hero.send_combat_state(peer_id)
 
 
 func _say_hello() -> void:
@@ -88,14 +111,8 @@ func _make_hero(data: Variant) -> Node:
 	var peer_id := int(data)
 	var hero := HERO_SCENE.instantiate() as NetHero
 	# The owning client drives this hero; setup() makes it the authority.
-	hero.setup(peer_id, _spawn_point(peer_id), _hero_color(peer_id))
+	hero.setup(peer_id, respawn_point(peer_id), _hero_color(peer_id))
 	return hero
-
-
-## Same spot on every peer: the peer id alone decides it.
-func _spawn_point(peer_id: int) -> Vector2:
-	var angle := fposmod(float(peer_id) * RING_STEP, 1.0) * TAU
-	return WORLD_CENTER + Vector2(cos(angle), sin(angle)) * RING_RADIUS
 
 
 func _hero_color(peer_id: int) -> Color:
@@ -104,16 +121,46 @@ func _hero_color(peer_id: int) -> Color:
 
 func _on_heroes_changed(_hero: Node) -> void:
 	# child_exiting_tree fires before the child is gone, so count next frame.
-	_refresh_status.call_deferred()
+	_log_hero_count.call_deferred()
+
+
+func _log_hero_count() -> void:
+	_refresh_status()
+	print("[TestWorld] heroes in the world: %d" % _heroes.get_child_count())
+
+
+func _on_hero_damaged(victim: int, attacker: int, amount: int, at: Vector2) -> void:
+	print("[Combat] hero_damaged: Player %d hit by Player %d for %d at (%.0f, %.0f)" % [victim, attacker, amount, at.x, at.y])
+
+
+func _on_hero_eliminated(victim: int, attacker: int) -> void:
+	print("[Combat] hero_eliminated: Player %d by Player %d" % [victim, attacker])
+
+
+func _on_hero_respawned(peer_id: int, at: Vector2) -> void:
+	print("[Combat] hero_respawned: Player %d at (%.0f, %.0f)" % [peer_id, at.x, at.y])
 
 
 func _refresh_status() -> void:
-	var count := _heroes.get_child_count()
-	var flags := Net.debug_flags_text()
-	_status.text = "Test world (card T07)  |  version %s  |  %s  |  %d in the world%s" % [
-		Net.version(), _role_text(), count, "  |  " + flags if flags != "" else "",
+	var parts: PackedStringArray = [
+		"Test world (card T08)", "version %s" % Net.version(), _role_text(),
+		"%d in the world" % _heroes.get_child_count(),
 	]
-	print("[TestWorld] heroes in the world: %d" % count)
+	var flags := Net.debug_flags_text()
+	if Weapon.fire_cheat() != 1.0:
+		flags = (flags + " " if flags != "" else "") + "fire-cheat=%s" % Weapon.fire_cheat()
+	if flags != "":
+		parts.append(flags)
+	var own := _own_hero()
+	if own != null and not own.is_alive():
+		parts.append("Eliminated, back in %d s" % ceili(own.respawn_in_sec()))
+	_status.text = "  |  ".join(parts)
+
+
+func _own_hero() -> NetHero:
+	if Net.state != Net.State.CLIENT:
+		return null
+	return _heroes.get_node_or_null(NodePath(str(multiplayer.get_unique_id()))) as NetHero
 
 
 ## Each remote hero's buffer depth and underrun count. "Smooth" = ur stays 0.

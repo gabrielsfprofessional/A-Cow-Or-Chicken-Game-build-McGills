@@ -23,6 +23,7 @@ func _initialize() -> void:
 	_extrapolates_then_holds()
 	_snaps_on_a_big_jump()
 	_offset_settles()
+	_reset_on_respawn()
 	print("REMOTE TIMELINE TEST: %s (%d checks)" % ["PASS" if _failed == 0 else "FAIL, %d wrong" % _failed, _count])
 	quit(0 if _failed == 0 else 1)
 
@@ -112,6 +113,69 @@ func _offset_settles() -> void:
 		var lag := 0.05 if sequence <= 100 else 0.15
 		timeline.push(sequence, _path(sequence * STEP), sequence * STEP + lag + CLOCK_SKEW)
 	_expect_near("the clock offset settles under steady lag", timeline.offset_sec, CLOCK_SKEW + 0.15, 0.005)
+
+
+## A hero plays for 5 s, is eliminated for 4 s (no sends, no samples), then
+## respawns at SPAWN and plays 10 s more, through 150 ms lag and 50 ms jitter.
+## Returns the timeline and what was seen after the respawn.
+func _respawn_run(use_reset: bool) -> Dictionary:
+	const SPAWN: Vector2 = Vector2(400, 300)
+	const DEATH_SEQUENCE: int = 100
+	## Moves in flight at the death are dropped, so the owner's sequence skips a few.
+	const RESUME_SEQUENCE: int = 104
+	var timeline: RemoteTimeline = TimelineScript.new()
+	var queue: DelayQueue = DelayQueueScript.new(150, 50, 5)
+	var seen := {"first": Vector2.INF, "backward": false, "old_ignored": true, "underruns_before": 0}
+	var sequence := 0
+	var next_send := STEP
+	var eliminated := false
+	var respawned := false
+	for tick: int in range(60 * 20):
+		var now := tick * TICK
+		if not eliminated and not respawned and sequence == DEATH_SEQUENCE:
+			eliminated = true
+			seen.underruns_before = timeline.underruns
+		if eliminated and now >= 9.0:
+			respawned = true
+			eliminated = false
+			sequence = RESUME_SEQUENCE - 1
+			next_send = now
+			if use_reset:
+				timeline.reset(SPAWN)
+				seen.first = timeline.sample(now)
+				timeline.push(DEATH_SEQUENCE, _path(0.0), now)
+				seen.old_ignored = timeline.buffer_depth_sec() == 0.0
+		# The sender: one update per 50 ms while alive. Its sequence stands still
+		# while eliminated, so sequence x 50 ms falls 4 s behind real time.
+		while not eliminated and now >= next_send:
+			sequence += 1
+			next_send += STEP
+			var at := _path(sequence * STEP) if not respawned else SPAWN + Vector2(sequence - RESUME_SEQUENCE, 0) * 5.0
+			queue.push(sequence, at, now)
+		while queue.is_due(now):
+			timeline.push(queue.peek_sequence(), queue.peek_position(), now)
+			queue.pop()
+		if eliminated:
+			continue
+		var before := timeline.playback_sec
+		timeline.sample(now)
+		if respawned and timeline.playback_sec < before and before != 0.0:
+			seen.backward = true
+	seen.timeline = timeline
+	return seen
+
+
+func _reset_on_respawn() -> void:
+	var seen := _respawn_run(true)
+	var timeline: RemoteTimeline = seen.timeline
+	_expect_true("after reset the hero is drawn at the spawn point", seen.first == Vector2(400, 300))
+	_expect_true("an update from before the death is ignored after reset", seen.old_ignored)
+	_expect_true("a death and respawn add no underruns (before %d, after %d)" % [seen.underruns_before, timeline.underruns],
+		seen.underruns_before == 0 and timeline.underruns == 0)
+	_expect_true("playback never goes backward after the respawn", not seen.backward)
+	var without := _respawn_run(false)
+	var stale: RemoteTimeline = without.timeline
+	_expect_true("without reset the same respawn does underrun (saw %d)" % stale.underruns, stale.underruns > 0)
 
 
 func _expect_near(case_name: String, got: float, wanted: float, slack: float) -> void:
