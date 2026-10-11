@@ -20,7 +20,7 @@ signal join_failed(reason: String)
 signal left(reason: String)
 
 const DEFAULT_PORT: int = 7777
-## Wire format version (T06 = 1, T07 = 2). Bump it on every change to RPCs,
+## Wire format version (T06 = 1, T07 = 2, T08 = 3). Bump it on every change to RPCs,
 ## channels or payloads: builds with a different number refuse each other.
 const NET_PROTOCOL: int = 3
 ## ENet channels on top of the default one (channel 0). Only create_client takes it (see host()).

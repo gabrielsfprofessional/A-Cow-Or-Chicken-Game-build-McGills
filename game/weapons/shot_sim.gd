@@ -10,11 +10,12 @@ extends RefCounted
 ##    ignores anything the shape starts inside, so this catches a hero who
 ##    stepped onto the shot or overlaps the shooter.
 ## 2. cast_motion over the tick's motion, then get_rest_info at the unsafe
-##    point for what it touched.
+##    point for what it touched (intersect_shape there if that comes back empty).
 ## Layers 1 (world) and 2 (heroes); the shooter is always excluded. A body with a
 ## live Health child takes damage; anything else stops the shot like a wall.
 ## It expires after range_px. Fixed arrays with slot reuse and one reused query
-## and shape, so a tick creates no nodes and grows no arrays.
+## and shape: our code creates no nodes and grows no arrays per tick; Godot's
+## query calls still return small new values.
 
 const CAPACITY: int = 256
 const WORLD_MASK: int = 1
@@ -122,12 +123,7 @@ func _step_one(space: PhysicsDirectSpaceState2D, slot: int, delta: float) -> voi
 	_prepare(_shooter[slot], _radius[slot], from, HIT_MASK)
 	var overlaps := space.intersect_shape(_query, MAX_OVERLAPS)
 	if not overlaps.is_empty():
-		var target: Health = null
-		for overlap: Dictionary in overlaps:
-			target = _live_health(overlap.get("collider"))
-			if target != null:
-				break
-		_finish(slot, target, from)
+		_finish(slot, _first_live_health(overlaps), from)
 		return
 	var length := minf(_speed[slot] * delta, _range_left[slot])
 	var motion := _direction[slot] * length
@@ -137,8 +133,13 @@ func _step_one(space: PhysicsDirectSpaceState2D, slot: int, delta: float) -> voi
 		_query.transform = Transform2D(0.0, from + motion * fractions[1])
 		_query.motion = Vector2.ZERO
 		var info := space.get_rest_info(_query)
-		var collider: Object = instance_from_id(int(info["collider_id"])) if info.has("collider_id") else null
-		_finish(slot, _live_health(collider), from + motion * fractions[0])
+		var target: Health = null
+		if info.has("collider_id"):
+			target = _live_health(instance_from_id(int(info["collider_id"])))
+		else:
+			# get_rest_info can miss a grazing touch; a hero there must not count as a wall.
+			target = _first_live_health(space.intersect_shape(_query, MAX_OVERLAPS))
+		_finish(slot, target, from + motion * fractions[0])
 		return
 	_position[slot] = from + motion
 	_range_left[slot] -= length
@@ -159,6 +160,15 @@ func _finish(slot: int, target: Health, at: Vector2) -> void:
 	hits += 1
 	if on_hit.is_valid():
 		on_hit.call(attacker_id, shot_id, damage, target, at)
+
+
+## The first overlap with a live Health, or null (a wall, or nothing at all).
+func _first_live_health(overlaps: Array[Dictionary]) -> Health:
+	for overlap: Dictionary in overlaps:
+		var target := _live_health(overlap.get("collider"))
+		if target != null:
+			return target
+	return null
 
 
 func _live_health(collider: Object) -> Health:
