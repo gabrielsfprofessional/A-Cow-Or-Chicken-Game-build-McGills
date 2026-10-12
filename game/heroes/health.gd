@@ -1,7 +1,7 @@
 class_name Health
 extends Node
 ## Health for anything that can be shot: a child node named "Health". Owner: Gabe
-## (game/heroes). Card T08. The rules live in HealthState.
+## (game/heroes). Cards T08, T13. The rules live in HealthState.
 ##
 ## Knows nothing about heroes or the network: it changes its numbers and emits
 ## local signals; its parent decides what that looks like (hide, respawn, send).
@@ -14,17 +14,16 @@ signal damaged(amount: int, attacker_id: int, shot_id: int, health_after: int, h
 signal eliminated(attacker_id: int)
 signal restored()
 
-@export var combat: CombatData = preload("res://game/heroes/data/combat.tres")
+## Health this starts and respawns with. A hero's comes from its HeroData
+## (NetHero.setup() sets it before _ready); this default is for things that
+## aren't heroes, such as T20's dummies. Read once, when the state is built.
+@export_range(1, 1000, 1, "suffix:HP") var max_health: int = 100
 
 var _state: HealthState = null
 
 
 func health() -> int:
 	return _rules().health
-
-
-func max_health() -> int:
-	return _rules().max_health
 
 
 func is_alive() -> bool:
@@ -69,8 +68,8 @@ func sync(new_health: int, is_eliminated: bool) -> void:
 	_rules().sync(new_health, is_eliminated)
 
 
-## Built on first use, so Health works before _ready and with any `combat` set.
+## Built on first use, so Health works before _ready and after max_health is set.
 func _rules() -> HealthState:
 	if _state == null:
-		_state = HealthState.new(combat.max_health)
+		_state = HealthState.new(max_health)
 	return _state

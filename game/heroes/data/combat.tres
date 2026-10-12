@@ -4,5 +4,4 @@
 
 [resource]
 script = ExtResource("1_combat")
-max_health = 100
 respawn_sec = 4.0

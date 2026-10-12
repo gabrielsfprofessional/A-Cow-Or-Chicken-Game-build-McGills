@@ -1,8 +1,10 @@
 class_name NetHero
 extends CharacterBody2D
 ## A test-world hero that moves and fights online. Owner: Gabe (game/net).
-## Cards T07, T08, T09. T13/T14 move it into game/heroes. Messages: see game/net/README.md.
+## Cards T07, T08, T09, T13. T14 moves it into game/heroes. Messages: see game/net/README.md.
 ##
+## - Its numbers come from one HeroData (T13), given in setup(): move speed for
+##   the owner and the server's MoveCheck, max health, and the default weapon.
 ## - The owner moves it every physics tick from its `input` and sends
 ##   (life, sequence, position) to the server 20 times a second. It never waits.
 ## - `input` (T09) is the owner's HeroInput child: the keyboard and mouse, or a
@@ -23,9 +25,12 @@ const SEND_RATE: int = 20
 const SNAP_INTERVAL_MSEC: int = 500
 ## [Move] (server rejects) and [Remote] (underruns) lines per hero at most this often.
 const LOG_INTERVAL_MSEC: int = 1000
-const MOVEMENT: MovementData = preload("res://game/net/data/movement.tres")
+## Respawn time, until T15's mode rules take it.
+const COMBAT: CombatData = preload("res://game/heroes/data/combat.tres")
 
 var owner_peer: int = 0
+## This hero's numbers (T13), set by setup(). The same file on every peer.
+var hero_data: HeroData = null
 var color: Color = Color.WHITE
 ## Raised by every respawn; 0 when the hero spawns.
 var life: int = 0
@@ -56,12 +61,17 @@ var _respawn_at_sec: float = 0.0
 @onready var _name_label: Label = $PlayerName
 
 
-## Called by the spawn function before the hero enters the tree.
-func setup(peer_id: int, spawn_position: Vector2, hero_color: Color) -> void:
+## Called by the spawn function before the hero enters the tree, so the
+## Weapon and Health children get their numbers before their own _ready.
+func setup(peer_id: int, spawn_position: Vector2, hero_color: Color, hero: HeroData) -> void:
+	assert(hero != null, "NetHero.setup() needs a HeroData; check game/heroes/data/roster.tres")
 	owner_peer = peer_id
 	name = str(peer_id)
 	position = spawn_position
 	color = hero_color
+	hero_data = hero
+	($Weapon as Weapon).data = hero.default_weapon
+	($Health as Health).max_health = hero.max_health
 	set_multiplayer_authority(peer_id)
 
 
@@ -73,7 +83,8 @@ func _ready() -> void:
 		push_error("[Move] physics_ticks_per_second (%d) is not a multiple of %d" % [ticks, SEND_RATE])
 	@warning_ignore("integer_division")
 	_ticks_per_send = maxi(1, ticks / SEND_RATE)
-	_speed = MOVEMENT.move_speed
+	assert(hero_data != null, "NetHero needs setup() with a HeroData before it enters the tree")
+	_speed = hero_data.move_speed
 	if multiplayer.is_server():
 		_check = MoveCheck.new(owner_peer, position, _speed, _now_sec())
 	elif is_owned():
@@ -255,7 +266,7 @@ func receive_combat_state(life_number: int, health: int, eliminated: bool, respa
 		return
 	life = life_number
 	_health.sync(health, eliminated)
-	_respawn_at_sec = _now_sec() + clampf(respawn_in, 0.0, _health.combat.respawn_sec)
+	_respawn_at_sec = _now_sec() + clampf(respawn_in, 0.0, COMBAT.respawn_sec)
 	_show_eliminated(eliminated)
 	_update_label()
 
@@ -340,7 +351,7 @@ func _on_damaged(amount: int, attacker: int, shot_id: int, health_after: int, hi
 
 
 func _on_eliminated(attacker: int) -> void:
-	_respawn_at_sec = _now_sec() + _health.combat.respawn_sec
+	_respawn_at_sec = _now_sec() + COMBAT.respawn_sec
 	_show_eliminated(true)
 	_update_label()
 	if multiplayer.is_server():
