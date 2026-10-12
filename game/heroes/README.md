@@ -25,6 +25,8 @@ Every hero number is in a `.tres` file you tune in the Inspector:
 | `hero_data.gd` | `HeroData`: `display_name`, `role` (one line for hero select), `move_speed` (px/s), `max_health` (HP), `default_weapon` (a WeaponData from `game/weapons/data`). |
 | `data/bruiser.tres`, `mage.tres`, `scout.tres`, `medic.tres` | The four heroes, named by role. Display names may change; the file names won't. |
 | `hero_roster.gd`, `data/roster.tres` | `HeroRoster`: the heroes in hero-select order. Everyone plays the first until T16's hero select. |
+| `ability_data.gd` | `AbilityData` (T14): what every Q ability has, `display_name` and `cooldown_sec` (s). A hero's `ability` points at one; empty means none (Mage, Scout and Medic until T18). |
+| `shield_charge_data.gd`, `data/shield_charge.tres` | `ShieldChargeData` (T14), the Bruiser's Q: `cooldown_sec`, `dash_distance_px`, `dash_duration_sec`, `knockback_px`, `knockback_duration_sec`. A dash or knockback faster than 4000 px/s fails `validate()`. |
 | `combat_data.gd`, `data/combat.tres` | `CombatData`: `respawn_sec` only, until T15's mode rules take it. |
 
 - A hero's Health starts at its `max_health`. Health's own Inspector
