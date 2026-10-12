@@ -4,6 +4,11 @@ Owner: Gabe
 
 Hero scenes, abilities and hero data files (data/*.tres). Cards: T08, T13, T14, T18, A07.
 
+`net_hero.tscn` / `net_hero.gd`: `NetHero`, the hero every player drives online
+(T07-T09, T13; moved here from `game/net` in T14). It moves, sends, checks and
+smooths, carries a Weapon and a Health, hides on elimination and respawns.
+`setup()` gives it its HeroData. Its messages are in `game/net/README.md`.
+
 T08: `health.tscn` (Health: put it under anything on physics layer 2 to make it
 hittable) and `health_state.gd` (its rules).
 
@@ -21,7 +26,6 @@ Every hero number is in a `.tres` file you tune in the Inspector:
 | `data/bruiser.tres`, `mage.tres`, `scout.tres`, `medic.tres` | The four heroes, named by role. Display names may change; the file names won't. |
 | `hero_roster.gd`, `data/roster.tres` | `HeroRoster`: the heroes in hero-select order. Everyone plays the first until T16's hero select. |
 | `combat_data.gd`, `data/combat.tres` | `CombatData`: `respawn_sec` only, until T15's mode rules take it. |
-| `data_check.gd` | `DataCheck`: the shared range check behind every `validate()`. |
 
 - A hero's Health starts at its `max_health`. Health's own Inspector
   `max_health` (default 100) is for things that aren't heroes, such as T20's

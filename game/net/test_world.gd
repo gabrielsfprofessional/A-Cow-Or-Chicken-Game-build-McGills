@@ -5,9 +5,9 @@ extends Node2D
 ##
 ## The server spawns a hero for a client only after that client says its world
 ## is loaded, so nobody gets a hero they cannot draw yet. Movement and combat
-## live in net_hero.gd; shots in game/weapons.
+## live in game/heroes/net_hero.gd; shots in game/weapons.
 
-const HERO_SCENE: PackedScene = preload("res://game/net/net_hero.tscn")
+const HERO_SCENE: PackedScene = preload("res://game/heroes/net_hero.tscn")
 ## Everyone plays the roster's first hero until T16's hero select (T13).
 const ROSTER: HeroRoster = preload("res://game/heroes/data/roster.tres")
 const RING_RADIUS: float = 260.0

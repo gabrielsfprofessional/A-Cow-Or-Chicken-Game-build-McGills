@@ -11,7 +11,6 @@ Only the owner's cards change this folder. See CLAUDE.md, "Folders and owners".
 | File | What it is |
 | --- | --- |
 | `test_world.tscn` / `test_world.gd` | Temporary proving ground from T06-T09: one hero per player, a border wall and two inner walls, the Shots node, `bot_area()` for test bots, and `ServerStats` on the server. T16 replaces it with the real arena. |
-| `net_hero.tscn` / `net_hero.gd` | `NetHero`, the T07/T08 hero: moves, sends, checks and smooths; carries a Weapon and a Health, hides on elimination and respawns. `setup()` gives it its HeroData (T13). T14 moves it into `game/heroes`. |
 | `hero_input.gd` | `HeroInput` (T09): the owner's move, aim and fire. NetHero and Weapon read only this. Reads the keyboard and mouse. |
 | `bot_brain.gd` | `BotBrain` (T09): the `HeroInput` of a test bot. See "Test bots (card T09)". |
 | `bot_rules.gd` | `BotRules` (T09): a test bot's decisions. Pure, tested by `tests/bot_rules_test.gd`. |
@@ -21,7 +20,7 @@ Only the owner's cards change this folder. See CLAUDE.md, "Folders and owners".
 | `delay_queue.gd` | `DelayQueue`: fakes a slow network for `--sim-lag` / `--sim-jitter`. Tested by `tests/delay_queue_test.gd`. |
 | (no data here) | Since T13 every hero number is in its HeroData (`game/heroes/data/*.tres`); the net code keeps only network plumbing and check tolerances as constants. See "Where the numbers live (card T13)". |
 
-Combat (T08) lives next door: `game/weapons/` (Weapon, Shots, ShotSim, ShotCheck, WeaponData) and `game/heroes/` (Health, HealthState, CombatData). See "Combat (card T08)" below.
+Combat (T08) lives next door: `game/weapons/` (Weapon, Shots, ShotSim, ShotCheck, WeaponData) and `game/heroes/` (NetHero, Health, HealthState, CombatData; NetHero moved there from here in T14). See "Combat (card T08)" below.
 
 The connection code itself lives in `game/core/net.gd` (autoload `Net`), because
 every folder needs it.

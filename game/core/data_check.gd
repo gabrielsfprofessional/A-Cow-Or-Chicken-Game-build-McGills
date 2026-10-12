@@ -1,7 +1,7 @@
 class_name DataCheck
 extends RefCounted
 ## Shared helpers for the validate() of every data Resource (HeroData,
-## HeroRoster, WeaponData, CombatData). Owner: Gabe (game/heroes). Card T13.
+## HeroRoster, WeaponData, CombatData). Owner: Gabe (game/core). Card T13.
 ##
 ## ranges() reads each field's limits from its own @export_range, so the
 ## limits are written once and validate() always matches the Inspector. A text

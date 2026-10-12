@@ -1,7 +1,7 @@
 class_name NetHero
 extends CharacterBody2D
-## A test-world hero that moves and fights online. Owner: Gabe (game/net).
-## Cards T07, T08, T09, T13. T14 moves it into game/heroes. Messages: see game/net/README.md.
+## A hero that moves and fights online. Owner: Gabe (game/heroes).
+## Cards T07, T08, T09, T13, T14. Messages: see game/net/README.md.
 ##
 ## - Its numbers come from one HeroData (T13), given in setup(): move speed for
 ##   the owner and the server's MoveCheck, max health, and the default weapon.
