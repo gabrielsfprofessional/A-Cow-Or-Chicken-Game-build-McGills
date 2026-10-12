@@ -13,6 +13,7 @@ extends SceneTree
 const DATA_FOLDERS: PackedStringArray = ["res://game/heroes/data", "res://game/weapons/data"]
 const ROSTER_PATH: String = "res://game/heroes/data/roster.tres"
 const SIDEARM_PATH: String = "res://game/weapons/data/sidearm.tres"
+const UNKNOWN_TYPE: String = "is not a HeroData, HeroRoster, CombatData or WeaponData file; check its script path"
 const SCRATCH_FOLDER: String = "user://data_test"
 const WRONG_SCRIPT_TRES: String = """[gd_resource type="Resource" script_class="HeroData" format=3]
 
@@ -70,12 +71,11 @@ func _check_file(path: String) -> void:
 
 
 ## Empty when the file loads, is a known type and passes validate(); else the
-## problem in plain words, naming the file.
+## problem in plain words. _check_file() puts the file name in front.
 func _file_problem(path: String) -> String:
-	var file := path.get_file()
 	var resource := ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE)
 	if resource == null:
-		return "%s won't load; open it in Godot to see why" % file
+		return "won't load; open it in Godot to see why"
 	var problems := PackedStringArray()
 	if resource is HeroData:
 		problems = (resource as HeroData).validate()
@@ -86,8 +86,8 @@ func _file_problem(path: String) -> String:
 	elif resource is WeaponData:
 		problems = (resource as WeaponData).validate()
 	else:
-		return "%s is not a HeroData, HeroRoster, CombatData or WeaponData file; check its script path" % file
-	return "" if problems.is_empty() else "%s: %s" % [file, "; ".join(problems)]
+		return UNKNOWN_TYPE
+	return "; ".join(problems)
 
 
 ## A hero file whose script path points at the wrong script fails, naming the file.
@@ -102,7 +102,8 @@ func _wrong_script_path() -> void:
 	print("  (an engine error about health.gd on a Resource is expected next)")
 	var problem := _file_problem(path)
 	DirAccess.remove_absolute(path)
-	_expect(problem.begins_with("wrong_script.tres "), "a .tres with a wrong script path fails, naming the file",
+	# _check_file() would print "FAIL  wrong_script.tres: " and this problem.
+	_expect(problem == UNKNOWN_TYPE, "a .tres with a wrong script path fails (%s)" % UNKNOWN_TYPE,
 		"got \"%s\"" % problem)
 
 
