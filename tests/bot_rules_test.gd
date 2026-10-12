@@ -34,6 +34,7 @@ func _initialize() -> void:
 	_wander_time_repicks()
 	_points_stay_in_area()
 	_same_seed_same_choices()
+	_ability_only_with_a_target_and_ready()
 	print("BOT RULES TEST: %s (%d checks)" % ["PASS" if _failed == 0 else "FAIL, %d wrong" % _failed, _count])
 	quit(0 if _failed == 0 else 1)
 
@@ -279,6 +280,20 @@ func _session(seed_value: int) -> Array:
 		choices.append(rules.trigger(now))
 		choices.append(rules.walk_point)
 	return choices
+
+
+# --- Q (T14) -----------------------------------------------------------------------
+
+func _ability_only_with_a_target_and_ready() -> void:
+	var rules := _new_rules()
+	var from := Vector2(500.0, 400.0)
+	_expect_true("no target: Q is not pressed, even when ready", not rules.wants_ability(true))
+	var heroes: Array[BotRules.Seen] = [_seen(1, from + Vector2(200.0, 0.0))]
+	rules.pick_target(SELF_ID, from, heroes, RANGE_PX)
+	_expect_true("a target and Q ready: Q is pressed", rules.wants_ability(true))
+	_expect_true("a target but Q cooling down: Q is not pressed", not rules.wants_ability(false))
+	rules.drop_target()
+	_expect_true("target dropped: Q is not pressed", not rules.wants_ability(true))
 
 
 func _expect_int(case_name: String, got: int, wanted: int) -> void:

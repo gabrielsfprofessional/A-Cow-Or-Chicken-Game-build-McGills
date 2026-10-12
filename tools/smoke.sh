@@ -45,8 +45,9 @@ fi
 
 # Bot match (card T09): a headless server (40 s) and test bots 1 and 2 (25 s)
 # play on UDP 7777, the real network path. Passes when all three exit 0, no log
-# has an error, the server logged at least one hit, and nothing was refused
-# ([Move] or [Shot]). Anything still running after 60 s is killed by PID.
+# has an error, the server logged at least one hit and one ability_used (T14),
+# and nothing was refused ([Move], [Shot] or [Ability]). Anything still running
+# after 60 s is killed by PID.
 NAMES=(server bot1 bot2)
 LOGS=("$(mktemp)" "$(mktemp)" "$(mktemp)")
 PIDS=()
@@ -109,10 +110,15 @@ done
 PIDS=()
 trap - EXIT
 if grep -nE "SCRIPT ERROR|Parse Error|ERROR:" "${LOGS[@]}"; then MATCH_FAILED=1; fi
-if grep -nE "\[(Move|Shot)\]" "${LOGS[@]}"; then MATCH_FAILED=1; fi
+if grep -nE "\[(Move|Shot|Ability)\]" "${LOGS[@]}"; then MATCH_FAILED=1; fi
 HITS=$(grep -c "\[Combat\] hero_damaged" "${LOGS[0]}")
+ABILITIES=$(grep -c "\[Combat\] ability_used" "${LOGS[0]}")
 if [ "$HITS" -eq 0 ]; then
   echo "SMOKE: bot match: the server logged no [Combat] hero_damaged"
+  MATCH_FAILED=1
+fi
+if [ "$ABILITIES" -eq 0 ]; then
+  echo "SMOKE: bot match: the server logged no [Combat] ability_used"
   MATCH_FAILED=1
 fi
 if [ "$MATCH_FAILED" -ne 0 ]; then
@@ -124,5 +130,5 @@ if [ "$MATCH_FAILED" -ne 0 ]; then
   echo "SMOKE: FAIL: bot match (logs: server ${LOGS[0]}, bot1 ${LOGS[1]}, bot2 ${LOGS[2]})"
   exit 1
 fi
-echo "SMOKE: bot match passed (server and 2 bots exited 0, $HITS hits, $((SECONDS - MATCH_START)) s)"
+echo "SMOKE: bot match passed (server and 2 bots exited 0, $HITS hits, $ABILITIES abilities, $((SECONDS - MATCH_START)) s)"
 echo "SMOKE: PASS"

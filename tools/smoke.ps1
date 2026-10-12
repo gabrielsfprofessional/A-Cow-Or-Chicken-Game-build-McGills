@@ -54,7 +54,8 @@ if ($failed -gt 0) {
 # Bot match (card T09): a headless server (40 s) and test bots 1 and 2 (25 s)
 # play on UDP 7777, the real network path. Each writes %TEMP%\acoc-smoke-<name>.log
 # and .err.log. Passes when all three exit 0, no log has an error, the server
-# logged at least one hit, and nothing was refused ([Move] or [Shot]).
+# logged at least one hit and one ability_used (T14), and nothing was refused
+# ([Move], [Shot] or [Ability]).
 # Anything still running after 60 s is killed by PID.
 $match = [ordered]@{}
 function Start-MatchProcess([string]$name, [string]$userArgs) {
@@ -119,16 +120,18 @@ foreach ($name in $match.Keys) {
 }
 $matchLogs = @($match.Values | ForEach-Object { $_.Logs })
 $matchErrors = @(Select-String -Path $matchLogs -Pattern "SCRIPT ERROR|Parse Error|ERROR:")
-$refusals = @(Select-String -Path $matchLogs -Pattern "\[Move\]|\[Shot\]")
+$refusals = @(Select-String -Path $matchLogs -Pattern "\[Move\]|\[Shot\]|\[Ability\]")
 $damage = @(Select-String -Path $serverLog -Pattern "\[Combat\] hero_damaged").Count
+$abilities = @(Select-String -Path $serverLog -Pattern "\[Combat\] ability_used").Count
 if ($matchErrors.Count -gt 0) { $problems += "$($matchErrors.Count) error line(s)" }
-if ($refusals.Count -gt 0) { $problems += "$($refusals.Count) [Move]/[Shot] line(s)" }
+if ($refusals.Count -gt 0) { $problems += "$($refusals.Count) [Move]/[Shot]/[Ability] line(s)" }
 if ($damage -eq 0) { $problems += "the server logged no [Combat] hero_damaged" }
+if ($abilities -eq 0) { $problems += "the server logged no [Combat] ability_used" }
 if ($problems.Count -gt 0) {
     ($matchErrors + $refusals) | ForEach-Object { Write-Host "$($_.Filename):$($_.LineNumber): $($_.Line)" -ForegroundColor Red }
     Write-Host ("SMOKE: FAIL: bot match: {0} (logs: {1}\acoc-smoke-server.log, -bot1, -bot2)" -f ($problems -join "; "), $env:TEMP) -ForegroundColor Red
     exit 1
 }
-Write-Host ("SMOKE: bot match passed (server and 2 bots exited 0, {0} hits, {1:N0} s)" -f $damage, $seconds)
+Write-Host ("SMOKE: bot match passed (server and 2 bots exited 0, {0} hits, {1} abilities, {2:N0} s)" -f $damage, $abilities, $seconds)
 Write-Host "SMOKE: PASS" -ForegroundColor Green
 exit 0
