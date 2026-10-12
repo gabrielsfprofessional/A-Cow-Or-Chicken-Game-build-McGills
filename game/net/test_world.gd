@@ -1,5 +1,5 @@
 extends Node2D
-## Proving ground for cards T06-T09, T13: one hero per connected player, walls to
+## Proving ground for cards T06-T09, T13, T14: one hero per connected player, walls to
 ## bump into and shoot at, room for test bots. Owner: Gabe (game/net). T16
 ## replaces it with the real arena.
 ##
@@ -41,6 +41,8 @@ func _ready() -> void:
 	Events.hero_damaged.connect(_on_hero_damaged)
 	Events.hero_eliminated.connect(_on_hero_eliminated)
 	Events.hero_respawned.connect(_on_hero_respawned)
+	Events.ability_used.connect(_on_ability_used)
+	Events.hero_knocked_back.connect(_on_hero_knocked_back)
 	if Net.state == Net.State.SERVER:
 		multiplayer.peer_disconnected.connect(_remove_hero)
 		var stats := ServerStats.new()
@@ -156,6 +158,14 @@ func _on_hero_respawned(peer_id: int, at: Vector2) -> void:
 	print("[Combat] hero_respawned: Player %d at (%.0f, %.0f)" % [peer_id, at.x, at.y])
 
 
+func _on_ability_used(peer_id: int, ready_in_sec: float) -> void:
+	print("[Combat] ability_used: Player %d, ready again in %.1f s" % [peer_id, ready_in_sec])
+
+
+func _on_hero_knocked_back(victim: int, attacker: int) -> void:
+	print("[Combat] knocked_back: Player %d by Player %d" % [victim, attacker])
+
+
 func _refresh_status() -> void:
 	var parts: PackedStringArray = [
 		"Test world (card T08)", "version %s" % Net.version(), _role_text(),
@@ -169,6 +179,9 @@ func _refresh_status() -> void:
 	var own := _own_hero()
 	if own != null and not own.is_alive():
 		parts.append("Eliminated, back in %d s" % ceili(own.respawn_in_sec()))
+	if own != null and own.has_ability():
+		var ready_in := own.ability_ready_in_sec()
+		parts.append("Q ready" if ready_in <= 0.0 else "Q %.1f s" % ready_in)
 	_status.text = "  |  ".join(parts)
 
 

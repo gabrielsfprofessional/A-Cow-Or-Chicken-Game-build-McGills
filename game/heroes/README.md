@@ -9,6 +9,17 @@ Hero scenes, abilities and hero data files (data/*.tres). Cards: T08, T13, T14, 
 smooths, carries a Weapon and a Health, hides on elimination and respawns.
 `setup()` gives it its HeroData. Its messages are in `game/net/README.md`.
 
+T14, Shield Charge (the Bruiser's Q; messages in `game/net/README.md`):
+
+| File | What it is |
+| --- | --- |
+| `shield_charge.gd` | `ShieldCharge`: the hero's `Ability` child, built by `NetHero.setup()` from `HeroData.ability`. Asks the server on Q, dashes when it says yes, keeps the countdown. On the server: checks, grants, sweeps and knocks back. |
+| `ability_check.gd` | `AbilityCheck`: the server's pure check on each request (owner, life, alive, direction, cooldown). Tested by `tests/ability_check_test.gd`. |
+| `charge_sweep.gd` | `ChargeSweep`: which heroes a dash stretch passes through. Tested against real physics by `tests/charge_sweep_test.gd`. |
+
+NetHero runs the forced motion itself (a dash or a knockback): whole physics
+ticks, equal steps, stopped by walls, ended by a snap-back, elimination or respawn.
+
 T08: `health.tscn` (Health: put it under anything on physics layer 2 to make it
 hittable) and `health_state.gd` (its rules).
 
