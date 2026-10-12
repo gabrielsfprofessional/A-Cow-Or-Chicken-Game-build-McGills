@@ -64,6 +64,7 @@ var _respawn_at_sec: float = 0.0
 ## Called by the spawn function before the hero enters the tree, so the
 ## Weapon and Health children get their numbers before their own _ready.
 func setup(peer_id: int, spawn_position: Vector2, hero_color: Color, hero: HeroData) -> void:
+	assert(hero != null, "NetHero.setup() needs a HeroData; check game/heroes/data/roster.tres")
 	owner_peer = peer_id
 	name = str(peer_id)
 	position = spawn_position

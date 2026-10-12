@@ -2,7 +2,7 @@ extends SceneTree
 ## Tests for the hero and weapon data files (card T13). Owner: Gabe.
 ## Run: godot --headless --path . --script res://tests/data_test.gd
 ## Exits 1 when any case fails. tools/smoke.ps1 and smoke.sh run it, so every
-## pull request checks Adam's and John's data edits.
+## pull request checks all the data files, Adam's weapon edits included.
 ##
 ## 1. Every .tres in DATA_FOLDERS must load, be a known type and pass validate().
 ##    A failure names the file and the problem in plain words.
