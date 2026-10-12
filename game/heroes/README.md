@@ -4,6 +4,22 @@ Owner: Gabe
 
 Hero scenes, abilities and hero data files (data/*.tres). Cards: T08, T13, T14, T18, A07.
 
+`net_hero.tscn` / `net_hero.gd`: `NetHero`, the hero every player drives online
+(T07-T09, T13; moved here from `game/net` in T14). It moves, sends, checks and
+smooths, carries a Weapon and a Health, hides on elimination and respawns.
+`setup()` gives it its HeroData. Its messages are in `game/net/README.md`.
+
+T14, Shield Charge (the Bruiser's Q; messages in `game/net/README.md`):
+
+| File | What it is |
+| --- | --- |
+| `shield_charge.gd` | `ShieldCharge`: the hero's `Ability` child, built by `NetHero.setup()` from `HeroData.ability`. Asks the server on Q, dashes when it says yes, keeps the countdown. On the server: checks, grants, sweeps and knocks back. |
+| `ability_check.gd` | `AbilityCheck`: the server's pure check on each request (owner, life, alive, direction, cooldown). Tested by `tests/ability_check_test.gd`. |
+| `charge_sweep.gd` | `ChargeSweep`: which heroes a dash stretch passes through. Tested against real physics by `tests/charge_sweep_test.gd`. |
+
+NetHero runs the forced motion itself (a dash or a knockback): whole physics
+ticks, equal steps, stopped by walls, ended by a snap-back, elimination or respawn.
+
 T08: `health.tscn` (Health: put it under anything on physics layer 2 to make it
 hittable) and `health_state.gd` (its rules).
 
@@ -20,8 +36,9 @@ Every hero number is in a `.tres` file you tune in the Inspector:
 | `hero_data.gd` | `HeroData`: `display_name`, `role` (one line for hero select), `move_speed` (px/s), `max_health` (HP), `default_weapon` (a WeaponData from `game/weapons/data`). |
 | `data/bruiser.tres`, `mage.tres`, `scout.tres`, `medic.tres` | The four heroes, named by role. Display names may change; the file names won't. |
 | `hero_roster.gd`, `data/roster.tres` | `HeroRoster`: the heroes in hero-select order. Everyone plays the first until T16's hero select. |
+| `ability_data.gd` | `AbilityData` (T14): what every Q ability has, `display_name` and `cooldown_sec` (s). A hero's `ability` points at one; empty means none (Mage, Scout and Medic until T18). |
+| `shield_charge_data.gd`, `data/shield_charge.tres` | `ShieldChargeData` (T14), the Bruiser's Q: `cooldown_sec`, `dash_distance_px`, `dash_duration_sec`, `knockback_px`, `knockback_duration_sec`. A dash or knockback faster than 4000 px/s fails `validate()`. |
 | `combat_data.gd`, `data/combat.tres` | `CombatData`: `respawn_sec` only, until T15's mode rules take it. |
-| `data_check.gd` | `DataCheck`: the shared range check behind every `validate()`. |
 
 - A hero's Health starts at its `max_health`. Health's own Inspector
   `max_health` (default 100) is for things that aren't heroes, such as T20's

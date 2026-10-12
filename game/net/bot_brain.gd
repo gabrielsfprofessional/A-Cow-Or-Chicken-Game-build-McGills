@@ -1,6 +1,6 @@
 class_name BotBrain
 extends HeroInput
-## A test bot's hands on its hero (card T09). Owner: Gabe (game/net).
+## A test bot's hands on its hero (cards T09, T14). Owner: Gabe (game/net).
 ##
 ## The owner's NetHero makes one instead of a plain HeroInput when the game was
 ## started with "-- --bot=<seed>" (debug builds). The hero moves, aims and fires
@@ -26,6 +26,7 @@ var _ray: PhysicsRayQueryParameters2D = PhysicsRayQueryParameters2D.new()
 var _move: Vector2 = Vector2.ZERO
 var _aim: Vector2 = Vector2.RIGHT
 var _fire: bool = false
+var _ability: bool = false
 var _was_alive: bool = true
 var _stats_at_sec: float = 0.0
 var _shots: int = 0
@@ -73,6 +74,12 @@ func fire_pressed() -> bool:
 	return _fire
 
 
+## Pressed on every tick BotRules wants it; the hero's Ability sends one request
+## and waits for the answer, so holding it is safe (T14).
+func ability_pressed() -> bool:
+	return _ability
+
+
 func _physics_process(_delta: float) -> void:
 	var now := _now_sec()
 	if now >= _stats_at_sec:
@@ -93,11 +100,13 @@ func _physics_process(_delta: float) -> void:
 		# No target: aim where it walks and hold fire.
 		_rules.drop_target()
 		_fire = false
+		_ability = false
 		if not _move.is_zero_approx():
 			_aim = _move
 		return
 	_aim = _rules.aim_at(at, target.global_position)
 	_fire = _rules.trigger(now)
+	_ability = hero.has_ability() and _rules.wants_ability(hero.ability_ready_in_sec() <= 0.0)
 
 
 ## Eliminated: stand still and hold fire until the hero comes back.
@@ -105,6 +114,7 @@ func _idle() -> void:
 	_was_alive = false
 	_move = Vector2.ZERO
 	_fire = false
+	_ability = false
 	_rules.drop_target()
 
 

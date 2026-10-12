@@ -1,8 +1,13 @@
 class_name MoveCheck
 extends RefCounted
-## The server's check on one hero's movement updates. Owner: Gabe (game/net). Card T07.
+## The server's check on one hero's movement updates. Owner: Gabe (game/net). Cards T07, T14.
 ## Pure logic: the clock is passed in, so tests/move_check_test.gd can drive it.
 ## The position it keeps is the server's copy of the hero, which T08 hit-tests.
+##
+## T14: grant() adds extra distance for forced motion (a dash or a knockback).
+## A move that goes further than walking allows draws the excess from the grant
+## until it is used up or expires; drew_grant says whether the last accepted
+## move did. reset() clears it.
 
 enum Result {
 	ACCEPTED,
@@ -31,8 +36,13 @@ var last_sequence: int = 0
 var budget_sec: float = BUDGET_MAX_SEC
 ## Rejects since the hero spawned (wrong owner and old sequence not counted).
 var rejected: int = 0
+## Extra distance, in pixels, moves may still draw on (T14).
+var grant_px: float = 0.0
+## True when the last accepted move drew on the grant.
+var drew_grant: bool = false
 
 var _last_refill_sec: float
+var _grant_until_sec: float = -INF
 
 
 func _init(owner_peer: int, start_position: Vector2, move_speed: float, now_sec: float) -> void:
@@ -50,10 +60,16 @@ func check(sender_id: int, sequence: int, new_position: Vector2, now_sec: float)
 	if sequence <= last_sequence:
 		return Result.OLD_SEQUENCE
 	_refill(now_sec)
+	_expire_grant(now_sec)
+	drew_grant = false
 	var gap := sequence - last_sequence
 	var result := _judge(gap, new_position)
 	last_sequence = sequence
 	if result == Result.ACCEPTED:
+		var excess := position.distance_to(new_position) - _walk_allowed(gap)
+		if excess > 0.0:
+			grant_px = maxf(0.0, grant_px - excess)
+			drew_grant = true
 		budget_sec -= gap * STEP_SEC
 		position = new_position
 	else:
@@ -61,12 +77,24 @@ func check(sender_id: int, sequence: int, new_position: Vector2, now_sec: float)
 	return result
 
 
-## Respawn (T08): the hero is back at new_position with a full budget.
+## Forced motion (T14): moves may go up to extra_px further than walking allows
+## until until_sec. Grants add up and the later expiry wins. now_sec drops what
+## is left of an expired grant first, so it never comes back.
+func grant(extra_px: float, until_sec: float, now_sec: float) -> void:
+	_expire_grant(now_sec)
+	grant_px += maxf(0.0, extra_px)
+	_grant_until_sec = maxf(_grant_until_sec, until_sec)
+
+
+## Respawn (T08): the hero is back at new_position with a full budget and no grant.
 ## last_sequence and rejected stay: the owner's sequence never restarts.
 func reset(new_position: Vector2, now_sec: float) -> void:
 	position = new_position
 	budget_sec = BUDGET_MAX_SEC
 	_last_refill_sec = now_sec
+	grant_px = 0.0
+	drew_grant = false
+	_grant_until_sec = -INF
 
 
 func _judge(gap: int, new_position: Vector2) -> Result:
@@ -77,10 +105,19 @@ func _judge(gap: int, new_position: Vector2) -> Result:
 	var claimed_sec := gap * STEP_SEC
 	if claimed_sec > budget_sec:
 		return Result.OVER_BUDGET
-	var allowed := speed * SPEED_TOLERANCE * claimed_sec + DISTANCE_SLACK
-	if position.distance_to(new_position) > allowed:
+	if position.distance_to(new_position) > _walk_allowed(gap) + grant_px:
 		return Result.TOO_FAR
 	return Result.ACCEPTED
+
+
+## How far `gap` sends of walking may go.
+func _walk_allowed(gap: int) -> float:
+	return speed * SPEED_TOLERANCE * gap * STEP_SEC + DISTANCE_SLACK
+
+
+func _expire_grant(now_sec: float) -> void:
+	if now_sec > _grant_until_sec:
+		grant_px = 0.0
 
 
 func _refill(now_sec: float) -> void:

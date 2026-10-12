@@ -1,6 +1,6 @@
 class_name BotRules
 extends RefCounted
-## A test bot's decisions (card T09). Owner: Gabe (game/net). Pure: BotBrain
+## A test bot's decisions (cards T09, T14). Owner: Gabe (game/net). Pure: BotBrain
 ## passes in the clock, where things are and what it can see, and
 ## tests/bot_rules_test.gd drives it directly. Every random choice comes from the
 ## RandomNumberGenerator passed in, so the same seed and the same inputs make the
@@ -13,6 +13,8 @@ extends RefCounted
 ##   range, never itself. Each look rolls a new aim error of up to AIM_ERROR_DEG.
 ## - Firing, only with a target: bursts of 0.5-1.5 s and pauses of 0.3-1 s,
 ##   starting with a burst.
+## - Q (T14), only with a target: pressed whenever it is ready, so the charge
+##   goes where the bot aims and every bot match uses the ability.
 ## These are test-tool numbers, not gameplay, so they stay constants (no .tres).
 
 const LOOK_INTERVAL_SEC: float = 0.25
@@ -137,6 +139,11 @@ func trigger(now: float) -> bool:
 		else:
 			_switch_at_sec = now + _rng.randf_range(PAUSE_MIN_SEC, PAUSE_MAX_SEC)
 	return _firing
+
+
+## True when the bot presses Q this tick: it has a target and Q is ready (T14).
+func wants_ability(ability_ready: bool) -> bool:
+	return target != 0 and ability_ready
 
 
 ## No target: hold fire, and the next target starts with a fresh burst.

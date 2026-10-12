@@ -1,7 +1,7 @@
 class_name NetHero
 extends CharacterBody2D
-## A test-world hero that moves and fights online. Owner: Gabe (game/net).
-## Cards T07, T08, T09, T13. T14 moves it into game/heroes. Messages: see game/net/README.md.
+## A hero that moves and fights online. Owner: Gabe (game/heroes).
+## Cards T07, T08, T09, T13, T14. Messages: see game/net/README.md.
 ##
 ## - Its numbers come from one HeroData (T13), given in setup(): move speed for
 ##   the owner and the server's MoveCheck, max health, and the default weapon.
@@ -18,6 +18,11 @@ extends CharacterBody2D
 ##   its input and brings it back.
 ## - Every respawn raises `life`. Moves and fire carry the life they were sent
 ##   in, and another life's are dropped silently.
+## - T14: the "Ability" child (ShieldCharge, built from HeroData.ability) and
+##   forced motion: a dash or a knockback runs a whole number of physics ticks
+##   with an equal step each, ignores move input, stops at a wall, and ends on
+##   a snap-back, elimination or respawn. A new one replaces the one running.
+##   The server grants its distance to MoveCheck before it tells anyone.
 
 ## Sends per second. physics_ticks_per_second must be a multiple of it.
 const SEND_RATE: int = 20
@@ -27,6 +32,9 @@ const SNAP_INTERVAL_MSEC: int = 500
 const LOG_INTERVAL_MSEC: int = 1000
 ## Respawn time, until T15's mode rules take it.
 const COMBAT: CombatData = preload("res://game/heroes/data/combat.tres")
+## A forced-motion grant lasts its duration plus this, for the round trip and
+## the owner's send queue (T14).
+const FORCED_MOTION_GRACE_SEC: float = 1.0
 
 var owner_peer: int = 0
 ## This hero's numbers (T13), set by setup(). The same file on every peer.
@@ -55,6 +63,11 @@ var _underruns_logged: int = 0
 ## While eliminated: when the hero comes back (_now_sec() clock). The server
 ## respawns it then; clients count down to it for the status line.
 var _respawn_at_sec: float = 0.0
+## The Q ability (T14), or null for a hero without one.
+var _ability: ShieldCharge = null
+## Owner: the forced motion running (T14): its step per physics tick and ticks left.
+var _forced_step: Vector2 = Vector2.ZERO
+var _forced_ticks_left: int = 0
 
 @onready var _health: Health = $Health
 @onready var _collider: CollisionShape2D = $Collider
@@ -72,6 +85,12 @@ func setup(peer_id: int, spawn_position: Vector2, hero_color: Color, hero: HeroD
 	hero_data = hero
 	($Weapon as Weapon).data = hero.default_weapon
 	($Health as Health).max_health = hero.max_health
+	if hero.ability is ShieldChargeData:
+		_ability = ShieldCharge.new()
+		_ability.name = "Ability"
+		_ability.data = hero.ability as ShieldChargeData
+		add_child(_ability)
+	# After the ability, so it gets the owner's authority too.
 	set_multiplayer_authority(peer_id)
 
 
@@ -133,6 +152,49 @@ func respawn_in_sec() -> float:
 	return 0.0 if is_alive() else maxf(0.0, _respawn_at_sec - _now_sec())
 
 
+## True when this hero has a Q ability (T14).
+func has_ability() -> bool:
+	return _ability != null
+
+
+## Seconds until Q works again; 0 when ready or when the hero has no ability.
+## Exact for the owner (T17's HUD) and the server.
+func ability_ready_in_sec() -> float:
+	return _ability.ready_in_sec() if _ability != null else 0.0
+
+
+## Owner only: moves the hero by `offset` over `duration_sec`, ignoring move
+## input (T14). The tick count is rounded, never below 1, and each tick takes an
+## equal step, so the distance is exact unless a wall stops it.
+func start_forced_motion(offset: Vector2, duration_sec: float) -> void:
+	if not is_owned() or not offset.is_finite():
+		return
+	var ticks := maxi(1, roundi(duration_sec * Engine.physics_ticks_per_second))
+	_forced_step = offset / float(ticks)
+	_forced_ticks_left = ticks
+
+
+## Server only: lets MoveCheck accept `extra_px` more than walking for the
+## motion's duration plus FORCED_MOTION_GRACE_SEC.
+func grant_motion(extra_px: float, duration_sec: float) -> void:
+	if _check == null:
+		return
+	var now := _now_sec()
+	_check.grant(extra_px, now + duration_sec + FORCED_MOTION_GRACE_SEC, now)
+
+
+## Server only: `attacker`'s dash pushes this hero by `offset` over
+## `duration_sec`. Grants the distance first, then tells every ready peer.
+func knock_back(attacker: int, offset: Vector2, duration_sec: float) -> void:
+	if not multiplayer.is_server() or not is_alive():
+		return
+	grant_motion(offset.length(), duration_sec)
+	for peer: int in multiplayer.get_peers():
+		if can_receive(peer):
+			receive_knockback.rpc_id(peer, life, attacker, offset, duration_sec)
+	Events.hero_knocked_back.emit(owner_peer, attacker)
+
+
 ## Remote heroes only: how far ahead the buffer reaches, in milliseconds.
 func buffer_depth_msec() -> int:
 	return roundi(_timeline.buffer_depth_sec() * 1000.0) if _timeline != null else 0
@@ -184,8 +246,14 @@ func _physics_process(delta: float) -> void:
 
 
 func _move_own(_delta: float) -> void:
-	velocity = input.move().limit_length(1.0) * _speed
-	move_and_slide()
+	if _forced_ticks_left > 0:
+		_forced_ticks_left -= 1
+		velocity = Vector2.ZERO
+		if move_and_collide(_forced_step) != null:
+			_end_forced_motion()  # A wall stops it.
+	else:
+		velocity = input.move().limit_length(1.0) * _speed
+		move_and_slide()
 	_tick += 1
 	if _tick % _ticks_per_send != 0:
 		return
@@ -208,10 +276,13 @@ func submit_move(life_number: int, sequence: int, new_position: Vector2) -> void
 	if life_number != life or not is_alive():
 		return  # From before a death, or sent while eliminated: dropped silently.
 	var sender := multiplayer.get_remote_sender_id()
+	var from := _check.position
 	var result := _check.check(sender, sequence, new_position, _now_sec())
 	match result:
 		MoveCheck.Result.ACCEPTED:
 			global_position = _check.position
+			if _ability != null and _check.drew_grant:
+				_ability.on_server_moved(from, _check.position)
 			_relay(sequence, _check.position)
 		MoveCheck.Result.WRONG_OWNER, MoveCheck.Result.OLD_SEQUENCE:
 			return
@@ -257,6 +328,18 @@ func receive_respawn(spawn_position: Vector2, life_number: int) -> void:
 	if multiplayer.get_remote_sender_id() != 1 or life_number <= life:
 		return
 	_respawn(spawn_position, life_number)
+
+
+## Server -> every ready peer: `attacker`'s dash pushed this hero, in life
+## `life_number`, by `offset` over `duration_sec` (T14). The owner moves; everyone
+## else sees it through the normal relays.
+@rpc("any_peer", "call_remote", "reliable", 0)
+func receive_knockback(life_number: int, attacker: int, offset: Vector2, duration_sec: float) -> void:
+	if multiplayer.get_remote_sender_id() != 1 or life_number != life:
+		return
+	if is_owned() and is_alive():
+		start_forced_motion(offset, duration_sec)
+	Events.hero_knocked_back.emit(owner_peer, attacker)
 
 
 ## Server -> a peer that just joined: this hero's combat state (see send_combat_state).
@@ -311,6 +394,7 @@ func _apply(life_number: int, sequence: int, new_position: Vector2) -> void:
 	if is_owned():
 		global_position = new_position
 		velocity = Vector2.ZERO
+		_end_forced_motion()  # A snap-back ends a dash or a knockback.
 		reset_physics_interpolation()
 	elif _timeline != null:
 		_timeline.push(sequence, new_position, _clock_sec())
@@ -375,6 +459,7 @@ func _respawn_on_server() -> void:
 
 func _respawn(spot: Vector2, life_number: int) -> void:
 	life = life_number
+	_end_forced_motion()
 	_health.restore()
 	global_position = spot
 	velocity = Vector2.ZERO
@@ -393,6 +478,12 @@ func _show_eliminated(eliminated: bool) -> void:
 	_collider.disabled = eliminated
 	if eliminated:
 		velocity = Vector2.ZERO
+		_end_forced_motion()
+
+
+func _end_forced_motion() -> void:
+	_forced_ticks_left = 0
+	_forced_step = Vector2.ZERO
 
 
 func _update_label() -> void:

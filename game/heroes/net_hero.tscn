@@ -1,6 +1,6 @@
 [gd_scene format=3]
 
-[ext_resource type="Script" path="res://game/net/net_hero.gd" id="1_hero"]
+[ext_resource type="Script" path="res://game/heroes/net_hero.gd" id="1_hero"]
 [ext_resource type="PackedScene" path="res://game/weapons/weapon.tscn" id="2_weapon"]
 [ext_resource type="PackedScene" path="res://game/heroes/health.tscn" id="3_health"]
 

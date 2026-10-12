@@ -25,6 +25,12 @@ func _initialize() -> void:
 	_out_of_bounds()
 	_lags_as_they_join()
 	_reset_on_respawn()
+	_dash_without_grant()
+	_grant_lets_a_dash_through()
+	_grant_gets_used_up()
+	_grant_expires()
+	_grants_add_up()
+	_reset_clears_the_grant()
 	print("MOVE CHECK TEST: %s (%d checks)" % ["PASS" if _failed == 0 else "FAIL, %d wrong" % _failed, _count])
 	quit(0 if _failed == 0 else 1)
 
@@ -140,6 +146,73 @@ func _reset_on_respawn() -> void:
 	# Moves in flight at the death were dropped, so the first one back has a gap.
 	_expect("the first move after respawn passes", check.check(OWNER, 36, spawn + Vector2(30, 0), 5.1), MoveCheck.Result.ACCEPTED)
 	_expect("a move from where the hero died is too far", check.check(OWNER, 37, START, 5.15), MoveCheck.Result.TOO_FAR)
+
+
+# --- grants (T14): a 240 px dash in 0.2 s is 60 px per send ----------------------
+
+const DASH_STEP: Vector2 = Vector2(60.0, 0.0)
+
+
+## Sends `count` dash steps from the check's position, starting at sequence
+## `first` and time first x STEP. True when every one is accepted and drew on the grant.
+func _dash(check: MoveCheck, first: int, count: int) -> bool:
+	var all_ok := true
+	for i: int in count:
+		var sequence := first + i
+		var result := check.check(OWNER, sequence, check.position + DASH_STEP, sequence * STEP)
+		all_ok = all_ok and result == MoveCheck.Result.ACCEPTED and check.drew_grant
+	return all_ok
+
+
+func _dash_without_grant() -> void:
+	var check := _new_check()
+	_expect("a dash step without a grant is too far", check.check(OWNER, 1, START + DASH_STEP, STEP), MoveCheck.Result.TOO_FAR)
+
+
+func _grant_lets_a_dash_through() -> void:
+	var check := _new_check()
+	check.grant(240.0, 1.2, 0.0)
+	_expect_true("a 240 px grant lets a 4-send dash through", _dash(check, 1, 4))
+	_expect_true("the dash ends 240 px on", check.position.is_equal_approx(START + DASH_STEP * 4.0))
+	var walk := SPEED * MoveCheck.SPEED_TOLERANCE * STEP + MoveCheck.DISTANCE_SLACK
+	_expect_true("each step drew only its excess over walking (%.2f px left)" % check.grant_px,
+		is_equal_approx(check.grant_px, 240.0 - 4.0 * (60.0 - walk)))
+	_expect("walking after the dash is fine", check.check(OWNER, 5, check.position + Vector2(10, 0), 0.25), MoveCheck.Result.ACCEPTED)
+	_expect_true("walking does not draw on the grant", not check.drew_grant)
+
+
+func _grant_gets_used_up() -> void:
+	var check := _new_check()
+	check.grant(50.0, 1.2, 0.0)
+	_expect_true("a 50 px grant covers one dash step", _dash(check, 1, 1))
+	_expect("the next dash step is too far", check.check(OWNER, 2, check.position + DASH_STEP, 0.1), MoveCheck.Result.TOO_FAR)
+
+
+func _grant_expires() -> void:
+	var check := _new_check()
+	check.grant(240.0, 0.5, 0.0)
+	_expect("a dash step after the grant expired is too far",
+		check.check(OWNER, 1, START + DASH_STEP, 0.6), MoveCheck.Result.TOO_FAR)
+	_expect_true("the expired grant is gone", check.grant_px == 0.0)
+	check.grant(30.0, 2.0, 1.0)
+	_expect_true("an expired leftover never comes back with a new grant", check.grant_px == 30.0)
+
+
+func _grants_add_up() -> void:
+	var check := _new_check()
+	check.grant(100.0, 1.0, 0.0)
+	check.grant(100.0, 2.0, 0.5)
+	_expect_true("two grants add up", check.grant_px == 200.0)
+	_expect("the later expiry wins: a dash step at 1.5 s", check.check(OWNER, 1, START + DASH_STEP, 1.5), MoveCheck.Result.ACCEPTED)
+	_expect_true("that step drew on the grant", check.drew_grant)
+
+
+func _reset_clears_the_grant() -> void:
+	var check := _new_check()
+	check.grant(240.0, 5.0, 0.0)
+	check.reset(START, 0.1)
+	_expect_true("reset clears the grant", check.grant_px == 0.0)
+	_expect("a dash step after reset is too far", check.check(OWNER, 1, START + DASH_STEP, 0.15), MoveCheck.Result.TOO_FAR)
 
 
 func _expect(case_name: String, got: MoveCheck.Result, wanted: MoveCheck.Result) -> void:

@@ -11,7 +11,6 @@ Only the owner's cards change this folder. See CLAUDE.md, "Folders and owners".
 | File | What it is |
 | --- | --- |
 | `test_world.tscn` / `test_world.gd` | Temporary proving ground from T06-T09: one hero per player, a border wall and two inner walls, the Shots node, `bot_area()` for test bots, and `ServerStats` on the server. T16 replaces it with the real arena. |
-| `net_hero.tscn` / `net_hero.gd` | `NetHero`, the T07/T08 hero: moves, sends, checks and smooths; carries a Weapon and a Health, hides on elimination and respawns. `setup()` gives it its HeroData (T13). T14 moves it into `game/heroes`. |
 | `hero_input.gd` | `HeroInput` (T09): the owner's move, aim and fire. NetHero and Weapon read only this. Reads the keyboard and mouse. |
 | `bot_brain.gd` | `BotBrain` (T09): the `HeroInput` of a test bot. See "Test bots (card T09)". |
 | `bot_rules.gd` | `BotRules` (T09): a test bot's decisions. Pure, tested by `tests/bot_rules_test.gd`. |
@@ -21,7 +20,7 @@ Only the owner's cards change this folder. See CLAUDE.md, "Folders and owners".
 | `delay_queue.gd` | `DelayQueue`: fakes a slow network for `--sim-lag` / `--sim-jitter`. Tested by `tests/delay_queue_test.gd`. |
 | (no data here) | Since T13 every hero number is in its HeroData (`game/heroes/data/*.tres`); the net code keeps only network plumbing and check tolerances as constants. See "Where the numbers live (card T13)". |
 
-Combat (T08) lives next door: `game/weapons/` (Weapon, Shots, ShotSim, ShotCheck, WeaponData) and `game/heroes/` (Health, HealthState, CombatData). See "Combat (card T08)" below.
+Combat (T08) lives next door: `game/weapons/` (Weapon, Shots, ShotSim, ShotCheck, WeaponData) and `game/heroes/` (NetHero, Health, HealthState, CombatData; NetHero moved there from here in T14). See "Combat (card T08)" below.
 
 The connection code itself lives in `game/core/net.gd` (autoload `Net`), because
 every folder needs it.
@@ -101,8 +100,8 @@ message. A mismatch is refused before the peer counts as connected: the client
 shows `Update the game from the Drive folder (server vX, you vY)` and the server
 logs `refused peer <id>: version mismatch`.
 
-**NET_PROTOCOL** is 1 for T06 (which sent a bare version), 2 for T07 and 3 from T08. Bump it
-in the same pull request as any change to an RPC, its arguments, its channel or
+**NET_PROTOCOL** is 1 for T06 (which sent a bare version), 2 for T07, 3 for T08
+and 4 from T14 (the ability and knockback RPCs). Bump it in the same pull request as any change to an RPC, its arguments, its channel or
 the channel count. A build with a different wire format is then refused by name
 instead of failing later with channel or RPC errors.
 
@@ -193,7 +192,14 @@ In order, the first failure wins:
    refills at 1.1x real time, and each accepted update spends its sequence gap
    x 50 ms. An update that would overspend is rejected (this also stops a huge
    sequence jump). A player who lags as they join is fine: the budget is full.
-5. Moved further than speed (the HeroData's `move_speed`) x 1.25 x (sequence gap x 50 ms): rejected.
+5. Moved further than speed (the HeroData's `move_speed`) x 1.25 x (sequence gap x 50 ms),
+   plus any forced-motion grant still open: rejected.
+
+**Grants (T14):** before the server tells anyone about a dash or a knockback,
+it calls `MoveCheck.grant(extra_px, until_sec, now_sec)` with the motion's
+distance, open for its duration plus `NetHero.FORCED_MOTION_GRACE_SEC` (1 s).
+A move beyond walking draws its excess from the grant (`drew_grant`), grants
+add up, the later expiry wins, and `reset()` (respawn) clears them.
 
 On a reject the server keeps the last good position, advances the last
 sequence, sends the owner a `snap_back` (at most every 0.5 s while rejects
@@ -294,12 +300,35 @@ only to peers that have said `client_ready`.
 | `receive_elimination` | `NetHero` (victim) | server -> every ready peer | `any_peer`, sender 1 | `reliable` | 0 | `attacker: int` |
 | `receive_respawn` | `NetHero` | server -> every ready peer | `any_peer`, sender 1 | `reliable` | 0 | `position: Vector2, life: int` |
 | `receive_combat_state` | `NetHero` | server -> a peer that just joined | `any_peer`, sender 1 | `reliable` | 0 | `life: int, health: int, eliminated: bool, respawn_in: float` |
+| `request_ability` | `ShieldCharge` (`Ability`) | owner -> server | `authority` + `AbilityCheck` checks the sender is the owner | `reliable` | 0 | `life: int, direction: Vector2` |
+| `receive_ability_used` | `ShieldCharge` (`Ability`) | server -> every ready peer (the owner dashes) | `any_peer`, sender 1 | `reliable` | 0 | `life: int, direction: Vector2, ready_in: float` |
+| `receive_ability_refused` | `ShieldCharge` (`Ability`) | server -> owner | `any_peer`, sender 1 | `reliable` | 0 | `ready_in: float` |
+| `receive_knockback` | `NetHero` (victim) | server -> every ready peer (the victim's owner moves) | `any_peer`, sender 1 | `reliable` | 0 | `life: int, attacker: int, offset: Vector2, duration_sec: float` |
 
 Damage, elimination and respawn share channel 0, so they always arrive in
 order and don't need a life number. Each one makes every peer emit
 `Events.hero_damaged`, `hero_eliminated` or `hero_respawned` (the server when it
 decides, clients when the message arrives); the test world prints one
 `[Combat]` line per signal.
+
+### Shield Charge (card T14)
+
+Server-confirmed, not predicted. On Q the owner sends `request_ability` and
+dashes only when `receive_ability_used` comes back, one round trip later; its
+countdown starts then, so an honest owner never asks early. The server checks
+with `AbilityCheck` (`game/heroes/ability_check.gd`, tested by
+`tests/ability_check_test.gd`): wrong owner is dropped; another life or
+eliminated is answered; a NaN or zero direction or a request still cooling down
+is refused, answered, and logged as `[Ability] peer <id>: refused ...` at most
+once a second per hero. The cooldown is kept through death.
+
+While the dash lasts, the server sweeps each accepted move of the dasher that
+drew on its grant with the hero's own circle against layer 2, excluding the
+dasher (`ChargeSweep`, tested by `tests/charge_sweep_test.gd`), and knocks back
+each live hero it finds once per dash. `Events.ability_used` and
+`hero_knocked_back` fire on every peer; the server logs
+`[Combat] ability_used: Player <id>, ready again in <s> s` and
+`[Combat] knocked_back: Player <victim> by Player <attacker>`.
 
 ### The server's check (ShotCheck)
 
@@ -330,7 +359,8 @@ seconds to respawn.
 
 Until John's T17 HUD, each hero's label reads `Player <id>  <health>`, and the
 owner's status line adds `Eliminated, back in N s` while it is down, plus
-`fire-cheat=<x>` when that flag is on.
+`fire-cheat=<x>` when that flag is on. A hero with an ability (T14) also shows
+`Q ready` or `Q <s> s`.
 
 ## Where the numbers live (card T13)
 
@@ -343,6 +373,7 @@ Inspector and checked by `tests/data_test.gd` on every pull request:
 | Which heroes, in what order | `game/heroes/data/roster.tres` (everyone plays the first until T16) |
 | Damage, fire rate, shot speed, size and range | The weapon's WeaponData: `game/weapons/data/sidearm.tres` (Adam's) |
 | Respawn time | `game/heroes/data/combat.tres` (until T15's mode rules) |
+| Shield Charge cooldown, dash and knockback distance and time | `game/heroes/data/shield_charge.tres` (T14), the Bruiser's `ability` |
 
 - **One spawn path:** `test_world.gd`'s spawn function runs on every peer and
   calls `NetHero.setup(..., ROSTER.first())`. The spawner still sends only the
@@ -354,7 +385,8 @@ Inspector and checked by `tests/data_test.gd` on every pull request:
   HeroData, so tuning it never causes `TOO_FAR` rejects.
 - What stays as constants in the net code: network plumbing (port, send rate,
   channels, log and snap intervals) and the server's check tolerances
-  (MoveCheck's 1.25x slack and 1 s budget, ShotCheck's timing slack), per
+  (MoveCheck's 1.25x slack and 1 s budget, ShotCheck's timing slack, the
+  1 s forced-motion grace and the 4000 px/s charge speed cap), per
   CLAUDE.md.
 
 ## Test bots (card T09)

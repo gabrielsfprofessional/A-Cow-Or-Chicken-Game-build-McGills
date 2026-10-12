@@ -1,5 +1,5 @@
 extends SceneTree
-## Tests for the hero and weapon data files (card T13). Owner: Gabe.
+## Tests for the hero, ability and weapon data files (cards T13, T14). Owner: Gabe.
 ## Run: godot --headless --path . --script res://tests/data_test.gd
 ## Exits 1 when any case fails. tools/smoke.ps1 and smoke.sh run it, so every
 ## pull request checks all the data files, Adam's weapon edits included.
@@ -13,7 +13,9 @@ extends SceneTree
 const DATA_FOLDERS: PackedStringArray = ["res://game/heroes/data", "res://game/weapons/data"]
 const ROSTER_PATH: String = "res://game/heroes/data/roster.tres"
 const SIDEARM_PATH: String = "res://game/weapons/data/sidearm.tres"
-const UNKNOWN_TYPE: String = "is not a HeroData, HeroRoster, CombatData or WeaponData file; check its script path"
+const BRUISER_PATH: String = "res://game/heroes/data/bruiser.tres"
+const CHARGE_PATH: String = "res://game/heroes/data/shield_charge.tres"
+const UNKNOWN_TYPE: String = "is not a HeroData, HeroRoster, CombatData, AbilityData or WeaponData file; check its script path"
 const SCRATCH_FOLDER: String = "user://data_test"
 const WRONG_SCRIPT_TRES: String = """[gd_resource type="Resource" script_class="HeroData" format=3]
 
@@ -46,6 +48,12 @@ func _initialize() -> void:
 	_roster_empty_slot()
 	_range_flags()
 	_combat_out_of_range()
+	_bruiser_has_shield_charge()
+	_good_charge_passes()
+	_charge_out_of_range()
+	_charge_too_fast()
+	_charge_cap_fits_the_snap()
+	_ability_problems_passed_on()
 	_wrong_script_path()
 	print("DATA TEST: %s (%d checks)" % ["PASS" if _failed == 0 else "FAIL, %d wrong" % _failed, _count])
 	quit(0 if _failed == 0 else 1)
@@ -83,6 +91,8 @@ func _file_problem(path: String) -> String:
 		problems = (resource as HeroRoster).validate()
 	elif resource is CombatData:
 		problems = (resource as CombatData).validate()
+	elif resource is AbilityData:
+		problems = (resource as AbilityData).validate()
 	elif resource is WeaponData:
 		problems = (resource as WeaponData).validate()
 	else:
@@ -225,6 +235,85 @@ func _combat_out_of_range() -> void:
 	_expect_problems(combat.validate(), [], "combat at the defaults passes")
 	combat.respawn_sec = 0.0
 	_expect_problems(combat.validate(), ["respawn_sec is 0 s; it must be 0.5 to 30 s"], "respawn_sec 0")
+
+
+# --- abilities (T14) ----------------------------------------------------------------
+
+func _good_charge() -> ShieldChargeData:
+	var charge := ShieldChargeData.new()
+	charge.display_name = "Test Charge"
+	return charge
+
+
+func _bruiser_has_shield_charge() -> void:
+	var bruiser := load(BRUISER_PATH) as HeroData
+	_expect(bruiser != null and bruiser.ability is ShieldChargeData
+			and bruiser.ability.resource_path == CHARGE_PATH,
+		"bruiser.tres has shield_charge.tres as its ability", "it does not")
+
+
+func _good_charge_passes() -> void:
+	var problems := _good_charge().validate()
+	_expect(problems.is_empty(), "a shield charge at the defaults passes", "; ".join(problems))
+	var hero := _good_hero()
+	_expect(hero.ability == null and hero.validate().is_empty(), "a hero with no ability passes (until T18)",
+		"; ".join(hero.validate()))
+
+
+func _charge_out_of_range() -> void:
+	var charge := _good_charge()
+	charge.display_name = ""
+	charge.cooldown_sec = 0.0
+	_expect_problems(charge.validate(), [
+		"display_name is empty; type one in",
+		"cooldown_sec is 0 s; it must be 1 to 60 s",
+	], "empty display_name and cooldown_sec 0")
+	charge = _good_charge()
+	charge.dash_distance_px = 47.0
+	charge.dash_duration_sec = 1.5
+	charge.knockback_px = -1.0
+	charge.knockback_duration_sec = 0.0
+	_expect_problems(charge.validate(), [
+		"dash_distance_px is 47 px; it must be 48 to 960 px",
+		"dash_duration_sec is 1.5 s; it must be 0.05 to 1 s",
+		"knockback_px is -1 px; it must be 0 to 480 px",
+		"knockback_duration_sec is 0 s; it must be 0.05 to 1 s",
+	], "each charge number out of range, once each")
+	charge = _good_charge()
+	charge.knockback_px = 0.0
+	_expect_problems(charge.validate(), [], "knockback_px 0 (pushes nobody) passes")
+
+
+func _charge_too_fast() -> void:
+	var charge := _good_charge()
+	charge.dash_distance_px = 960.0
+	charge.dash_duration_sec = 0.24
+	_expect_problems(charge.validate(), [], "a dash at exactly 4000 px/s passes")
+	charge.dash_duration_sec = 0.05
+	charge.knockback_px = 480.0
+	charge.knockback_duration_sec = 0.1
+	_expect_problems(charge.validate(), [
+		"dash speed is 19200 px/s (dash_distance_px / dash_duration_sec); it must be at most 4000 px/s, so shorten the distance or lengthen the time",
+		"knockback speed is 4800 px/s (knockback_px / knockback_duration_sec); it must be at most 4000 px/s, so shorten the distance or lengthen the time",
+	], "a dash and a knockback faster than 4000 px/s")
+
+
+## The speed cap must stay within what one 50 ms update may jump before
+## RemoteTimeline snaps instead of sliding.
+func _charge_cap_fits_the_snap() -> void:
+	var per_update := ShieldChargeData.MAX_SPEED_PX_PER_SEC * MoveCheck.STEP_SEC
+	_expect(per_update <= RemoteTimeline.SNAP_DISTANCE,
+		"the charge speed cap (%d px per update) is within RemoteTimeline.SNAP_DISTANCE (%d px)" % [
+			roundi(per_update), roundi(RemoteTimeline.SNAP_DISTANCE)],
+		"lower ShieldChargeData.MAX_SPEED_PX_PER_SEC or raise SNAP_DISTANCE")
+
+
+func _ability_problems_passed_on() -> void:
+	var hero := _good_hero()
+	hero.ability = _good_charge()
+	hero.ability.cooldown_sec = 0.0
+	_expect_problems(hero.validate(),
+		["ability (built-in): cooldown_sec is 0 s; it must be 1 to 60 s"], "a bad ability fails its hero")
 
 
 # --- helpers -----------------------------------------------------------------------
