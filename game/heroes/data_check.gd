@@ -24,9 +24,7 @@ static func ranges(resource: Resource) -> PackedStringArray:
 		var value := float(resource.get(field))
 		var unit: String = limits.unit
 		if not (value >= limits.low and value <= limits.high):
-			problems.append("%s is %s%s; it must be %s to %s%s" % [
-				field, _number(value), unit, _number(limits.low), _number(limits.high), unit,
-			])
+			problems.append("%s is %s%s; it must be %s" % [field, _number(value), unit, _span(limits)])
 	return problems
 
 
@@ -45,16 +43,36 @@ static func file_name(resource: Resource) -> String:
 
 
 ## {low, high, unit} from a range hint such as "50,1000,10,suffix:px/s"; empty
-## when the hint has no low and high.
+## when the hint has no low and high. "or_greater" and "or_less" open that end
+## (INF); the other flags (exp, degrees, hide_slider...) don't change the limits.
 static func _limits(hint_string: String) -> Dictionary:
 	var parts := hint_string.split(",")
 	if parts.size() < 2 or not parts[0].strip_edges().is_valid_float() or not parts[1].strip_edges().is_valid_float():
 		return {}
-	var unit := ""
-	for part: String in parts:
-		if part.strip_edges().begins_with("suffix:"):
-			unit = " " + part.strip_edges().trim_prefix("suffix:")
-	return {"low": parts[0].to_float(), "high": parts[1].to_float(), "unit": unit}
+	var limits := {"low": parts[0].to_float(), "high": parts[1].to_float(), "unit": ""}
+	for raw: String in parts:
+		var part := raw.strip_edges()
+		if part == "or_greater":
+			limits.high = INF
+		elif part == "or_less":
+			limits.low = -INF
+		elif part.begins_with("suffix:"):
+			limits.unit = " " + part.trim_prefix("suffix:")
+	return limits
+
+
+## "50 to 1000 px/s", "at least 1 HP", "at most 5 s" or "a number" (NaN).
+static func _span(limits: Dictionary) -> String:
+	var unit: String = limits.unit
+	var low: float = limits.low
+	var high: float = limits.high
+	if is_finite(low) and is_finite(high):
+		return "%s to %s%s" % [_number(low), _number(high), unit]
+	if is_finite(low):
+		return "at least %s%s" % [_number(low), unit]
+	if is_finite(high):
+		return "at most %s%s" % [_number(high), unit]
+	return "a number"
 
 
 ## "0", "1000", "0.05", "nan": whole numbers without ".0".

@@ -30,8 +30,12 @@ Every hero number is in a `.tres` file you tune in the Inspector:
   problems in plain words, for example `move_speed is 0 px/s; it must be 50 to
   1000 px/s`. The limits come from each field's own `@export_range`, so a
   number typed into the file by hand gets the same check as the Inspector.
+  `or_greater` / `or_less` leave that end open (`it must be at least 1`); the
+  `suffix:` is the unit in the message; `exp`, `degrees` and slider flags don't
+  change the limits.
 - `tests/data_test.gd` loads every `.tres` here and in `game/weapons/data`, and
   fails, naming the file and the problem, on a file that won't load, an unknown
-  type, any `validate()` problem or an empty roster slot. Smoke runs it.
+  type (for example a wrong script path), any `validate()` problem or an empty
+  roster slot. Smoke runs it.
 
 Only the owner's cards change this folder. See CLAUDE.md, "Folders and owners".

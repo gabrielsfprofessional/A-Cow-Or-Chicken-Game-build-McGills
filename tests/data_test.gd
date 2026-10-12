@@ -6,11 +6,28 @@ extends SceneTree
 ##
 ## 1. Every .tres in DATA_FOLDERS must load, be a known type and pass validate().
 ##    A failure names the file and the problem in plain words.
-## 2. validate() itself, on resources built here: each kind of problem is caught.
+## 2. validate() itself, on resources built here: each kind of problem is caught,
+##    and range flags (or_greater, or_less, suffix, exp, degrees) read right.
+## 3. A .tres with a wrong script path fails, naming the file.
 
 const DATA_FOLDERS: PackedStringArray = ["res://game/heroes/data", "res://game/weapons/data"]
 const ROSTER_PATH: String = "res://game/heroes/data/roster.tres"
 const SIDEARM_PATH: String = "res://game/weapons/data/sidearm.tres"
+const SCRATCH_FOLDER: String = "user://data_test"
+const WRONG_SCRIPT_TRES: String = """[gd_resource type="Resource" script_class="HeroData" format=3]
+
+[ext_resource type="Script" path="res://game/heroes/health.gd" id="1_hero"]
+
+[resource]
+script = ExtResource("1_hero")
+display_name = "Moved Hero"
+"""
+## A Resource script with every kind of range hint DataCheck reads.
+const RANGES_SCRIPT: String = """extends Resource
+@export_range(1, 10, 1, "or_greater") var at_least: int = 5
+@export_range(-5.0, 5.0, 0.5, "or_less", "suffix:s") var at_most: float = 0.0
+@export_range(0.0, 360.0, 1.0, "degrees", "exp", "hide_slider", "suffix:deg") var angle: float = 90.0
+"""
 
 var _failed: int = 0
 var _count: int = 0
@@ -26,7 +43,9 @@ func _initialize() -> void:
 	_missing_weapon()
 	_weapon_problems_passed_on()
 	_roster_empty_slot()
+	_range_flags()
 	_combat_out_of_range()
+	_wrong_script_path()
 	print("DATA TEST: %s (%d checks)" % ["PASS" if _failed == 0 else "FAIL, %d wrong" % _failed, _count])
 	quit(0 if _failed == 0 else 1)
 
@@ -46,11 +65,17 @@ func _every_data_file() -> void:
 
 
 func _check_file(path: String) -> void:
+	var problem := _file_problem(path)
+	_expect(problem.is_empty(), path.get_file(), problem)
+
+
+## Empty when the file loads, is a known type and passes validate(); else the
+## problem in plain words, naming the file.
+func _file_problem(path: String) -> String:
 	var file := path.get_file()
 	var resource := ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE)
 	if resource == null:
-		_expect(false, file, "won't load; open it in Godot to see why")
-		return
+		return "%s won't load; open it in Godot to see why" % file
 	var problems := PackedStringArray()
 	if resource is HeroData:
 		problems = (resource as HeroData).validate()
@@ -61,9 +86,24 @@ func _check_file(path: String) -> void:
 	elif resource is WeaponData:
 		problems = (resource as WeaponData).validate()
 	else:
-		_expect(false, file, "is not a HeroData, HeroRoster, CombatData or WeaponData file")
-		return
-	_expect(problems.is_empty(), file, "; ".join(problems))
+		return "%s is not a HeroData, HeroRoster, CombatData or WeaponData file; check its script path" % file
+	return "" if problems.is_empty() else "%s: %s" % [file, "; ".join(problems)]
+
+
+## A hero file whose script path points at the wrong script fails, naming the file.
+## It points at health.gd, a Node script: a missing script would make the engine
+## print "Parse Error", which smoke counts as a script error.
+func _wrong_script_path() -> void:
+	DirAccess.make_dir_recursive_absolute(SCRATCH_FOLDER)
+	var path := SCRATCH_FOLDER.path_join("wrong_script.tres")
+	var out := FileAccess.open(path, FileAccess.WRITE)
+	out.store_string(WRONG_SCRIPT_TRES)
+	out.close()
+	print("  (an engine error about health.gd on a Resource is expected next)")
+	var problem := _file_problem(path)
+	DirAccess.remove_absolute(path)
+	_expect(problem.begins_with("wrong_script.tres "), "a .tres with a wrong script path fails, naming the file",
+		"got \"%s\"" % problem)
 
 
 func _roster_has_a_first_hero() -> void:
@@ -156,6 +196,27 @@ func _roster_empty_slot() -> void:
 		"heroes[1] is empty; pick a HeroData file such as bruiser.tres",
 		"heroes[2] (built-in): move_speed is 0 px/s; it must be 50 to 1000 px/s",
 	], "an empty slot and a bad hero")
+
+
+## or_greater / or_less open that end; suffix, exp, degrees and hide_slider don't change the limits.
+func _range_flags() -> void:
+	var script := GDScript.new()
+	script.source_code = RANGES_SCRIPT
+	script.reload()
+	var data := Resource.new()
+	data.set_script(script)
+	_expect_problems(DataCheck.ranges(data), [], "range flags: defaults pass")
+	data.set("at_least", 1000)
+	data.set("at_most", -1000.0)
+	_expect_problems(DataCheck.ranges(data), [], "or_greater and or_less are open-ended")
+	data.set("at_least", 0)
+	data.set("at_most", 6.0)
+	data.set("angle", 361.0)
+	_expect_problems(DataCheck.ranges(data), [
+		"at_least is 0; it must be at least 1",
+		"at_most is 6 s; it must be at most 5 s",
+		"angle is 361 deg; it must be 0 to 360 deg",
+	], "the closed end of each range still holds")
 
 
 func _combat_out_of_range() -> void:
