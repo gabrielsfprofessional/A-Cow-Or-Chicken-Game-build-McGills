@@ -1,6 +1,7 @@
 # Smoke test: import the project, run the game headless for 300 frames and fail
 # if Godot prints any script or engine error. Then run every tests/*_test.gd and
-# Adam's arena checks (when they exist) and fail if any exits non-zero. Then play
+# Adam's arena checks (when they exist) and fail if any exits non-zero or runs
+# longer than 60 s (it is then killed by PID). Then play
 # a bot match (card T09): a headless server and 2 test bots on UDP 7777.
 # Run from the repo folder:
 #   powershell -NoProfile -ExecutionPolicy Bypass -File tools/smoke.ps1
@@ -25,7 +26,9 @@ if ($hits) {
 
 # Script tests. Each one prints its own cases and exits 1 on a failure. Their own
 # logs are judged by exit code and script errors only: a test may provoke an
-# engine error on purpose.
+# engine error on purpose. Each gets $scriptLimitSec; one still running then is
+# killed by PID and fails as timed out, so a hung test can't hang smoke.
+$scriptLimitSec = 60
 $scripts = @(Get-ChildItem -Path (Join-Path $root "tests") -Filter "*_test.gd" | Sort-Object Name |
     ForEach-Object { "res://tests/" + $_.Name })
 foreach ($arena in @("game/maps/tools/check_arena.gd", "game/maps/tools/test_arena_check.gd")) {
@@ -35,12 +38,27 @@ $failed = 0
 foreach ($script in $scripts) {
     $name = [IO.Path]::GetFileNameWithoutExtension($script)
     $scriptLog = Join-Path $env:TEMP "acoc-smoke-$name.log"
-    & $godot --headless --path $root --script $script 2>&1 | Out-File -FilePath $scriptLog -Encoding utf8
-    $code = $LASTEXITCODE
-    $errors = Select-String -Path $scriptLog -Pattern "SCRIPT ERROR|Parse Error"
+    $scriptErr = Join-Path $env:TEMP "acoc-smoke-$name.err.log"
+    $p = Start-Process -FilePath $godot -ArgumentList "--headless --path `"$root`" --script $script" `
+        -RedirectStandardOutput $scriptLog -RedirectStandardError $scriptErr -NoNewWindow -PassThru
+    $null = $p.Handle  # Keeps ExitCode readable once it has exited.
+    if (-not $p.WaitForExit($scriptLimitSec * 1000)) {
+        & taskkill /F /T /PID $p.Id 2>&1 | Out-Null
+        $null = $p.WaitForExit(5000)
+        foreach ($file in @($scriptLog, $scriptErr)) {
+            Write-Host "--- $file, last 40 lines:" -ForegroundColor Red
+            Get-Content $file -Tail 40 | ForEach-Object { Write-Host $_ -ForegroundColor Red }
+        }
+        Write-Host "SMOKE: $script timed out after $scriptLimitSec s (killed PID $($p.Id))" -ForegroundColor Red
+        $failed++
+        continue
+    }
+    $p.WaitForExit()  # Lets the redirected output finish writing.
+    $code = $p.ExitCode
+    $errors = Select-String -Path @($scriptLog, $scriptErr) -Pattern "SCRIPT ERROR|Parse Error"
     if ($code -ne 0 -or $errors) {
-        Get-Content $scriptLog | ForEach-Object { Write-Host $_ -ForegroundColor Red }
-        Write-Host "SMOKE: $script FAILED (exit $code, log: $scriptLog)" -ForegroundColor Red
+        Get-Content $scriptLog, $scriptErr | ForEach-Object { Write-Host $_ -ForegroundColor Red }
+        Write-Host "SMOKE: $script FAILED (exit $code, logs: $scriptLog, $scriptErr)" -ForegroundColor Red
         $failed++
     } else {
         Write-Host "SMOKE: $script passed"

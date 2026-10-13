@@ -12,8 +12,9 @@ const FROM: Vector2 = Vector2(100.0, 300.0)
 const TO: Vector2 = Vector2(340.0, 300.0)
 ## Physics layer 2 ("heroes").
 const HERO_LAYER: int = 2
-## This test awaits physics frames, and smoke has no per-test timeout: an error
-## after an await would hang it, so it fails itself after this long.
+## This test awaits physics frames: an error after an await would hang it, so it
+## fails itself after this long, with a reason. Smoke's 60 s per-test limit is
+## only the backstop.
 const DEADLINE_SEC: float = 10.0
 
 var _failed: int = 0
