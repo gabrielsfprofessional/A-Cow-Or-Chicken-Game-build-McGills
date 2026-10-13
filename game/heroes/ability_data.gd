@@ -21,7 +21,7 @@ const ABILITY_SCRIPT_PATH: String = "res://game/heroes/ability.gd"
 ## Ability (checked before it is built).
 func make() -> Node:
 	var path := node_script_path()
-	var source := resource_path if resource_path != "" else "an unsaved %s" % get_script().resource_path.get_file()
+	var source := resource_path if resource_path != "" else "an unsaved ability data"
 	if path == "":
 		push_error("%s names no node script; override node_script_path()" % source)
 		return null
