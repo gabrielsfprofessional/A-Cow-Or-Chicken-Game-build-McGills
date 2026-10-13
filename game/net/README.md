@@ -375,6 +375,7 @@ Inspector and checked by `tests/data_test.gd` on every pull request:
 | Respawn time | `game/heroes/data/combat.tres` (until T15's mode rules) |
 | Shield Charge cooldown, dash and knockback distance and time | `game/heroes/data/shield_charge.tres` (T14), the Bruiser's `ability` |
 | Jet Dash charges, cooldown per charge, dash distance and time | `game/heroes/data/jet_dash.tres` (T18), the Scout's `ability` |
+| Blink cooldown and distance | `game/heroes/data/blink.tres` (T18), the Mage's `ability` |
 
 - **One spawn path:** `test_world.gd`'s spawn function runs on every peer and
   calls `NetHero.setup(..., ROSTER.first())`. The spawner still sends only the

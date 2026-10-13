@@ -1,5 +1,5 @@
 extends SceneTree
-## Tests for the hero, ability and weapon data files (cards T13, T14). Owner: Gabe.
+## Tests for the hero, ability and weapon data files (cards T13, T14, T18). Owner: Gabe.
 ## Run: godot --headless --path . --script res://tests/data_test.gd
 ## Exits 1 when any case fails. tools/smoke.ps1 and smoke.sh run it, so every
 ## pull request checks all the data files, Adam's weapon edits included.
@@ -17,6 +17,8 @@ const BRUISER_PATH: String = "res://game/heroes/data/bruiser.tres"
 const CHARGE_PATH: String = "res://game/heroes/data/shield_charge.tres"
 const SCOUT_PATH: String = "res://game/heroes/data/scout.tres"
 const JET_DASH_PATH: String = "res://game/heroes/data/jet_dash.tres"
+const MAGE_PATH: String = "res://game/heroes/data/mage.tres"
+const BLINK_PATH: String = "res://game/heroes/data/blink.tres"
 const UNKNOWN_TYPE: String = "is not a HeroData, HeroRoster, CombatData, AbilityData or WeaponData file; check its script path"
 const SCRATCH_FOLDER: String = "user://data_test"
 const WRONG_SCRIPT_TRES: String = """[gd_resource type="Resource" script_class="HeroData" format=3]
@@ -56,6 +58,7 @@ func _initialize() -> void:
 	_charge_out_of_range()
 	_charge_too_fast()
 	_charge_cap_fits_the_snap()
+	_blink_passes_and_ranges()
 	_ability_problems_passed_on()
 	_wrong_script_path()
 	print("DATA TEST: %s (%d checks)" % ["PASS" if _failed == 0 else "FAIL, %d wrong" % _failed, _count])
@@ -257,6 +260,9 @@ func _bruiser_has_shield_charge() -> void:
 	var jet := scout.ability as DashData if scout != null else null
 	_expect(jet != null and jet.resource_path == JET_DASH_PATH and jet.charges == 2 and jet.knockback_px == 0.0,
 		"scout.tres has jet_dash.tres as its ability: 2 charges, no knockback (T18)", "it does not")
+	var mage := load(MAGE_PATH) as HeroData
+	_expect(mage != null and mage.ability is BlinkData and mage.ability.resource_path == BLINK_PATH,
+		"mage.tres has blink.tres as its ability (T18)", "it does not")
 
 
 ## make() loads its node script by path at run time (T18), so a wrong path would
@@ -335,6 +341,22 @@ func _charge_cap_fits_the_snap() -> void:
 		"the charge speed cap (%d px per update) is within RemoteTimeline.SNAP_DISTANCE (%d px)" % [
 			roundi(per_update), roundi(RemoteTimeline.SNAP_DISTANCE)],
 		"lower DashData.MAX_SPEED_PX_PER_SEC or raise SNAP_DISTANCE")
+
+
+# --- Blink (T18) --------------------------------------------------------------------
+
+func _blink_passes_and_ranges() -> void:
+	var blink := BlinkData.new()
+	blink.display_name = "Test Blink"
+	_expect(blink.validate().is_empty(), "a blink at the defaults passes", "; ".join(blink.validate()))
+	blink.distance_px = 47.0
+	_expect_problems(blink.validate(), ["distance_px is 47 px; it must be 48 to 480 px"], "blink distance_px 47")
+	blink.distance_px = 481.0
+	_expect_problems(blink.validate(), ["distance_px is 481 px; it must be 48 to 480 px"], "blink distance_px 481")
+	blink.distance_px = 48.0
+	var low_ok := blink.validate().is_empty()
+	blink.distance_px = 480.0
+	_expect(low_ok and blink.validate().is_empty(), "blink distance_px 48 and 480 pass", "; ".join(blink.validate()))
 
 
 func _ability_problems_passed_on() -> void:
