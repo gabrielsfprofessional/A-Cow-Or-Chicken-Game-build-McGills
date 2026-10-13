@@ -8,7 +8,8 @@ extends Ability
 ##   within radius_px of the healer (the healer included). It stops at once if
 ##   the healer is eliminated. A new use starts the ticks over.
 ## - Every client draws the drone, with a ring at radius_px, from the moment
-##   the yes arrives until duration_sec later or the healer's elimination. A
+##   the yes arrives until duration_sec later or the healer's elimination (it
+##   stays hidden after a respawn). A
 ##   peer that joins mid-heal doesn't see it (not in T18).
 
 ## How it looks; not gameplay numbers.
@@ -25,6 +26,8 @@ var _next_tick_sec: float = INF
 ## Clients: the drone's drawing, a child of the hero, and when it hides.
 var _view: Node2D = null
 var _show_until_sec: float = -INF
+## Clients: the life the shown drone was used in; a respawn hides it (T18 follow-up).
+var _shown_life: int = -1
 
 
 func _drone() -> HealDroneData:
@@ -50,11 +53,12 @@ func _use_on_server(now: float) -> void:
 
 func _use_on_client(_direction: Vector2) -> void:
 	_show_until_sec = _now_sec() + _drone().duration_sec
+	_shown_life = _hero.life
 
 
 func _effect_physics(_delta: float) -> void:
 	if _view != null:
-		_view.visible = _hero.is_alive() and _now_sec() < _show_until_sec
+		_view.visible = _hero.is_alive() and _hero.life == _shown_life and _now_sec() < _show_until_sec
 	if _ticks_left <= 0:
 		return
 	if not _hero.is_alive():
