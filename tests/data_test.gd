@@ -15,6 +15,8 @@ const ROSTER_PATH: String = "res://game/heroes/data/roster.tres"
 const SIDEARM_PATH: String = "res://game/weapons/data/sidearm.tres"
 const BRUISER_PATH: String = "res://game/heroes/data/bruiser.tres"
 const CHARGE_PATH: String = "res://game/heroes/data/shield_charge.tres"
+const SCOUT_PATH: String = "res://game/heroes/data/scout.tres"
+const JET_DASH_PATH: String = "res://game/heroes/data/jet_dash.tres"
 const UNKNOWN_TYPE: String = "is not a HeroData, HeroRoster, CombatData, AbilityData or WeaponData file; check its script path"
 const SCRATCH_FOLDER: String = "user://data_test"
 const WRONG_SCRIPT_TRES: String = """[gd_resource type="Resource" script_class="HeroData" format=3]
@@ -251,6 +253,10 @@ func _bruiser_has_shield_charge() -> void:
 	_expect(bruiser != null and bruiser.ability is DashData
 			and bruiser.ability.resource_path == CHARGE_PATH,
 		"bruiser.tres has shield_charge.tres as its ability", "it does not")
+	var scout := load(SCOUT_PATH) as HeroData
+	var jet := scout.ability as DashData if scout != null else null
+	_expect(jet != null and jet.resource_path == JET_DASH_PATH and jet.charges == 2 and jet.knockback_px == 0.0,
+		"scout.tres has jet_dash.tres as its ability: 2 charges, no knockback (T18)", "it does not")
 
 
 ## make() loads its node script by path at run time (T18), so a wrong path would
@@ -296,6 +302,15 @@ func _charge_out_of_range() -> void:
 	charge = _good_charge()
 	charge.knockback_px = 0.0
 	_expect_problems(charge.validate(), [], "knockback_px 0 (pushes nobody) passes")
+	charge = _good_charge()
+	charge.charges = 0
+	_expect_problems(charge.validate(), ["charges is 0; it must be 1 to 5"], "charges 0 (T18)")
+	charge.charges = 6
+	_expect_problems(charge.validate(), ["charges is 6; it must be 1 to 5"], "charges 6")
+	charge.charges = 1
+	var one_ok := charge.validate().is_empty()
+	charge.charges = 5
+	_expect(one_ok and charge.validate().is_empty(), "charges 1 and 5 pass", "; ".join(charge.validate()))
 
 
 func _charge_too_fast() -> void:

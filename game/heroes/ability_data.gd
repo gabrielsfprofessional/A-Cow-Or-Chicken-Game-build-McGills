@@ -6,8 +6,10 @@ extends Resource
 
 ## Name shown in the HUD, for example "Shield Charge".
 @export var display_name: String = ""
-## Seconds before the ability can be used again. Kept through death.
+## Seconds before a used charge is back, counted from its own use. Kept through death.
 @export_range(1.0, 60.0, 0.1, "suffix:s") var cooldown_sec: float = 10.0
+## Uses the hero can bank (T18). Each comes back cooldown_sec after its own use.
+@export_range(1, 5, 1) var charges: int = 1
 
 
 ## A new node for this ability (an Ability), with `data` set to this file.

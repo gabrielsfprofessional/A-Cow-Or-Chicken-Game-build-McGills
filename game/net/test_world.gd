@@ -181,7 +181,12 @@ func _refresh_status() -> void:
 		parts.append("Eliminated, back in %d s" % ceili(own.respawn_in_sec()))
 	if own != null and own.has_ability():
 		var ready_in := own.ability_ready_in_sec()
-		parts.append("Q ready" if ready_in <= 0.0 else "Q %.1f s" % ready_in)
+		if ready_in > 0.0:
+			parts.append("Q %.1f s" % ready_in)
+		elif own.hero_data.ability.charges > 1:
+			parts.append("Q x%d" % own.ability_charges_left())  # T18
+		else:
+			parts.append("Q ready")
 	_status.text = "  |  ".join(parts)
 
 

@@ -163,6 +163,17 @@ func ability_ready_in_sec() -> float:
 	return _ability.ready_in_sec() if _ability != null else 0.0
 
 
+## Q charges ready now (T18); 0 for a hero without an ability. Exact for the
+## owner (T17's HUD) and the server.
+func ability_charges_left() -> int:
+	return _ability.charges_left() if _ability != null else 0
+
+
+## Owner only: true while a dash, blink or knockback is moving the hero (T18).
+func in_forced_motion() -> bool:
+	return _forced_ticks_left > 0
+
+
 ## Owner only: moves the hero by `offset` over `duration_sec`, ignoring move
 ## input (T14). The tick count is rounded, never below 1, and each tick takes an
 ## equal step, so the distance is exact unless a wall stops it.

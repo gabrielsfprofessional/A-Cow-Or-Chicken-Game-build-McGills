@@ -301,8 +301,8 @@ only to peers that have said `client_ready`.
 | `receive_respawn` | `NetHero` | server -> every ready peer | `any_peer`, sender 1 | `reliable` | 0 | `position: Vector2, life: int` |
 | `receive_combat_state` | `NetHero` | server -> a peer that just joined | `any_peer`, sender 1 | `reliable` | 0 | `life: int, health: int, eliminated: bool, respawn_in: float` |
 | `request_ability` | `Ability` (base of each ability) | owner -> server | `authority` + `AbilityCheck` checks the sender is the owner | `reliable` | 0 | `life: int, direction: Vector2` |
-| `receive_ability_used` | `Ability` (base of each ability) | server -> every ready peer (the owner's effect starts) | `any_peer`, sender 1 | `reliable` | 0 | `life: int, direction: Vector2, ready_in: float` |
-| `receive_ability_refused` | `Ability` (base of each ability) | server -> owner | `any_peer`, sender 1 | `reliable` | 0 | `ready_in: float` |
+| `receive_ability_used` | `Ability` (base of each ability) | server -> every ready peer (the owner's effect starts) | `any_peer`, sender 1 | `reliable` | 0 | `life: int, direction: Vector2, charge_ready_in: PackedFloat64Array` (T18: each charge's seconds to ready, soonest first) |
+| `receive_ability_refused` | `Ability` (base of each ability) | server -> owner | `any_peer`, sender 1 | `reliable` | 0 | `charge_ready_in: PackedFloat64Array` |
 | `receive_knockback` | `NetHero` (victim) | server -> every ready peer (the victim's owner moves) | `any_peer`, sender 1 | `reliable` | 0 | `life: int, attacker: int, offset: Vector2, duration_sec: float` |
 
 Damage, elimination and respawn share channel 0, so they always arrive in
@@ -374,6 +374,7 @@ Inspector and checked by `tests/data_test.gd` on every pull request:
 | Damage, fire rate, shot speed, size and range | The weapon's WeaponData: `game/weapons/data/sidearm.tres` (Adam's) |
 | Respawn time | `game/heroes/data/combat.tres` (until T15's mode rules) |
 | Shield Charge cooldown, dash and knockback distance and time | `game/heroes/data/shield_charge.tres` (T14), the Bruiser's `ability` |
+| Jet Dash charges, cooldown per charge, dash distance and time | `game/heroes/data/jet_dash.tres` (T18), the Scout's `ability` |
 
 - **One spawn path:** `test_world.gd`'s spawn function runs on every peer and
   calls `NetHero.setup(..., ROSTER.first())`. The spawner still sends only the
