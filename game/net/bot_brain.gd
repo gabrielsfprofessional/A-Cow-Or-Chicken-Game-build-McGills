@@ -1,6 +1,6 @@
 class_name BotBrain
 extends HeroInput
-## A test bot's hands on its hero (cards T09, T14). Owner: Gabe (game/net).
+## A test bot's hands on its hero (cards T09, T14, T18). Owner: Gabe (game/net).
 ##
 ## The owner's NetHero makes one instead of a plain HeroInput when the game was
 ## started with "-- --bot=<seed>" (debug builds). The hero moves, aims and fires
@@ -74,8 +74,9 @@ func fire_pressed() -> bool:
 	return _fire
 
 
-## Pressed on every tick BotRules wants it; the hero's Ability sends one request
-## and waits for the answer, so holding it is safe (T14).
+## Pressed on every tick BotRules wants it: a target and a charge ready, for
+## every ability (T18). The hero's Ability sends one request and waits for the
+## answer, so holding it is safe (T14).
 func ability_pressed() -> bool:
 	return _ability
 

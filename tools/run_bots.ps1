@@ -2,7 +2,8 @@
 # Start the server first (tools\run_server.bat), then double-click
 # tools\run_bots.bat (8 bots, this PC, 10 minutes), or run:
 #   powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_bots.ps1 [-Count 8] [-Address 127.0.0.1] [-Minutes 10]
-# Each bot is a headless game: -- --join=<address> --bot=<n> --quit-after-sec=<minutes x 60>.
+# Each bot is a headless game: -- --join=<address> --bot=<n> --hero=<hero> --quit-after-sec=<minutes x 60>.
+# Bot n plays the roster's hero (n-1) mod 4 (T18): bot 1 bruiser, 2 mage, 3 scout, 4 medic, 5 bruiser...
 # Logs: %TEMP%\acoc-bots\bot<n>.log and .err.log. Every 10 s it prints how many
 # bots are alive and, when the server runs on this PC, the server's CPU and
 # memory. At the end: each bot's exit code and last [Bot] line, then PASS when
@@ -26,6 +27,8 @@ New-Item -ItemType Directory -Force $logDir | Out-Null
 Get-ChildItem -Path $logDir -Filter "bot*.log" | Remove-Item -Force -ErrorAction SilentlyContinue
 $seconds = [int][Math]::Round($Minutes * 60)
 $cores = [Environment]::ProcessorCount
+# The roster's file names in hero-select order (game/heroes/data/roster.tres).
+$heroes = @("bruiser", "mage", "scout", "medic")
 
 # When the bots join this PC, the server is whoever owns UDP 7777 here.
 $thisPc = ($Address -in @("127.0.0.1", "localhost", "::1")) -or
@@ -64,11 +67,12 @@ try {
     for ($seed = 1; $seed -le $Count; $seed++) {
         $out = Join-Path $logDir "bot$seed.log"
         $err = Join-Path $logDir "bot$seed.err.log"
+        $hero = $heroes[($seed - 1) % $heroes.Count]
         $p = Start-Process -FilePath $godot `
-            -ArgumentList "--headless --path `"$root`" -- --join=$Address --bot=$seed --quit-after-sec=$seconds" `
+            -ArgumentList "--headless --path `"$root`" -- --join=$Address --bot=$seed --hero=$hero --quit-after-sec=$seconds" `
             -RedirectStandardOutput $out -RedirectStandardError $err -NoNewWindow -PassThru
         $null = $p.Handle  # Keeps ExitCode readable once it has exited.
-        $bots += [pscustomobject]@{ Seed = $seed; Process = $p; Log = $out }
+        $bots += [pscustomobject]@{ Seed = $seed; Hero = $hero; Process = $p; Log = $out }
         # 1 s apart, so they also leave 1 s apart. Two peers leaving in the same
         # server frame make Godot's server relay log an ERROR on the server.
         if ($seed -lt $Count) { Start-Sleep -Seconds 1 }
@@ -116,7 +120,7 @@ foreach ($bot in $bots) {
     $code = $bot.Process.ExitCode
     $last = Select-String -Path $bot.Log -Pattern "^\[Bot\]" | Select-Object -Last 1
     $lastLine = if ($last) { $last.Line.Trim() } else { "(no [Bot] line)" }
-    Write-Host ("  bot {0}: exit {1}  {2}" -f $bot.Seed, $code, $lastLine)
+    Write-Host ("  bot {0} ({1}): exit {2}  {3}" -f $bot.Seed, $bot.Hero, $code, $lastLine)
     if ($code -ne 0) { $failed++ }
 }
 if ($coreSamples.Count -gt 0) {

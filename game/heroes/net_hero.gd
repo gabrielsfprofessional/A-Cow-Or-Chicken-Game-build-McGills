@@ -526,7 +526,7 @@ func _end_forced_motion() -> void:
 
 
 func _update_label() -> void:
-	_name_label.text = "Player %d  %d" % [owner_peer, _health.health()]
+	_name_label.text = "Player %d  %s  %d" % [owner_peer, hero_data.display_name, _health.health()]
 
 
 func _world() -> Node:

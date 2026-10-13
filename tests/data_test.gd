@@ -45,6 +45,7 @@ var _count: int = 0
 func _initialize() -> void:
 	_every_data_file()
 	_roster_has_a_first_hero()
+	_roster_finds_heroes()
 	_good_hero_passes()
 	_speed_out_of_range()
 	_not_a_number()
@@ -129,8 +130,21 @@ func _wrong_script_path() -> void:
 
 func _roster_has_a_first_hero() -> void:
 	var roster := load(ROSTER_PATH) as HeroRoster
-	_expect(roster != null and roster.first() != null, "roster.tres has a first hero (everyone plays it until T16)",
+	_expect(roster != null and roster.first() != null, "roster.tres has a first hero (the default until T16)",
 		"roster.tres is missing, not a HeroRoster or empty")
+
+
+## --hero=<file name> and client_ready's hero_index (T18) go through these.
+func _roster_finds_heroes() -> void:
+	var roster := load(ROSTER_PATH) as HeroRoster
+	var names: PackedStringArray = ["bruiser", "mage", "scout", "medic"]
+	var all_found := true
+	for i: int in names.size():
+		all_found = all_found and roster.index_of(names[i]) == i and roster.at(i) == load("res://game/heroes/data/%s.tres" % names[i])
+	_expect(all_found, "the roster is bruiser, mage, scout, medic (tools/run_bots.ps1 and smoke use that order)",
+		"index_of() or at() disagrees with roster.tres; update the tools too")
+	_expect(roster.index_of("dragon") == -1 and roster.index_of("") == -1, "an unknown hero name is -1", "it is not")
+	_expect(roster.at(-1) == null and roster.at(names.size()) == null, "a slot out of range is null", "it is not")
 
 
 # --- validate() on resources built here --------------------------------------------

@@ -1,6 +1,7 @@
 @echo off
 rem A Cow or Chicken - join a game.
-rem Double-click this file, then type the server address or just press Enter.
+rem Double-click this file, then type the server address or just press Enter,
+rem then a hero (bruiser, mage, scout or medic) or just press Enter.
 setlocal
 title A Cow or Chicken - join
 cd /d "%~dp0.."
@@ -21,6 +22,10 @@ set "ADDRESS=%~1"
 if not defined ADDRESS set /p "ADDRESS=Server address (Enter = this PC): "
 if not defined ADDRESS set "ADDRESS=127.0.0.1"
 
+set "HERO=%~2"
+if not defined HERO set /p "HERO=Hero: bruiser, mage, scout or medic (Enter = bruiser): "
+if not defined HERO set "HERO=bruiser"
+
 echo.
-echo Joining %ADDRESS% ...
-start "" "%GODOT_EXE%" --path . -- "--join=%ADDRESS%"
+echo Joining %ADDRESS% as %HERO% ...
+start "" "%GODOT_EXE%" --path . -- "--join=%ADDRESS%" "--hero=%HERO%"

@@ -2,7 +2,7 @@
 # if Godot prints any script or engine error. Then run every tests/*_test.gd and
 # Adam's arena checks (when they exist) and fail if any exits non-zero or runs
 # longer than 60 s (it is then killed by PID). Then play
-# a bot match (card T09): a headless server and 2 test bots on UDP 7777.
+# a bot match (cards T09, T18): a headless server and 4 test bots, one per hero, on UDP 7777.
 # Run from the repo folder:
 #   powershell -NoProfile -ExecutionPolicy Bypass -File tools/smoke.ps1
 # Godot path: $env:GODOT if set, else C:\Godot\Godot_v4.7.2-stable_win64_console.exe
@@ -69,13 +69,17 @@ if ($failed -gt 0) {
     exit 1
 }
 
-# Bot match (card T09): a headless server (40 s) and test bots 1 and 2 (25 s)
-# play on UDP 7777, the real network path. Each writes %TEMP%\acoc-smoke-<name>.log
-# and .err.log. Passes when all three exit 0, no log has an error, the server
-# logged at least one hit and one ability_used (T14), and nothing was refused
-# ([Move], [Shot] or [Ability]).
+# Bot match (cards T09, T18): a headless server (45 s) and test bots 1-4 (25 s
+# each, 1 s apart), one per hero, play on UDP 7777, the real network path. Each
+# writes %TEMP%\acoc-smoke-<name>.log and .err.log. Passes when all five exit 0,
+# no log has an error, the server logged at least one hit and an ability_used
+# for each of the four abilities (T18), and nothing was refused ([Move], [Shot]
+# or [Ability]).
 # Anything still running after 60 s is killed by PID.
 $match = [ordered]@{}
+# Bot n plays hero n; each must use its ability (the roster's file names and ability names).
+$matchHeroes = @("bruiser", "mage", "scout", "medic")
+$matchAbilities = @("Shield Charge", "Blink", "Jet Dash", "Heal Drone")
 function Start-MatchProcess([string]$name, [string]$userArgs) {
     $out = Join-Path $env:TEMP "acoc-smoke-$name.log"
     $err = Join-Path $env:TEMP "acoc-smoke-$name.err.log"
@@ -97,7 +101,7 @@ function Stop-MatchLeftovers {
 $started = Get-Date
 $state = "timeout"
 try {
-    Start-MatchProcess "server" "--server --quit-after-sec=40"
+    Start-MatchProcess "server" "--server --quit-after-sec=45"
     $serverLog = $match["server"].Logs[0]
     while (((Get-Date) - $started).TotalSeconds -lt 30) {
         $text = [string](Get-Content $serverLog -Raw -ErrorAction SilentlyContinue)
@@ -110,9 +114,10 @@ try {
         # 1 s apart, so they also leave 1 s apart. Two peers leaving in the same
         # server frame make Godot's server relay log an ERROR: it tells the
         # second about the first after ENet has already dropped it.
-        Start-MatchProcess "bot1" "--join=127.0.0.1 --bot=1 --quit-after-sec=25"
-        Start-Sleep -Seconds 1
-        Start-MatchProcess "bot2" "--join=127.0.0.1 --bot=2 --quit-after-sec=25"
+        for ($n = 1; $n -le $matchHeroes.Count; $n++) {
+            if ($n -gt 1) { Start-Sleep -Seconds 1 }
+            Start-MatchProcess "bot$n" "--join=127.0.0.1 --bot=$n --hero=$($matchHeroes[$n - 1]) --quit-after-sec=25"
+        }
         while (((Get-Date) - $started).TotalSeconds -lt 60) {
             if (-not ($match.Values | Where-Object { -not $_.Process.HasExited })) { break }
             Start-Sleep -Milliseconds 250
@@ -144,12 +149,16 @@ $abilities = @(Select-String -Path $serverLog -Pattern "\[Combat\] ability_used"
 if ($matchErrors.Count -gt 0) { $problems += "$($matchErrors.Count) error line(s)" }
 if ($refusals.Count -gt 0) { $problems += "$($refusals.Count) [Move]/[Shot]/[Ability] line(s)" }
 if ($damage -eq 0) { $problems += "the server logged no [Combat] hero_damaged" }
-if ($abilities -eq 0) { $problems += "the server logged no [Combat] ability_used" }
+foreach ($ability in $matchAbilities) {
+    if (-not (Select-String -Path $serverLog -Pattern "\[Combat\] ability_used: Player \d+ used $ability," -Quiet)) {
+        $problems += "the server logged no ability_used for $ability"
+    }
+}
 if ($problems.Count -gt 0) {
     ($matchErrors + $refusals) | ForEach-Object { Write-Host "$($_.Filename):$($_.LineNumber): $($_.Line)" -ForegroundColor Red }
-    Write-Host ("SMOKE: FAIL: bot match: {0} (logs: {1}\acoc-smoke-server.log, -bot1, -bot2)" -f ($problems -join "; "), $env:TEMP) -ForegroundColor Red
+    Write-Host ("SMOKE: FAIL: bot match: {0} (logs: {1}\acoc-smoke-server.log, -bot1 to -bot4)" -f ($problems -join "; "), $env:TEMP) -ForegroundColor Red
     exit 1
 }
-Write-Host ("SMOKE: bot match passed (server and 2 bots exited 0, {0} hits, {1} abilities, {2:N0} s)" -f $damage, $abilities, $seconds)
+Write-Host ("SMOKE: bot match passed (server and 4 bots exited 0, all four abilities used, {0} hits, {1} abilities, {2:N0} s)" -f $damage, $abilities, $seconds)
 Write-Host "SMOKE: PASS" -ForegroundColor Green
 exit 0

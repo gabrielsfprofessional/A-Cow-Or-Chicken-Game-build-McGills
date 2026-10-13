@@ -71,8 +71,8 @@ Nobody needs to type any of this. Double-click the launchers in `tools/`:
 | Double-click | What happens |
 | --- | --- |
 | `tools/run_server.bat` | Starts the server on this PC. A black window opens and says `server up`. Leave it open while everyone plays; close it to stop the server. |
-| `tools/join_game.bat` | Asks `Server address (Enter = this PC)`, then opens the game and joins. Enter alone means `127.0.0.1`. You can also drop an address on it, or pass one: `join_game.bat 192.168.1.20`. |
-| `tools/run_bots.bat` | Load test (T09): 8 test bots join the server on this PC for 10 minutes. Start `run_server.bat` first. See "Test bots (card T09)". |
+| `tools/join_game.bat` | Asks `Server address (Enter = this PC)`, then `Hero: bruiser, mage, scout or medic (Enter = bruiser)` (T18, until T16's hero select), then opens the game and joins. Enter alone means `127.0.0.1` and the Bruiser. You can also pass both: `join_game.bat 127.0.0.1 mage`. |
+| `tools/run_bots.bat` | Load test (T09): 8 test bots join the server on this PC for 10 minutes. Bot n plays hero (n-1) mod 4: bruiser, mage, scout, medic, bruiser... (T18). Start `run_server.bat` first. See "Test bots (card T09)". |
 
 `run_server.bat` uses the console build at `C:\Godot`, or the `GODOT` environment
 variable when it is set. Both launchers run from the repo root no matter where
@@ -101,7 +101,7 @@ shows `Update the game from the Drive folder (server vX, you vY)` and the server
 logs `refused peer <id>: version mismatch`.
 
 **NET_PROTOCOL** is 1 for T06 (which sent a bare version), 2 for T07, 3 for T08
-and 4 from T14 (the ability and knockback RPCs). Bump it in the same pull request as any change to an RPC, its arguments, its channel or
+4 from T14 (the ability and knockback RPCs) and 5 from T18 (`client_ready`'s hero index, the spawn data, the ability answers' charge times and `receive_heal`). Bump it in the same pull request as any change to an RPC, its arguments, its channel or
 the channel count. A build with a different wire format is then refused by name
 instead of failing later with channel or RPC errors.
 
@@ -117,11 +117,15 @@ mismatched build into a family game.
 
 1. A client loads `test_world.tscn` **before** it connects, so the server's
    spawns have somewhere to land.
-2. When the handshake finishes, the client sends `client_ready` to the server.
+2. When the handshake finishes, the client sends `client_ready(hero_index)` to
+   the server (T18): its roster slot, from `--hero=<file name>` until T16's hero
+   select sends it. The server turns a slot with no hero into 0 and logs
+   `[TestWorld] peer <id> asked for hero <n>; there is none, so it plays <first>`.
 3. Only then does the server spawn that client's hero through the
-   `HeroSpawner` (`MultiplayerSpawner`): a `NetHero` under `Heroes`,
-   named with the peer id, labelled `Player <id>`, with multiplayer authority
-   set to that peer.
+   `HeroSpawner` (`MultiplayerSpawner`) with spawn data `[peer_id, hero_index]`,
+   so every peer, a late joiner included, builds the same hero: a `NetHero`
+   under `Heroes`, named with the peer id, labelled `Player <id>  <hero>  <hp>`,
+   with multiplayer authority set to that peer.
 4. When a peer disconnects, the server frees its hero and the spawner takes the
    hero off every client.
 5. The server only relays movement to peers that have sent `client_ready`.
@@ -238,12 +242,13 @@ window). A release build ignores them. The status line lists the active ones.
 | `--fire-cheat=<x>` | Multiplies this client's fire rate (T08, parsed in `game/weapons/weapon.gd`). 2 gets extra shots refused. |
 | `--version-override=<v>` | Pretends to be version `<v>` (see above). |
 | `--bot=<seed>` | Makes this client a test bot (T09): a `BotBrain` drives its hero. Use with `--headless`, `--join=<address>` and `--quit-after-sec`. See "Test bots (card T09)". |
+| `--hero=<name>` | Plays the roster hero whose file is `<name>.tres`: `bruiser` (the default), `mage`, `scout` or `medic` (T18, until T16's hero select). An unknown name plays the first hero and prints a `[TestWorld]` line. Bots take it too. |
 | `--quit-after-sec=<n>` | Ends the run after n seconds with exit code 0 or 1 (T09, `game/core/game.gd`). Works for the server too. See "Test bots (card T09)". |
 
 The fake lag delays movement messages and outgoing fire (T08) only, not the
 handshake, spawns or incoming combat messages. `run_server.bat` and
-`join_game.bat` never pass these flags; `run_bots` passes `--bot` and
-`--quit-after-sec`.
+`join_game.bat` pass none of these but `--hero`; `run_bots` passes `--bot`,
+`--hero` and `--quit-after-sec`.
 
 ## Combat (card T08)
 
@@ -328,7 +333,7 @@ drew on its grant with the hero's own circle against layer 2, excluding the
 dasher (`ChargeSweep`, tested by `tests/charge_sweep_test.gd`), and knocks back
 each live hero it finds once per dash. `Events.ability_used` and
 `hero_knocked_back` fire on every peer; the server logs
-`[Combat] ability_used: Player <id>, ready again in <s> s` and
+`[Combat] ability_used: Player <id> used <ability>, ready again in <s> s` (T18 names the ability) and
 `[Combat] knocked_back: Player <victim> by Player <attacker>`.
 
 ### The server's check (ShotCheck)
@@ -380,8 +385,8 @@ Inspector and checked by `tests/data_test.gd` on every pull request:
 | Heal Drone cooldown, heal per tick, tick time, duration and radius | `game/heroes/data/heal_drone.tres` (T18), the Medic's `ability` |
 
 - **One spawn path:** `test_world.gd`'s spawn function runs on every peer and
-  calls `NetHero.setup(..., ROSTER.first())`. The spawner still sends only the
-  peer id, so nothing changed on the wire (`NET_PROTOCOL` stays 3).
+  calls `NetHero.setup()` with the roster hero its spawn data names (T18; T13
+  used `ROSTER.first()` and sent only the peer id).
 - `setup()` runs before the hero enters the tree, so it sets the Weapon's
   `data` and Health's `max_health` before their own `_ready`.
 - **One speed:** the owner moves at `move_speed` (x `--speed-cheat`), and the
@@ -425,6 +430,8 @@ one place that knows bots exist. T14's Q ability adds its key to `HeroInput`.
 - **With a target** it fires in 0.5-1.5 s bursts with 0.3-1 s pauses. With none
   it aims where it walks and holds fire. While eliminated it idles; on respawn
   it starts over.
+- **Q** (T14, T18): with a target and a charge ready it presses Q, whatever its
+  ability. The Heal Drone heals whoever is near; the target only gives the aim.
 - **BotRules** holds these decisions: pure, with the clock and a seeded
   RandomNumberGenerator passed in, so the same seed and inputs make the same
   choices. Its numbers are test-tool constants in `bot_rules.gd`, not gameplay
@@ -462,12 +469,12 @@ From a terminal: `tools\run_bots.ps1 [-Count 8] [-Address 127.0.0.1] [-Minutes 1
 
 - says which address the bots join, and stops at once when nothing listens on
   UDP 7777 on this PC;
-- starts the bots 1 s apart (`--bot=1` to `--bot=<Count>`,
-  `--quit-after-sec=<Minutes x 60>`), with logs in `%TEMP%\acoc-bots\bot<n>.log`;
+- starts the bots 1 s apart (`--bot=1` to `--bot=<Count>`, bot n with
+  `--hero=` the roster's hero (n-1) mod 4 (T18), `--quit-after-sec=<Minutes x 60>`), with logs in `%TEMP%\acoc-bots\bot<n>.log`;
 - every 10 s prints how many bots are alive and, when the server runs on this
   PC (whoever owns UDP 7777), the server's CPU (% of one core and of the whole
   PC) and memory (working set);
-- at the end shows each bot's exit code and last `[Bot]` line, the server's
+- at the end shows each bot's hero, exit code and last `[Bot]` line, the server's
   average and peak CPU and peak memory, then PASS when every bot exited 0.
   Ctrl+C stops the bots too.
 
