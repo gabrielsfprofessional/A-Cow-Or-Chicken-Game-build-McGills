@@ -19,6 +19,8 @@ const SCOUT_PATH: String = "res://game/heroes/data/scout.tres"
 const JET_DASH_PATH: String = "res://game/heroes/data/jet_dash.tres"
 const MAGE_PATH: String = "res://game/heroes/data/mage.tres"
 const BLINK_PATH: String = "res://game/heroes/data/blink.tres"
+const MEDIC_PATH: String = "res://game/heroes/data/medic.tres"
+const HEAL_DRONE_PATH: String = "res://game/heroes/data/heal_drone.tres"
 const UNKNOWN_TYPE: String = "is not a HeroData, HeroRoster, CombatData, AbilityData or WeaponData file; check its script path"
 const SCRATCH_FOLDER: String = "user://data_test"
 const WRONG_SCRIPT_TRES: String = """[gd_resource type="Resource" script_class="HeroData" format=3]
@@ -59,6 +61,8 @@ func _initialize() -> void:
 	_charge_too_fast()
 	_charge_cap_fits_the_snap()
 	_blink_passes_and_ranges()
+	_heal_drone_passes_and_ranges()
+	_heal_drone_whole_ticks()
 	_ability_problems_passed_on()
 	_wrong_script_path()
 	print("DATA TEST: %s (%d checks)" % ["PASS" if _failed == 0 else "FAIL, %d wrong" % _failed, _count])
@@ -136,6 +140,7 @@ func _good_hero() -> HeroData:
 	hero.display_name = "Test Hero"
 	hero.role = "Tests things"
 	hero.default_weapon = _good_weapon()
+	hero.ability = _good_charge()
 	return hero
 
 
@@ -263,6 +268,9 @@ func _bruiser_has_shield_charge() -> void:
 	var mage := load(MAGE_PATH) as HeroData
 	_expect(mage != null and mage.ability is BlinkData and mage.ability.resource_path == BLINK_PATH,
 		"mage.tres has blink.tres as its ability (T18)", "it does not")
+	var medic := load(MEDIC_PATH) as HeroData
+	_expect(medic != null and medic.ability is HealDroneData and medic.ability.resource_path == HEAL_DRONE_PATH,
+		"medic.tres has heal_drone.tres as its ability (T18)", "it does not")
 
 
 ## make() loads its node script by path at run time (T18), so a wrong path would
@@ -282,8 +290,9 @@ func _good_charge_passes() -> void:
 	var problems := _good_charge().validate()
 	_expect(problems.is_empty(), "a shield charge at the defaults passes", "; ".join(problems))
 	var hero := _good_hero()
-	_expect(hero.ability == null and hero.validate().is_empty(), "a hero with no ability passes (until T18)",
-		"; ".join(hero.validate()))
+	hero.ability = null
+	_expect_problems(hero.validate(), ["ability is empty; pick an AbilityData file such as shield_charge.tres"],
+		"a hero with no ability fails (T18)")
 
 
 func _charge_out_of_range() -> void:
@@ -357,6 +366,53 @@ func _blink_passes_and_ranges() -> void:
 	var low_ok := blink.validate().is_empty()
 	blink.distance_px = 480.0
 	_expect(low_ok and blink.validate().is_empty(), "blink distance_px 48 and 480 pass", "; ".join(blink.validate()))
+
+
+# --- Heal Drone (T18) ---------------------------------------------------------------
+
+func _good_drone() -> HealDroneData:
+	var drone := HealDroneData.new()
+	drone.display_name = "Test Drone"
+	return drone
+
+
+func _heal_drone_passes_and_ranges() -> void:
+	var drone := _good_drone()
+	_expect(drone.validate().is_empty(), "a heal drone at the defaults passes", "; ".join(drone.validate()))
+	_expect(drone.tick_count() == 8 and drone.total_heal_hp() == 40, "the defaults heal 8 ticks, 40 HP",
+		"got %d ticks, %d HP" % [drone.tick_count(), drone.total_heal_hp()])
+	drone.heal_per_tick_hp = 0
+	drone.tick_sec = 0.05
+	drone.duration_sec = 0.4
+	drone.radius_px = 47.0
+	_expect_problems(drone.validate(), [
+		"heal_per_tick_hp is 0 HP; it must be 1 to 50 HP",
+		"tick_sec is 0.05 s; it must be 0.1 to 2 s",
+		"duration_sec is 0.4 s; it must be 0.5 to 10 s",
+		"radius_px is 47 px; it must be 48 to 480 px",
+	], "each heal drone number out of range, once each")
+	drone = _good_drone()
+	drone.heal_per_tick_hp = 51
+	drone.radius_px = 481.0
+	_expect_problems(drone.validate(), [
+		"heal_per_tick_hp is 51 HP; it must be 1 to 50 HP",
+		"radius_px is 481 px; it must be 48 to 480 px",
+	], "heal_per_tick_hp 51 and radius_px 481")
+
+
+func _heal_drone_whole_ticks() -> void:
+	var drone := _good_drone()
+	drone.duration_sec = 4.2
+	_expect_problems(drone.validate(), [
+		"duration_sec is 4.2 s, not a whole number of tick_sec (0.5 s) ticks; make it a multiple of tick_sec",
+	], "duration_sec 4.2 with 0.5 s ticks fails")
+	drone.duration_sec = 4.5
+	_expect(drone.validate().is_empty() and drone.tick_count() == 9, "duration_sec 4.5 passes: 9 ticks",
+		"; ".join(drone.validate()))
+	drone.tick_sec = 0.3
+	drone.duration_sec = 0.9
+	_expect(drone.validate().is_empty() and drone.tick_count() == 3, "0.9 s of 0.3 s ticks passes despite float rounding",
+		"; ".join(drone.validate()))
 
 
 func _ability_problems_passed_on() -> void:

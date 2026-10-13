@@ -297,6 +297,7 @@ only to peers that have said `client_ready`.
 | `fire` | `Weapon` | owner -> server | `authority` + `ShotCheck` checks the sender is the owner | `reliable` | 0 | `life: int, shot_id: int, direction: Vector2` |
 | `receive_shot` | `Weapon` | server -> each ready peer except the shooter | `any_peer`, ignored unless the sender is 1 | `reliable` | 0 | `shot_id: int, origin: Vector2, direction: Vector2` |
 | `receive_damage` | `NetHero` (victim) | server -> every ready peer | `any_peer`, sender 1 | `reliable` | 0 | `attacker: int, shot_id: int, amount: int, health_after: int, hit_position: Vector2` |
+| `receive_heal` | `NetHero` (healed hero) | server -> every ready peer | `any_peer`, sender 1 | `reliable` | 0 | `healer: int, amount: int, health_after: int` (T18) |
 | `receive_elimination` | `NetHero` (victim) | server -> every ready peer | `any_peer`, sender 1 | `reliable` | 0 | `attacker: int` |
 | `receive_respawn` | `NetHero` | server -> every ready peer | `any_peer`, sender 1 | `reliable` | 0 | `position: Vector2, life: int` |
 | `receive_combat_state` | `NetHero` | server -> a peer that just joined | `any_peer`, sender 1 | `reliable` | 0 | `life: int, health: int, eliminated: bool, respawn_in: float` |
@@ -305,9 +306,9 @@ only to peers that have said `client_ready`.
 | `receive_ability_refused` | `Ability` (base of each ability) | server -> owner | `any_peer`, sender 1 | `reliable` | 0 | `charge_ready_in: PackedFloat64Array` |
 | `receive_knockback` | `NetHero` (victim) | server -> every ready peer (the victim's owner moves) | `any_peer`, sender 1 | `reliable` | 0 | `life: int, attacker: int, offset: Vector2, duration_sec: float` |
 
-Damage, elimination and respawn share channel 0, so they always arrive in
-order and don't need a life number. Each one makes every peer emit
-`Events.hero_damaged`, `hero_eliminated` or `hero_respawned` (the server when it
+Damage, healing (T18), elimination and respawn share channel 0, so they always
+arrive in order and don't need a life number. Each one makes every peer emit
+`Events.hero_damaged`, `hero_healed`, `hero_eliminated` or `hero_respawned` (the server when it
 decides, clients when the message arrives); the test world prints one
 `[Combat]` line per signal.
 
@@ -376,6 +377,7 @@ Inspector and checked by `tests/data_test.gd` on every pull request:
 | Shield Charge cooldown, dash and knockback distance and time | `game/heroes/data/shield_charge.tres` (T14), the Bruiser's `ability` |
 | Jet Dash charges, cooldown per charge, dash distance and time | `game/heroes/data/jet_dash.tres` (T18), the Scout's `ability` |
 | Blink cooldown and distance | `game/heroes/data/blink.tres` (T18), the Mage's `ability` |
+| Heal Drone cooldown, heal per tick, tick time, duration and radius | `game/heroes/data/heal_drone.tres` (T18), the Medic's `ability` |
 
 - **One spawn path:** `test_world.gd`'s spawn function runs on every peer and
   calls `NetHero.setup(..., ROSTER.first())`. The spawner still sends only the

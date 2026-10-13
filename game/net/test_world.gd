@@ -43,6 +43,7 @@ func _ready() -> void:
 	Events.hero_respawned.connect(_on_hero_respawned)
 	Events.ability_used.connect(_on_ability_used)
 	Events.hero_knocked_back.connect(_on_hero_knocked_back)
+	Events.hero_healed.connect(_on_hero_healed)
 	if Net.state == Net.State.SERVER:
 		multiplayer.peer_disconnected.connect(_remove_hero)
 		var stats := ServerStats.new()
@@ -164,6 +165,11 @@ func _on_ability_used(peer_id: int, ready_in_sec: float) -> void:
 
 func _on_hero_knocked_back(victim: int, attacker: int) -> void:
 	print("[Combat] knocked_back: Player %d by Player %d" % [victim, attacker])
+
+
+func _on_hero_healed(peer_id: int, healer: int, amount: int) -> void:
+	if amount > 0:
+		print("[Combat] hero_healed: Player %d by Player %d for %d" % [peer_id, healer, amount])
 
 
 func _refresh_status() -> void:

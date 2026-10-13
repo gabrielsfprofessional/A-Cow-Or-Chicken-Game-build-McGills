@@ -1,16 +1,18 @@
 class_name Health
 extends Node
 ## Health for anything that can be shot: a child node named "Health". Owner: Gabe
-## (game/heroes). Cards T08, T13. The rules live in HealthState.
+## (game/heroes). Cards T08, T13, T18. The rules live in HealthState.
 ##
 ## Knows nothing about heroes or the network: it changes its numbers and emits
 ## local signals; its parent decides what that looks like (hide, respawn, send).
 ## Anything on physics layer 2 with a live Health child can be hit (T20's dummies too).
 ##
-## The server calls take_damage(). Clients mirror the server's messages with
-## show_damage() and show_elimination(), which emit the same signals.
+## The server calls take_damage() and heal() (T18). Clients mirror the server's
+## messages with show_damage(), show_heal() and show_elimination(), which emit
+## the same signals.
 
 signal damaged(amount: int, attacker_id: int, shot_id: int, health_after: int, hit_position: Vector2)
+signal healed(amount: int, healer_id: int, health_after: int)
 signal eliminated(attacker_id: int)
 signal restored()
 
@@ -41,12 +43,28 @@ func take_damage(amount: int, attacker_id: int, shot_id: int, hit_position: Vect
 	return taken
 
 
+## Server only (T18). Returns the health given; emits healed only when it gave some.
+func heal(amount: int, healer_id: int) -> int:
+	var given := _rules().heal(amount)
+	if given > 0:
+		healed.emit(given, healer_id, _rules().health)
+	return given
+
+
 ## Client mirror of a server hit.
 func show_damage(amount: int, attacker_id: int, shot_id: int, health_after: int, hit_position: Vector2) -> void:
 	if not is_alive():
 		return
 	_rules().mirror(health_after)
 	damaged.emit(amount, attacker_id, shot_id, _rules().health, hit_position)
+
+
+## Client mirror of a server heal (T18). Nothing while eliminated.
+func show_heal(amount: int, healer_id: int, health_after: int) -> void:
+	if not is_alive():
+		return
+	_rules().mirror(health_after)
+	healed.emit(amount, healer_id, _rules().health)
 
 
 ## Client mirror of a server elimination. Emits once.

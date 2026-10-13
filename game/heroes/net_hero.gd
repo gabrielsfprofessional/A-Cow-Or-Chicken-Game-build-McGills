@@ -116,6 +116,7 @@ func _ready() -> void:
 		_out_queue = DelayQueue.new(Net.sim_lag_msec(), Net.sim_jitter_msec())
 		_in_queue = DelayQueue.new(Net.sim_lag_msec(), Net.sim_jitter_msec())
 	_health.damaged.connect(_on_damaged)
+	_health.healed.connect(_on_healed)
 	_health.eliminated.connect(_on_eliminated)
 	_update_label()
 	reset_physics_interpolation()
@@ -204,6 +205,14 @@ func knock_back(attacker: int, offset: Vector2, duration_sec: float) -> void:
 		if can_receive(peer):
 			receive_knockback.rpc_id(peer, life, attacker, offset, duration_sec)
 	Events.hero_knocked_back.emit(owner_peer, attacker)
+
+
+## Server only (T18): `healer` gives this hero up to `amount` health. Returns
+## what it gave; the Health signal tells every ready peer.
+func heal(healer: int, amount: int) -> int:
+	if not multiplayer.is_server():
+		return 0
+	return _health.heal(amount, healer)
 
 
 ## Remote heroes only: how far ahead the buffer reaches, in milliseconds.
@@ -325,6 +334,15 @@ func receive_damage(attacker: int, shot_id: int, amount: int, health_after: int,
 	_health.show_damage(amount, attacker, shot_id, health_after, hit_position)
 
 
+## Server -> every ready peer: `healer` healed this hero by `amount`, to
+## `health_after` (T18). Channel 0, so it stays in order with damage.
+@rpc("any_peer", "call_remote", "reliable", 0)
+func receive_heal(healer: int, amount: int, health_after: int) -> void:
+	if multiplayer.get_remote_sender_id() != 1:
+		return
+	_health.show_heal(amount, healer, health_after)
+
+
 ## Server -> every ready peer: this hero was eliminated.
 @rpc("any_peer", "call_remote", "reliable", 0)
 func receive_elimination(attacker: int) -> void:
@@ -443,6 +461,16 @@ func _on_damaged(amount: int, attacker: int, shot_id: int, health_after: int, hi
 		if world_shots != null:
 			world_shots.end_visual(attacker, shot_id, hit_position)
 	Events.hero_damaged.emit(owner_peer, attacker, amount, hit_position)
+
+
+## Health was healed (T18): on the server it just did it; on a client the message arrived.
+func _on_healed(amount: int, healer: int, health_after: int) -> void:
+	_update_label()
+	if multiplayer.is_server():
+		for peer: int in multiplayer.get_peers():
+			if can_receive(peer):
+				receive_heal.rpc_id(peer, healer, amount, health_after)
+	Events.hero_healed.emit(owner_peer, healer, amount)
 
 
 func _on_eliminated(attacker: int) -> void:

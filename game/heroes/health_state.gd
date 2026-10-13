@@ -1,6 +1,6 @@
 class_name HealthState
 extends RefCounted
-## The rules for one hero's health. Owner: Gabe (game/heroes). Card T08.
+## The rules for one hero's health. Owner: Gabe (game/heroes). Cards T08, T18.
 ## Pure logic, tested by tests/health_test.gd. Health (health.gd) wraps it.
 
 var max_health: int
@@ -23,6 +23,16 @@ func damage(amount: int) -> int:
 	if health == 0:
 		eliminated = true
 	return taken
+
+
+## Gives back up to `amount` health and returns how much it gave (T18). Nothing
+## while eliminated or for amount <= 0. Health never goes above max_health.
+func heal(amount: int) -> int:
+	if eliminated or amount <= 0:
+		return 0
+	var healed := mini(amount, max_health - health)
+	health += healed
+	return healed
 
 
 ## Back to full health and alive.

@@ -17,7 +17,8 @@ extends Node
 ## - T18: a press while a request is out or forced motion runs is held (at most
 ##   one) and sent when both are over, if a charge is ready then.
 ## - Each ability's script extends this one and adds only its effect, through
-##   _use_on_server(), _use_on_owner() and on_server_moved().
+##   _use_on_server(), _use_on_owner(), _use_on_client(), _effect_physics()
+##   and on_server_moved().
 
 ## [Ability] (server refusals) lines per hero at most this often.
 const LOG_INTERVAL_MSEC: int = 1000
@@ -51,7 +52,6 @@ func _ready() -> void:
 		_check = AbilityCheck.new(_hero.owner_peer, data.cooldown_sec, data.charges)
 	elif _hero.is_owned():
 		_out_queue = DelayQueue.new(Net.sim_lag_msec(), Net.sim_jitter_msec())
-	set_physics_process(_out_queue != null)
 
 
 ## Seconds until Q works again; 0 while any charge is ready. Exact on the owner
@@ -98,7 +98,25 @@ func _use_on_owner(_direction: Vector2) -> void:
 	pass
 
 
-func _physics_process(_delta: float) -> void:
+## Every client, the owner included (T18): the server's yes arrived for this
+## life while the hero is alive, toward `direction` (normalized). For what
+## everyone sees, such as the Heal Drone.
+func _use_on_client(_direction: Vector2) -> void:
+	pass
+
+
+## Every peer, every physics tick, after the owner's press handling (T18).
+func _effect_physics(_delta: float) -> void:
+	pass
+
+
+func _physics_process(delta: float) -> void:
+	if _out_queue != null:
+		_owner_physics()
+	_effect_physics(delta)
+
+
+func _owner_physics() -> void:
 	_drain_outgoing()
 	var input := _hero.input
 	if input == null:
@@ -156,11 +174,14 @@ func receive_ability_used(life: int, direction: Vector2, charge_ready_in: Packed
 	if multiplayer.get_remote_sender_id() != 1:
 		return
 	_resync(charge_ready_in)
+	# Another life's use, or one that lands while eliminated, does nothing here.
+	var live := life == _hero.life and _hero.is_alive() and direction.is_finite() and not direction.is_zero_approx()
 	if _hero.is_owned():
 		_pending = false
-		# Another life's grant, or one that lands while eliminated, moves nothing.
-		if life == _hero.life and _hero.is_alive() and direction.is_finite() and not direction.is_zero_approx():
+		if live:
 			_use_on_owner(direction.normalized())
+	if live:
+		_use_on_client(direction.normalized())
 	Events.ability_used.emit(_hero.owner_peer, ready_in_sec())
 
 

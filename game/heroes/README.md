@@ -16,6 +16,7 @@ T14 and T18, the Q abilities (messages in `game/net/README.md`):
 | `ability.gd` | `Ability` (T18): what every Q ability shares, as the hero's `Ability` child, built by `NetHero.setup()` with `HeroData.ability.make()`. Asks the server on Q, starts its effect when it says yes, keeps each charge's countdown. A press while a request is out or forced motion runs is held and sent after, if a charge is ready. On the server: checks, runs the effect's grants, tells everyone. Each ability extends it and adds only its effect. |
 | `dash.gd` | `Dash` (T14's ShieldCharge, renamed in T18): a dash toward the aim. On the server: grants, sweeps and knocks back (when `knockback_px` > 0). |
 | `blink.gd` | `Blink` (T18): a jump toward the aim in one physics tick, stopped short by a wall. On the server: grants the distance. Everyone else's copy snaps. |
+| `heal_drone.gd` | `HealDrone` (T18): on the server, a heal tick every `tick_sec` through `duration_sec` for every alive hero within `radius_px` of the healer (the healer included), stopped by the healer's elimination. Every client draws the drone and its ring. |
 | `ability_check.gd` | `AbilityCheck`: the server's pure check on each request (owner, life, alive, direction, a charge ready; T18: each charge comes back `cooldown_sec` after its own use). Tested by `tests/ability_check_test.gd`. |
 | `charge_sweep.gd` | `ChargeSweep`: which heroes a dash stretch passes through. Tested against real physics by `tests/charge_sweep_test.gd`. |
 
@@ -23,7 +24,8 @@ NetHero runs the forced motion itself (a dash, a blink or a knockback): whole ph
 ticks, equal steps, stopped by walls, ended by a snap-back, elimination or respawn.
 
 T08: `health.tscn` (Health: put it under anything on physics layer 2 to make it
-hittable) and `health_state.gd` (its rules).
+hittable) and `health_state.gd` (its rules). T18 adds healing: `heal()` on the
+server, `show_heal()` on clients, never above max and never while eliminated.
 
 Anything shootable must turn its collider off when its Health is eliminated
 (NetHero does), or it stops shots like a wall. Health only emits signals, so
@@ -38,9 +40,10 @@ Every hero number is in a `.tres` file you tune in the Inspector:
 | `hero_data.gd` | `HeroData`: `display_name`, `role` (one line for hero select), `move_speed` (px/s), `max_health` (HP), `default_weapon` (a WeaponData from `game/weapons/data`). |
 | `data/bruiser.tres`, `mage.tres`, `scout.tres`, `medic.tres` | The four heroes, named by role. Display names may change; the file names won't. |
 | `hero_roster.gd`, `data/roster.tres` | `HeroRoster`: the heroes in hero-select order. Everyone plays the first until T16's hero select. |
-| `ability_data.gd` | `AbilityData` (T14): what every Q ability has, `display_name`, `cooldown_sec` (s, per charge) and `charges` (1-5, T18), and `make()`, which builds its node (T18). A hero's `ability` points at one; empty means none (the Medic until T18's stage 4). |
+| `ability_data.gd` | `AbilityData` (T14): what every Q ability has, `display_name`, `cooldown_sec` (s, per charge) and `charges` (1-5, T18), and `make()`, which builds its node (T18). A hero's `ability` points at one, and is required (T18). |
 | `dash_data.gd`, `data/shield_charge.tres`, `data/jet_dash.tres` | `DashData` (T14's ShieldChargeData, renamed in T18): the Bruiser's Q, and the Scout's (2 charges, 144 px in 0.15 s, no knockback): `cooldown_sec`, `dash_distance_px`, `dash_duration_sec`, `knockback_px`, `knockback_duration_sec`. A dash or knockback faster than 4000 px/s fails `validate()`. |
 | `blink_data.gd`, `data/blink.tres` | `BlinkData` (T18): the Mage's Q, `cooldown_sec` 8 and `distance_px` (48-480 px, 240). No speed cap: remote copies snap on purpose. |
+| `heal_drone_data.gd`, `data/heal_drone.tres` | `HealDroneData` (T18): the Medic's Q, `cooldown_sec` 14, `heal_per_tick_hp` 5, `tick_sec` 0.5, `duration_sec` 4 (a whole number of ticks), `radius_px` 144: 8 ticks, 40 HP. Everyone is an ally until T15. |
 | `combat_data.gd`, `data/combat.tres` | `CombatData`: `respawn_sec` only, until T15's mode rules take it. |
 
 - A hero's Health starts at its `max_health`. Health's own Inspector
