@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Smoke test: import the project, run the game headless for 300 frames and fail
 # if Godot prints any script or engine error. Then run every tests/*_test.gd and
-# Adam's arena checks (when they exist) and fail if any exits non-zero. Then play
-# a bot match (card T09): a headless server and 2 test bots on UDP 7777.
+# Adam's arena checks (when they exist) and fail if any exits non-zero or runs
+# longer than 60 s (it is then killed). Then play a bot match (card T09): a headless server and 2 test bots on UDP 7777.
 # Usage (Linux, CI, or Git Bash):  GODOT=/path/to/godot bash tools/smoke.sh
 set -uo pipefail
 GODOT="${GODOT:-godot}"
@@ -17,7 +17,10 @@ fi
 
 # Script tests. Each one prints its own cases and exits 1 on a failure. Their own
 # logs are judged by exit code and script errors only: a test may provoke an
-# engine error on purpose.
+# engine error on purpose. Each gets SCRIPT_LIMIT_SEC; one still running then is
+# killed (KILL 5 s after TERM) and fails as timed out, so a hung test can't hang
+# smoke.
+SCRIPT_LIMIT_SEC=60
 SCRIPTS=()
 for f in "$ROOT"/tests/*_test.gd; do
   [ -e "$f" ] && SCRIPTS+=("res://tests/$(basename "$f")")
@@ -28,9 +31,15 @@ done
 FAILED=0
 for s in "${SCRIPTS[@]}"; do
   SLOG="$(mktemp)"
-  "$GODOT" --headless --path "$ROOT" --script "$s" >"$SLOG" 2>&1
+  timeout --kill-after=5s "${SCRIPT_LIMIT_SEC}s" "$GODOT" --headless --path "$ROOT" --script "$s" >"$SLOG" 2>&1
   CODE=$?
-  if [ "$CODE" -ne 0 ] || grep -qE "SCRIPT ERROR|Parse Error" "$SLOG"; then
+  # 124: timeout stopped it with TERM; 137: it needed KILL as well.
+  if [ "$CODE" -eq 124 ] || [ "$CODE" -eq 137 ]; then
+    echo "--- $s log, last 40 lines:"
+    tail -n 40 "$SLOG"
+    echo "SMOKE: $s timed out after $SCRIPT_LIMIT_SEC s"
+    FAILED=$((FAILED + 1))
+  elif [ "$CODE" -ne 0 ] || grep -qE "SCRIPT ERROR|Parse Error" "$SLOG"; then
     cat "$SLOG"
     echo "SMOKE: $s FAILED (exit $CODE, log: $SLOG)"
     FAILED=$((FAILED + 1))
