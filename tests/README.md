@@ -57,4 +57,12 @@ On Windows the logs are `%TEMP%\acoc-smoke-server.log`, `-bot1.log` to
 paths when it fails. Running smoke while a server is up on this PC fails on
 purpose: stop that server first.
 
+## Check tools (T18 follow-up)
+
+| Tool | What it does |
+| --- | --- |
+| `tools/smoke_repeat.ps1 [-Times 3]` | Runs smoke that many times in a row, prints each run's exit code and last `SMOKE:` line, then `SMOKE REPEAT: <passed>/<Times> passed`. Exit 0 only when every run passed; every run goes even after a failure. Logs: `%TEMP%\acoc-smoke-run<n>.log`. |
+| `tools/hand_check.ps1 <step>` | A hand check on this PC: `start` (headless server and bots, each running Rounds x (RoundSec + GapSec) + 120 s, defaults 4 x (100 + 90) + 120 = 880 s), `open -Hero <name>` (the game window for one round, brought to the front), `mark` (the round starts), `finish` (waits out the round, closes the window by PID, prints the server's `[Combat]` lines for that player with counts), `stop` (everything by PID, then checks UDP 7777), `status`. Logs: `%TEMP%\acoc-hand`. Don't pipe `start` or `open`: the games inherit the pipe and hold it open until they exit. |
+| `tools/focus_game.ps1 -GamePid <pid>` | Brings that process's game window (or its child's: the console build starts the game as one) to the front by minimizing and restoring it. Never looks windows up by title, never sends keys, never touches another window. Exit 0 when the window in front is that PID's, 1 when not, 2 when the PID isn't running. |
+
 Only the owner's cards change this folder. See CLAUDE.md, "Folders and owners".
