@@ -33,12 +33,19 @@ Every change follows the same 7 steps. Claude Code does the typing. You decide a
 | Continue after a usage-limit break | `Continue where we stopped.` |
 | Stop Claude right now | Click the stop button |
 
+## Where we talk
+- Discord, for the three builders:
+  - #dev: questions, screenshots, join-test results and "server up" posts.
+  - Voice channel "sync": the weekly sync (day and time in docs/PROJECT_PLAN.md section 9), with screen share.
+- The family text thread: everyone else, and anything about the Thanksgiving house.
+- Never in the repo (it's public): Discord invite links, server addresses.
+
 ## Rules that prevent pain
 - One card per session. Run `/clear` before the next card.
 - Never edit a scene (.tscn) someone else is editing this week.
 - Never commit server.cfg, saves/ or exports/ (git ignores them anyway).
 - Merge conflict? Type: `Merge main into my branch and fix conflicts only in my folders.`
-- Something feels wrong? Stop, take a screenshot, ask in the family chat.
+- Something feels wrong? Stop, take a screenshot, ask in #dev.
 
 ## Names
 

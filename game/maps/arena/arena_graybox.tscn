@@ -1,0 +1,121 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://game/maps/arena/arena_graybox.gd" id="1_arena"]
+[ext_resource type="PackedScene" path="res://game/maps/arena/block.tscn" id="2_block"]
+[ext_resource type="PackedScene" path="res://game/maps/arena/fly_camera.tscn" id="3_camera"]
+
+[node name="ArenaGraybox" type="Node2D"]
+script = ExtResource("1_arena")
+
+[node name="Floor" type="ColorRect" parent="."]
+offset_right = 3840.0
+offset_bottom = 2160.0
+mouse_filter = 2
+color = Color(0.16, 0.17, 0.19, 1)
+
+[node name="Walls" type="Node2D" parent="."]
+
+[node name="WallTop" parent="Walls" instance=ExtResource("2_block")]
+size = Vector2(3840, 48)
+
+[node name="WallBottom" parent="Walls" instance=ExtResource("2_block")]
+position = Vector2(0, 2112)
+size = Vector2(3840, 48)
+
+[node name="WallLeft" parent="Walls" instance=ExtResource("2_block")]
+position = Vector2(0, 48)
+size = Vector2(48, 2064)
+
+[node name="WallRight" parent="Walls" instance=ExtResource("2_block")]
+position = Vector2(3792, 48)
+size = Vector2(48, 2064)
+
+[node name="Cover" type="Node2D" parent="."]
+
+[node name="Cover01" parent="Cover" instance=ExtResource("2_block")]
+position = Vector2(576, 480)
+size = Vector2(240, 48)
+
+[node name="Cover02" parent="Cover" instance=ExtResource("2_block")]
+position = Vector2(3024, 480)
+size = Vector2(240, 48)
+
+[node name="Cover03" parent="Cover" instance=ExtResource("2_block")]
+position = Vector2(576, 1632)
+size = Vector2(240, 48)
+
+[node name="Cover04" parent="Cover" instance=ExtResource("2_block")]
+position = Vector2(3024, 1632)
+size = Vector2(240, 48)
+
+[node name="Cover05" parent="Cover" instance=ExtResource("2_block")]
+position = Vector2(672, 816)
+size = Vector2(48, 528)
+
+[node name="Cover06" parent="Cover" instance=ExtResource("2_block")]
+position = Vector2(3120, 816)
+size = Vector2(48, 528)
+
+[node name="Cover07" parent="Cover" instance=ExtResource("2_block")]
+position = Vector2(1104, 624)
+size = Vector2(192, 192)
+
+[node name="Cover08" parent="Cover" instance=ExtResource("2_block")]
+position = Vector2(2544, 624)
+size = Vector2(192, 192)
+
+[node name="Cover09" parent="Cover" instance=ExtResource("2_block")]
+position = Vector2(1104, 1344)
+size = Vector2(192, 192)
+
+[node name="Cover10" parent="Cover" instance=ExtResource("2_block")]
+position = Vector2(2544, 1344)
+size = Vector2(192, 192)
+
+[node name="Cover11" parent="Cover" instance=ExtResource("2_block")]
+position = Vector2(1776, 912)
+size = Vector2(288, 336)
+
+[node name="Cover12" parent="Cover" instance=ExtResource("2_block")]
+position = Vector2(1680, 336)
+size = Vector2(480, 48)
+
+[node name="Cover13" parent="Cover" instance=ExtResource("2_block")]
+position = Vector2(1680, 1776)
+size = Vector2(480, 48)
+
+[node name="Spawns" type="Node2D" parent="."]
+
+[node name="SpawnA1" type="Marker2D" parent="Spawns"]
+position = Vector2(216, 504)
+gizmo_extents = 48.0
+
+[node name="SpawnA2" type="Marker2D" parent="Spawns"]
+position = Vector2(216, 840)
+gizmo_extents = 48.0
+
+[node name="SpawnA3" type="Marker2D" parent="Spawns"]
+position = Vector2(216, 1320)
+gizmo_extents = 48.0
+
+[node name="SpawnA4" type="Marker2D" parent="Spawns"]
+position = Vector2(216, 1656)
+gizmo_extents = 48.0
+
+[node name="SpawnB1" type="Marker2D" parent="Spawns"]
+position = Vector2(3624, 504)
+gizmo_extents = 48.0
+
+[node name="SpawnB2" type="Marker2D" parent="Spawns"]
+position = Vector2(3624, 840)
+gizmo_extents = 48.0
+
+[node name="SpawnB3" type="Marker2D" parent="Spawns"]
+position = Vector2(3624, 1320)
+gizmo_extents = 48.0
+
+[node name="SpawnB4" type="Marker2D" parent="Spawns"]
+position = Vector2(3624, 1656)
+gizmo_extents = 48.0
+
+[node name="FlyCamera" parent="." instance=ExtResource("3_camera")]

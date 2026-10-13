@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="HeroData" format=3]
+
+[ext_resource type="Script" path="res://game/heroes/hero_data.gd" id="1_hero"]
+[ext_resource type="Resource" path="res://game/weapons/data/sidearm.tres" id="2_sidearm"]
+[ext_resource type="Resource" path="res://game/heroes/data/blink.tres" id="3_blink"]
+
+[resource]
+script = ExtResource("1_hero")
+display_name = "Fantasy Mage"
+role = "Area damage"
+move_speed = 300.0
+max_health = 100
+default_weapon = ExtResource("2_sidearm")
+ability = ExtResource("3_blink")

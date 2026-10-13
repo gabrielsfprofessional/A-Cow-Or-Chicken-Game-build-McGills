@@ -30,9 +30,9 @@ Weeks: 1 = Oct 4-10 · 2 = Oct 11-17 · 3 = Oct 18-24 · 4 = Oct 25-31 · 5 = No
 | T07 | Movement: own hero moves locally; others smoothed 100 ms behind | Gabe | 3 | net | T06 | Smooth motion with 4 windows open |
 | T08 | First weapon: server-decided hits, health, death, 4 s respawn | Gabe | 3 | heroes | T07 | Two players can eliminate each other |
 | T09 | Test bots: headless clients that join, wander and shoot; smoke test starts server + 2 bots | Gabe | 4 | tests | T08 | One PC runs 8 bots for 10 minutes, no disconnects |
-| T10 | Main menu Play button and Join screen with LAN server list | John | 2 | ui | T06 | A second PC on the same Wi-Fi sees the server in the list and joins without typing |
-| T11 | Profile: name, color, device token | John | 2 | players | none | First launch opens the profile screen; after Save and a restart the menu shows "Playing as <name>" |
-| T12 | Team spawns and 2 s spawn protection | Adam | 3 | modes | T05, T08 | No spawn eliminations in a 10-minute bot test |
+| T10 | Main menu Play button and Join screen | John | 2 | ui | T06 | A second PC joins with Play then Join, no typing (address prefilled) |
+| T11 | Profile (name, color, device token) and the shared UI theme | John | 2 | players | T38, T10 | First launch opens the profile screen; after Save and a restart the menu shows "Playing as <name>"; a blank or 13-character name can't be saved; a --server or --join launch never shows the profile screen; everything fits at 150% in a 1280x720 window |
+| T12 | Team spawns and 2 s spawn protection | Adam | 3 | modes | T05, T08 | No spawn eliminations across 20 respawns with 2 players; the 10-minute bot test runs in T30 |
 | T13 | HeroData and WeaponData resources; all numbers in .tres files | Gabe | 3 | heroes | T08 | Changing a number in the Inspector changes the game |
 | T14 | Hero 1 (Fantasy Bruiser) with Shield Charge | Gabe | 3 | heroes | T13 | Ability works online with its cooldown |
 | T15 | Arena rules: 2 teams, auto-balance, score limit, 20-minute cap | Adam | 3 | modes | T12 | A full match ends and declares a winner |
@@ -43,11 +43,11 @@ Weeks: 1 = Oct 4-10 · 2 = Oct 11-17 · 3 = Oct 18-24 · 4 = Oct 25-31 · 5 = No
 | T20 | Practice range with target dummies | Adam | 4 | maps | T08 | Dummies show damage numbers |
 | T21 | Server profile store: JSON saves, schema version, safe writes, nightly backup | Gabe | 4 | server | T11 | Pulling the plug mid-match loses no saved profile |
 | T22 | Stats recording: matches, wins, eliminations, damage, hero | Gabe | 4 | server | T15, T21 | Stats correct after 3 test matches |
-| T23 | Arena map v1, sized for 8-16 players | Adam | 5 | maps | T04, T15 | 16 bots play without traffic jams |
+| T23 | Arena map v1, sized for 8-16 players | Adam | 5 | maps | T04, T15, T09 | 16 bots play without traffic jams |
 | T24 | Results screen | John | 5 | ui | T22 | Shows every player's match stats |
 | T25 | Hit feedback: flash, damage numbers, hit and elimination sounds | John | 5 | art | T08 | Every hit is visible and audible |
-| T26 | Thanksgiving logistics: location, Wi-Fi, laptop list | John | 5 | docs | none | At least 10 working laptops named |
-| T27 | Balance pass 1 (data only) | Adam | 5 | weapons | T18, T19 | No hero or weapon wins every bot test |
+| T26 | Thanksgiving logistics: location, Wi-Fi, laptop list | John | 5 | docs | none | At least 10 Windows laptops named by Nov 1 (Risk 4's trigger). Works is checked with the T29 installer. |
+| T27 | Balance pass 1 (data only) | Adam | 5 | weapons | T18, T19, T09 | No hero or weapon wins every bot test |
 | T28 | Family leaderboard screen | John | 6 | ui | T22 | Top 10 by wins and by eliminations |
 | T29 | Release pipeline: client .exe, server build, version bump, server.cfg in export, Godot license in credits, Drive upload, install guide | Gabe | 6 | core | T06 | A non-builder installs and joins in 5 minutes |
 | T30 | Internal 8-player playtest and bug bash | All | 6 | tests | T09, T14, T15, T16, T17, T19, T23, T25 | Gate 2 passed |
@@ -58,7 +58,7 @@ Weeks: 1 = Oct 4-10 · 2 = Oct 11-17 · 3 = Oct 18-24 · 4 = Oct 25-31 · 5 = No
 | T35 | Dress rehearsal, Sat Nov 21, at the Thanksgiving house | All | 7 | tests | T29 | 8+ laptops play 3 full matches on that Wi-Fi |
 | T36 | Rehearsal fixes; build freeze Tue Nov 24; copies on Drive and 2 USB sticks | Gabe | 8 | core | T35 | Final build installed on every laptop |
 | T37 | Printed quick-start card: install, controls, joining | John | 8 | docs | T29 | A first-timer joins without help |
-| T38 | Settings screen: volume, UI scale, window mode, test sound | John | 3 | ui | T11 | Every setting survives a restart; the test sound follows the SFX and Master sliders; no text is cut off at 150% in a 1280x720 window |
+| T38 | Settings screen: volume, UI scale, window mode, test sound | John | 3 | ui | none (shipped before T11) | Every setting survives a restart; the test sound follows the SFX and Master sliders; no text is cut off at 150% in a 1280x720 window |
 
 ## Gates
 
@@ -85,6 +85,7 @@ Split into cards at the first sync after Thanksgiving, using what the playtest t
 | A09 | XP, levels 1-30, unlock track; Thanksgiving stats converted to XP | Gabe (server), John (UI) | Jan 9 | players | Level-ups show after matches and survive restarts |
 | A10 | 24 cosmetics: hats, colors, trails | John | Jan 16 | players | Equipped cosmetics are visible to everyone online |
 | A11 | Battle Royale HUD: minimap, zone timer, squad health, kill feed | John | Jan 16 | ui | Readable at a glance at 1080p |
+| A12 | LAN server list on the Join screen (moved from T10, Oct 8) | John | Jan 16 | ui | A second PC on the same Wi-Fi sees the server in the list and joins without typing |
 
 ## Beta: make it solid (Jan 17 - Feb 27)
 

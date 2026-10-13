@@ -117,7 +117,8 @@ Arena: players pick any unlocked weapon at hero select. Battle Royale: everyone 
 | Menu | Esc | Yes |
 
 ### Family-friendly rules
-- Blue vs orange teams (readable for color-blind players); your own hero always has an outline.
+- Blue vs orange teams (readable for color-blind players): Blue #3B82F6 and Orange #F97316. Your own hero always has an outline.
+- Art mix (decided Oct 9): the world (floor, walls, cover) comes from Tiny Dungeon, on its gray stone floor, never its sand floor (too close to our orange). Fantasy heroes come from Tiny Dungeon, sci-fi heroes from the 1-Bit pack, and every hero stands on the same team-colored ring. Guns, pickups and the HUD come from the 1-Bit pack, tinted. Neither pack has bullets or rockets, so projectiles stay simple drawn shapes until T31.
 - Names above every hero; damage numbers on every hit.
 - UI scale setting from 100% to 150%; no text smaller than 18 px at 1080p.
 - Cartoon effects only: puffs and stars, no blood.
@@ -202,12 +203,12 @@ tests/          Gabe GUT unit tests
 | --- | --- | --- |
 | Gabe | Tech lead + Heroes & Combat; reviews and merges every pull request, releases, runs the server | 7 until Nov 25, then 5 |
 | Adam | Maps & Modes; Arena and Battle Royale rules, zone, loot, weapon data, balance passes | 5 |
-| John | Look, Sound & Players; art, sound, menus, HUD, profiles, leaderboard; runs playtests and the bug list | 5 |
-| 4th builder (if any) | Test & Balance (suggested): test bots, bug reproduction, balance passes | 5 |
+| John | Look, Sound & Players; art, sound, menus, HUD, profiles, leaderboard; runs playtests and the bug list | 4 |
+| ~~4th builder (if any)~~ None (decided Oct 9) | Gabe keeps the T09 test bots | 0 |
 
-- **Available:** 17 hours a week to Nov 25 (Gabe 7, Adam 5, John 5), then 15. Across 21 weeks to Feb 27 that is about 330 hours; minus Thanksgiving and Christmas weeks, about 300.
+- **Available:** 16 hours a week to Nov 25 (Gabe 7, Adam 5, John 4), then 14. Across 21 weeks to Feb 27 that is about 310 hours; minus Thanksgiving and Christmas weeks, about 280.
 - **Needed:** about 80 cards at roughly 3 hours each (build, test, fix) is 240 hours, plus about 60 hours of syncs and playtests: about 300.
-- **Margin is now about zero** (it was 12% when Gabe was assumed at 8 hours). The plan fits only if nothing goes wrong, so expect to use the cut order: ultimates, weapon sidegrades, Battle Royale squads (solo only), then Battle Royale moves to v1.1. Cut early rather than late.
+- **Margin is now about 20 hours short** (it was 12% when Gabe was assumed at 8 hours, then about zero with John at 5). The plan no longer fits as written; Gabe picks the cuts at the weekly sync from the cut order: ultimates, weapon sidegrades, Battle Royale squads (solo only), then Battle Royale moves to v1.1. Cut early rather than late.
 - **Pre-Thanksgiving cuts.** The cut order above only removes Alpha and v1 work, so it frees no time before Nov 26. These two rules do:
   - T08 builds its weapon on a WeaponData resource from the start, so T13 only adds HeroData.
   - If T14 isn't merged by Sun Nov 1, T18 ships one hero (Sci-fi Scout), and Mage and Medic move to Alpha.
@@ -298,11 +299,11 @@ Reviewed by John at every weekly sync.
 | --- | --- | --- | --- |
 | ~~Who is tech lead~~ **Decided Oct 6** | Gabe | Oct 4 | **Gabe.** |
 | ~~Weekly sync day and time~~ **Decided Oct 6** | All | Oct 4 | **Thursday 5:00 pm**, 30 minutes. |
-| Real hours per week per person | All | Oct 4 | **Gabe 7 until Nov 25, then 5** (decided Oct 6). Adam and John still to confirm in T02. |
-| Is there a 4th builder, and in which role | Gabe | Oct 10 | No; Gabe keeps T09 test bots |
+| Real hours per week per person | All | Oct 4 | **Gabe 7 until Nov 25, then 5** (decided Oct 6). **John 4** (T02, Oct 9). Adam still to confirm in T02. |
+| ~~Is there a 4th builder, and in which role~~ **Decided Oct 9** | Gabe | Oct 10 | **No 4th builder; Gabe keeps the T09 test bots.** |
 | ~~Gabe's internet: type, upload speed, CGNAT~~ **Decided Oct 6 (T03)** | Gabe | Oct 10 | **Cable (Xfinity), 31 Mbps upload, no CGNAT. Home hosting is confirmed; no cloud VM needed.** |
-| Repo stays public or goes private | Gabe | Oct 10 | Public, with server address and saves git-ignored |
-| ~~Art pack family~~ **Decided Oct 8 (T04)** | John | Oct 17 | **Both packs: A (Kenney 1-Bit Pack) and B (Kenney Tiny Dungeon).** The family vote wanted both; Gabe to confirm how they mix. |
+| ~~Repo stays public or goes private~~ **Decided Oct 9** | Gabe | Oct 10 | **Public, with the server address and saves git-ignored.** |
+| ~~Art pack family~~ **Decided Oct 8 (T04), mix decided Oct 9** | John | Oct 17 | **Both packs: A (Kenney 1-Bit Pack) and B (Kenney Tiny Dungeon).** World (floor, walls, cover) and fantasy heroes from Tiny Dungeon, on its gray stone floor (never the sand floor); sci-fi heroes, guns, pickups and the HUD from 1-Bit, tinted; every hero on the same team-colored ring. Projectiles are simple drawn shapes until T31. See Family-friendly rules. |
 | Hero names and looks; cows and chickens or not | John, Gabe | Oct 17 | The working names in section 3 |
 | Final key bindings | Gabe | Oct 24 | As in the Controls table |
 | Thanksgiving location and laptop count | John | Nov 1 | Gabe's house, server on site |

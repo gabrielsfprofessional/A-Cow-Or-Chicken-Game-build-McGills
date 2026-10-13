@@ -20,7 +20,20 @@ signal join_failed(reason: String)
 signal left(reason: String)
 
 const DEFAULT_PORT: int = 7777
+## Wire format version (T06 = 1, T07 = 2, T08 = 3, T14 = 4, T18 = 5). Bump it on every change to RPCs,
+## channels or payloads: builds with a different number refuse each other.
+const NET_PROTOCOL: int = 5
+## ENet channels on top of the default one (channel 0). Only create_client takes it (see host()).
+const CHANNEL_COUNT: int = 1
+## Movement messages (T07). See game/net/README.md.
+const MOVE_CHANNEL: int = 1
 const MAX_PLAYERS: int = 16
+## ENet throttle on every connection (see game/net/README.md, "ENet throttle").
+## Deceleration 0: ENet never throttles our packets down. Acceleration at full
+## scale: a dip from before the call recovers on the next steady ack.
+const THROTTLE_INTERVAL_MSEC: int = 5000
+const THROTTLE_ACCELERATION: int = ENetPacketPeer.PACKET_THROTTLE_SCALE
+const THROTTLE_DECELERATION: int = 0
 const CONFIG_PATH: String = "res://server.cfg"
 ## How long a client waits for the server before it gives up.
 const JOIN_TIMEOUT: float = 5.0
@@ -79,10 +92,10 @@ func server_address() -> String:
 	return "127.0.0.1"
 
 
-## The version this build reports in the handshake.
+## The version this build reports in the handshake: "<version>+net<NET_PROTOCOL>".
 func version() -> String:
 	var override := version_override(OS.is_debug_build(), OS.get_cmdline_user_args())
-	return override if override != "" else Game.version()
+	return "%s+net%d" % [override if override != "" else Game.version(), NET_PROTOCOL]
 
 
 ## The version from "-- --version-override=<v>", or "" when it was not passed.
@@ -96,6 +109,50 @@ func version_override(debug_build: bool, user_args: PackedStringArray) -> String
 		if arg.begins_with(FLAG):
 			return arg.substr(FLAG.length()).strip_edges()
 	return ""
+
+
+## The value of "-- <flag><value>" (the flag includes its "="), or "" when it was
+## not passed. These are debug-only testing aids, so a release build always gets "".
+func debug_flag(debug_build: bool, user_args: PackedStringArray, flag: String) -> String:
+	if not debug_build:
+		return ""
+	for arg: String in user_args:
+		if arg.begins_with(flag):
+			return arg.substr(flag.length()).strip_edges()
+	return ""
+
+
+## Milliseconds "--sim-lag=<ms>" delays this client's movement messages, each way.
+func sim_lag_msec() -> int:
+	return maxi(0, debug_flag(OS.is_debug_build(), OS.get_cmdline_user_args(), "--sim-lag=").to_int())
+
+
+## Extra random delay, 0 to "--sim-jitter=<ms>", on top of sim_lag_msec().
+func sim_jitter_msec() -> int:
+	return maxi(0, debug_flag(OS.is_debug_build(), OS.get_cmdline_user_args(), "--sim-jitter=").to_int())
+
+
+## Own-hero speed multiplier from "--speed-cheat=<x>". 1.0 when not passed.
+func speed_cheat() -> float:
+	var value := debug_flag(OS.is_debug_build(), OS.get_cmdline_user_args(), "--speed-cheat=")
+	if value.is_valid_float() and value.to_float() > 0.0:
+		return value.to_float()
+	return 1.0
+
+
+## The debug flags in effect, for the status label. "" when none are.
+func debug_flags_text() -> String:
+	var parts: PackedStringArray = []
+	if sim_lag_msec() > 0:
+		parts.append("sim-lag=%d" % sim_lag_msec())
+	if sim_jitter_msec() > 0:
+		parts.append("sim-jitter=%d" % sim_jitter_msec())
+	if speed_cheat() != 1.0:
+		parts.append("speed-cheat=%s" % speed_cheat())
+	var override := version_override(OS.is_debug_build(), OS.get_cmdline_user_args())
+	if override != "":
+		parts.append("version-override=%s" % override)
+	return " ".join(parts)
 
 
 ## The address from "-- --join=<address>", or "" when the flag was not passed.
@@ -116,6 +173,8 @@ func host() -> Error:
 	if state != State.OFFLINE:
 		_close_peer()
 	var peer := ENetMultiplayerPeer.new()
+	# No channel count: Godot 4.7.2's create_server passes max_channels as ENet's incoming
+	# bandwidth, which throttles every client's moves. 0 channels = ENet's maximum.
 	var err := peer.create_server(DEFAULT_PORT, MAX_PLAYERS)
 	if err != OK:
 		_log("could not host on UDP %d (error %d). Is a server already running?" % [DEFAULT_PORT, err])
@@ -141,7 +200,7 @@ func join(address: String) -> Error:
 	_join_attempt += 1
 	state = State.CONNECTING
 	var peer := ENetMultiplayerPeer.new()
-	var err := peer.create_client(_join_target, DEFAULT_PORT)
+	var err := peer.create_client(_join_target, DEFAULT_PORT, CHANNEL_COUNT)
 	if err != OK:
 		_fail_join("Could not use the address %s (error %d). Check it and try again." % [_join_target, err])
 		return err
@@ -287,6 +346,7 @@ func _mismatch_reason(server_version: String, my_version: String) -> String:
 func _on_peer_connected(id: int) -> void:
 	if not multiplayer.is_server():
 		return
+	_stop_throttle(id)
 	_log("join: peer %d version %s (%d connected)" % [
 		id, _peer_versions.get(id, "unknown"), multiplayer.get_peers().size(),
 	])
@@ -306,6 +366,7 @@ func _on_connected_to_server() -> void:
 	if state != State.CONNECTING:
 		return  # Already given up on this attempt. Do not resurrect it.
 	state = State.CLIENT
+	_stop_throttle(1)
 	_log("connected as peer %d after %s (server version %s)" % [
 		multiplayer.get_unique_id(), _since_join(), _server_version,
 	])
@@ -338,6 +399,16 @@ func _lose_server() -> void:
 
 
 # --- plumbing ----------------------------------------------------------------
+
+## Stops ENet's RTT-based throttle from dropping our unreliable moves on the
+## connection to peer `id`. At about 600 B/s per player it only ever hurts.
+func _stop_throttle(id: int) -> void:
+	var enet := multiplayer.multiplayer_peer as ENetMultiplayerPeer
+	if enet == null:
+		return
+	var packet_peer := enet.get_peer(id)
+	if packet_peer != null:
+		packet_peer.throttle_configure(THROTTLE_INTERVAL_MSEC, THROTTLE_ACCELERATION, THROTTLE_DECELERATION)
 
 func _fail_join(reason: String) -> void:
 	if state != State.CONNECTING and state != State.CLIENT:
