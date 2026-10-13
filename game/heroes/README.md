@@ -9,11 +9,12 @@ Hero scenes, abilities and hero data files (data/*.tres). Cards: T08, T13, T14, 
 smooths, carries a Weapon and a Health, hides on elimination and respawns.
 `setup()` gives it its HeroData. Its messages are in `game/net/README.md`.
 
-T14, Shield Charge (the Bruiser's Q; messages in `game/net/README.md`):
+T14 and T18, the Q abilities (messages in `game/net/README.md`):
 
 | File | What it is |
 | --- | --- |
-| `shield_charge.gd` | `ShieldCharge`: the hero's `Ability` child, built by `NetHero.setup()` from `HeroData.ability`. Asks the server on Q, dashes when it says yes, keeps the countdown. On the server: checks, grants, sweeps and knocks back. |
+| `ability.gd` | `Ability` (T18): what every Q ability shares, as the hero's `Ability` child, built by `NetHero.setup()` with `HeroData.ability.make()`. Asks the server on Q, starts its effect when it says yes, keeps the countdown. On the server: checks, runs the effect's grants, tells everyone. Each ability extends it and adds only its effect. |
+| `dash.gd` | `Dash` (T14's ShieldCharge, renamed in T18): a dash toward the aim. On the server: grants, sweeps and knocks back (when `knockback_px` > 0). |
 | `ability_check.gd` | `AbilityCheck`: the server's pure check on each request (owner, life, alive, direction, cooldown). Tested by `tests/ability_check_test.gd`. |
 | `charge_sweep.gd` | `ChargeSweep`: which heroes a dash stretch passes through. Tested against real physics by `tests/charge_sweep_test.gd`. |
 
@@ -36,8 +37,8 @@ Every hero number is in a `.tres` file you tune in the Inspector:
 | `hero_data.gd` | `HeroData`: `display_name`, `role` (one line for hero select), `move_speed` (px/s), `max_health` (HP), `default_weapon` (a WeaponData from `game/weapons/data`). |
 | `data/bruiser.tres`, `mage.tres`, `scout.tres`, `medic.tres` | The four heroes, named by role. Display names may change; the file names won't. |
 | `hero_roster.gd`, `data/roster.tres` | `HeroRoster`: the heroes in hero-select order. Everyone plays the first until T16's hero select. |
-| `ability_data.gd` | `AbilityData` (T14): what every Q ability has, `display_name` and `cooldown_sec` (s). A hero's `ability` points at one; empty means none (Mage, Scout and Medic until T18). |
-| `shield_charge_data.gd`, `data/shield_charge.tres` | `ShieldChargeData` (T14), the Bruiser's Q: `cooldown_sec`, `dash_distance_px`, `dash_duration_sec`, `knockback_px`, `knockback_duration_sec`. A dash or knockback faster than 4000 px/s fails `validate()`. |
+| `ability_data.gd` | `AbilityData` (T14): what every Q ability has, `display_name` and `cooldown_sec` (s), and `make()`, which builds its node (T18). A hero's `ability` points at one; empty means none (Mage, Scout and Medic until T18). |
+| `dash_data.gd`, `data/shield_charge.tres` | `DashData` (T14's ShieldChargeData, renamed in T18), the Bruiser's Q: `cooldown_sec`, `dash_distance_px`, `dash_duration_sec`, `knockback_px`, `knockback_duration_sec`. A dash or knockback faster than 4000 px/s fails `validate()`. |
 | `combat_data.gd`, `data/combat.tres` | `CombatData`: `respawn_sec` only, until T15's mode rules take it. |
 
 - A hero's Health starts at its `max_health`. Health's own Inspector

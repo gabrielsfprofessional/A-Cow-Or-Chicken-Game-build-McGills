@@ -49,6 +49,7 @@ func _initialize() -> void:
 	_range_flags()
 	_combat_out_of_range()
 	_bruiser_has_shield_charge()
+	_abilities_name_their_node()
 	_good_charge_passes()
 	_charge_out_of_range()
 	_charge_too_fast()
@@ -239,17 +240,30 @@ func _combat_out_of_range() -> void:
 
 # --- abilities (T14) ----------------------------------------------------------------
 
-func _good_charge() -> ShieldChargeData:
-	var charge := ShieldChargeData.new()
+func _good_charge() -> DashData:
+	var charge := DashData.new()
 	charge.display_name = "Test Charge"
 	return charge
 
 
 func _bruiser_has_shield_charge() -> void:
 	var bruiser := load(BRUISER_PATH) as HeroData
-	_expect(bruiser != null and bruiser.ability is ShieldChargeData
+	_expect(bruiser != null and bruiser.ability is DashData
 			and bruiser.ability.resource_path == CHARGE_PATH,
 		"bruiser.tres has shield_charge.tres as its ability", "it does not")
+
+
+## make() loads its node script by path at run time (T18), so a wrong path would
+## only show in the game. Checked here without loading it: it needs Net.
+func _abilities_name_their_node() -> void:
+	var folder := "res://game/heroes/data"
+	for file: String in DirAccess.get_files_at(folder):
+		var ability := load(folder.path_join(file)) as AbilityData if file.get_extension() == "tres" else null
+		if ability == null:
+			continue
+		var path := ability._node_script_path()
+		_expect(path != "" and ResourceLoader.exists(path), "%s names its node script (%s)" % [file, path],
+			"no script at that path")
 
 
 func _good_charge_passes() -> void:
@@ -301,11 +315,11 @@ func _charge_too_fast() -> void:
 ## The speed cap must stay within what one 50 ms update may jump before
 ## RemoteTimeline snaps instead of sliding.
 func _charge_cap_fits_the_snap() -> void:
-	var per_update := ShieldChargeData.MAX_SPEED_PX_PER_SEC * MoveCheck.STEP_SEC
+	var per_update := DashData.MAX_SPEED_PX_PER_SEC * MoveCheck.STEP_SEC
 	_expect(per_update <= RemoteTimeline.SNAP_DISTANCE,
 		"the charge speed cap (%d px per update) is within RemoteTimeline.SNAP_DISTANCE (%d px)" % [
 			roundi(per_update), roundi(RemoteTimeline.SNAP_DISTANCE)],
-		"lower ShieldChargeData.MAX_SPEED_PX_PER_SEC or raise SNAP_DISTANCE")
+		"lower DashData.MAX_SPEED_PX_PER_SEC or raise SNAP_DISTANCE")
 
 
 func _ability_problems_passed_on() -> void:

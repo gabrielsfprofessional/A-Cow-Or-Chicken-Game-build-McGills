@@ -1,27 +1,24 @@
-class_name ShieldCharge
+class_name Ability
 extends Node
-## The Fantasy Bruiser's Q (card T14): a dash toward the aim that knocks back every
-## other hero it passes through. Owner: Gabe (game/heroes). Messages: see game/net/README.md.
+## What every Q ability shares (cards T14, T18). Owner: Gabe (game/heroes).
+## Messages: see game/net/README.md.
 ##
-## NetHero.setup() adds one as the child "Ability" when its HeroData.ability is a
-## ShieldChargeData, on every peer, so the node path matches everywhere.
+## NetHero.setup() adds the node its HeroData.ability makes (AbilityData.make())
+## as the child "Ability", on every peer, so the node path matches everywhere.
 ## - Server-confirmed, not predicted: the owner sends request_ability on Q and
-##   dashes only when the server's receive_ability_used arrives. Its countdown
-##   starts then, so an honest owner never asks early.
-## - The server checks each request with AbilityCheck. On a yes it grants the
-##   dash distance to the hero's MoveCheck first, then tells every ready peer.
-##   A refusal answers the owner, and BAD_DIRECTION / COOLING_DOWN also print a
+##   its effect starts only when the server's receive_ability_used arrives. Its
+##   countdown starts then, so an honest owner never asks early.
+## - The server checks each request with AbilityCheck. On a yes it runs
+##   _use_on_server() (grants first), then tells every ready peer. A refusal
+##   answers the owner, and BAD_DIRECTION / COOLING_DOWN also print a
 ##   rate-limited [Ability] line.
-## - While the dash lasts, the server sweeps each accepted move that drew on the
-##   grant (ChargeSweep) and knocks back each hero it finds, once per dash.
+## - Each ability's script extends this one and adds only its effect, through
+##   _use_on_server(), _use_on_owner() and on_server_moved().
 
 ## [Ability] (server refusals) lines per hero at most this often.
 const LOG_INTERVAL_MSEC: int = 1000
-## Sweeping stops once this much more than the dash distance has been swept,
-## so a knockback that hits the dasher right after doesn't carry the charge.
-const SWEEP_SLACK_PX: float = 24.0
 
-var data: ShieldChargeData = null
+var data: AbilityData = null
 
 var _hero: NetHero
 var _check: AbilityCheck
@@ -33,17 +30,13 @@ var _pending: bool = false
 var _aim: Vector2 = Vector2.RIGHT
 ## Debug --sim-lag/--sim-jitter: the owner's outgoing requests (direction in the position slot).
 var _out_queue: DelayQueue
-## Server: what is left of the current dash's sweep, when it ends, and who it already hit.
-var _sweep_left_px: float = 0.0
-var _sweep_until_sec: float = -INF
-var _hit_peers: Dictionary[int, bool] = {}
 var _last_log_msec: int = -LOG_INTERVAL_MSEC
 var _unlogged_refusals: int = 0
 var _last_reason: String = ""
 
 
 func _ready() -> void:
-	assert(data != null, "ShieldCharge needs its ShieldChargeData before it enters the tree")
+	assert(data != null, "%s needs its AbilityData before it enters the tree" % get_script().get_global_name())
 	_hero = get_parent() as NetHero
 	if multiplayer.is_server():
 		_check = AbilityCheck.new(_hero.owner_peer, data.cooldown_sec)
@@ -58,6 +51,25 @@ func ready_in_sec() -> float:
 	if _check != null:
 		return _check.ready_in_sec(_now_sec())
 	return maxf(0.0, _ready_at_sec - _now_sec())
+
+
+## Server only: the hero's accepted move from `from` to `to` drew on its grant.
+## Abilities that act along the hero's path (Dash) override it.
+func on_server_moved(_from: Vector2, _to: Vector2) -> void:
+	pass
+
+
+## Server only: the request was accepted at `now` (seconds, _now_sec() clock);
+## the normalized aim is in _check.direction. Runs before anyone is told, so
+## grants go here.
+func _use_on_server(_now: float) -> void:
+	pass
+
+
+## Owner only: the server's yes arrived for this life while alive, toward
+## `direction` (normalized).
+func _use_on_owner(_direction: Vector2) -> void:
+	pass
 
 
 func _physics_process(_delta: float) -> void:
@@ -78,24 +90,6 @@ func _physics_process(_delta: float) -> void:
 		_out_queue.push(0, direction, _now_sec(), _hero.life)
 	else:
 		request_ability.rpc_id(1, _hero.life, direction)
-
-
-## Server only: the hero's accepted move from `from` to `to` drew on its grant.
-## While a dash lasts, knocks back each hero on that stretch, once per dash.
-func on_server_moved(from: Vector2, to: Vector2) -> void:
-	if _sweep_left_px <= 0.0 or _now_sec() > _sweep_until_sec:
-		return
-	_sweep_left_px -= from.distance_to(to)
-	if data.knockback_px <= 0.0:
-		return
-	var collider := _hero.get_node(^"Collider") as CollisionShape2D
-	var found := ChargeSweep.find(_hero.get_world_2d().direct_space_state, collider.shape, from, to, [_hero.get_rid()])
-	for body: Node in found:
-		var victim := body as NetHero
-		if victim == null or not victim.is_alive() or _hit_peers.has(victim.owner_peer):
-			continue
-		_hit_peers[victim.owner_peer] = true
-		victim.knock_back(_hero.owner_peer, _check.direction * data.knockback_px, data.knockback_duration_sec)
 
 
 # --- messages (table in game/net/README.md) ------------------------------------
@@ -119,7 +113,7 @@ func request_ability(life: int, direction: Vector2) -> void:
 
 
 ## Server -> every ready peer: the hero used its ability in life `life`, toward
-## `direction`; it is ready again in `ready_in` seconds. The owner dashes.
+## `direction`; it is ready again in `ready_in` seconds. The owner's effect starts.
 @rpc("any_peer", "call_remote", "reliable", 0)
 func receive_ability_used(life: int, direction: Vector2, ready_in: float) -> void:
 	if multiplayer.get_remote_sender_id() != 1:
@@ -129,7 +123,7 @@ func receive_ability_used(life: int, direction: Vector2, ready_in: float) -> voi
 		_pending = false
 		# Another life's grant, or one that lands while eliminated, moves nothing.
 		if life == _hero.life and _hero.is_alive() and direction.is_finite() and not direction.is_zero_approx():
-			_hero.start_forced_motion(direction.normalized() * data.dash_distance_px, data.dash_duration_sec)
+			_use_on_owner(direction.normalized())
 	Events.ability_used.emit(_hero.owner_peer, ready_in)
 
 
@@ -143,11 +137,7 @@ func receive_ability_refused(ready_in: float) -> void:
 
 
 func _start_on_server(life: int, now: float) -> void:
-	# Grant first, so the dash's moves are never judged before it.
-	_hero.grant_motion(data.dash_distance_px, data.dash_duration_sec)
-	_sweep_left_px = data.dash_distance_px + SWEEP_SLACK_PX
-	_sweep_until_sec = now + data.dash_duration_sec + NetHero.FORCED_MOTION_GRACE_SEC
-	_hit_peers.clear()
+	_use_on_server(now)
 	var ready_in := _check.ready_in_sec(now)
 	for peer: int in multiplayer.get_peers():
 		if _hero.can_receive(peer):

@@ -1,7 +1,8 @@
-class_name ShieldChargeData
+class_name DashData
 extends AbilityData
-## The Fantasy Bruiser's Q (card T14): a dash toward the mouse that knocks back
-## every hero it passes through. Owner: Gabe (game/heroes). data/shield_charge.tres.
+## A dash toward the mouse (cards T14, T18): the Bruiser's Shield Charge
+## (data/shield_charge.tres) and the Scout's Jet Dash. With knockback_px > 0 it
+## knocks back every hero it passes through. Owner: Gabe (game/heroes).
 
 ## Fastest a dash or a knockback may go, in px/s. Faster is more than
 ## RemoteTimeline.SNAP_DISTANCE per 50 ms update, and everyone else would see the
@@ -16,6 +17,10 @@ const MAX_SPEED_PX_PER_SEC: float = 4000.0
 @export_range(0.0, 480.0, 1.0, "suffix:px") var knockback_px: float = 96.0
 ## How long the push takes, in seconds.
 @export_range(0.05, 1.0, 0.01, "suffix:s") var knockback_duration_sec: float = 0.2
+
+
+func _node_script_path() -> String:
+	return "res://game/heroes/dash.gd"
 
 
 func validate() -> PackedStringArray:

@@ -1,7 +1,7 @@
 class_name NetHero
 extends CharacterBody2D
 ## A hero that moves and fights online. Owner: Gabe (game/heroes).
-## Cards T07, T08, T09, T13, T14. Messages: see game/net/README.md.
+## Cards T07, T08, T09, T13, T14, T18. Messages: see game/net/README.md.
 ##
 ## - Its numbers come from one HeroData (T13), given in setup(): move speed for
 ##   the owner and the server's MoveCheck, max health, and the default weapon.
@@ -18,7 +18,7 @@ extends CharacterBody2D
 ##   its input and brings it back.
 ## - Every respawn raises `life`. Moves and fire carry the life they were sent
 ##   in, and another life's are dropped silently.
-## - T14: the "Ability" child (ShieldCharge, built from HeroData.ability) and
+## - T14: the "Ability" child (built by HeroData.ability's make(), T18) and
 ##   forced motion: a dash or a knockback runs a whole number of physics ticks
 ##   with an equal step each, ignores move input, stops at a wall, and ends on
 ##   a snap-back, elimination or respawn. A new one replaces the one running.
@@ -64,7 +64,7 @@ var _underruns_logged: int = 0
 ## respawns it then; clients count down to it for the status line.
 var _respawn_at_sec: float = 0.0
 ## The Q ability (T14), or null for a hero without one.
-var _ability: ShieldCharge = null
+var _ability: Ability = null
 ## Owner: the forced motion running (T14): its step per physics tick and ticks left.
 var _forced_step: Vector2 = Vector2.ZERO
 var _forced_ticks_left: int = 0
@@ -85,10 +85,10 @@ func setup(peer_id: int, spawn_position: Vector2, hero_color: Color, hero: HeroD
 	hero_data = hero
 	($Weapon as Weapon).data = hero.default_weapon
 	($Health as Health).max_health = hero.max_health
-	if hero.ability is ShieldChargeData:
-		_ability = ShieldCharge.new()
+	if hero.ability != null:
+		_ability = hero.ability.make() as Ability
+	if _ability != null:
 		_ability.name = "Ability"
-		_ability.data = hero.ability as ShieldChargeData
 		add_child(_ability)
 	# After the ability, so it gets the owner's authority too.
 	set_multiplayer_authority(peer_id)

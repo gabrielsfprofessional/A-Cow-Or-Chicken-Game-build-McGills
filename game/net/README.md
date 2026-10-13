@@ -300,9 +300,9 @@ only to peers that have said `client_ready`.
 | `receive_elimination` | `NetHero` (victim) | server -> every ready peer | `any_peer`, sender 1 | `reliable` | 0 | `attacker: int` |
 | `receive_respawn` | `NetHero` | server -> every ready peer | `any_peer`, sender 1 | `reliable` | 0 | `position: Vector2, life: int` |
 | `receive_combat_state` | `NetHero` | server -> a peer that just joined | `any_peer`, sender 1 | `reliable` | 0 | `life: int, health: int, eliminated: bool, respawn_in: float` |
-| `request_ability` | `ShieldCharge` (`Ability`) | owner -> server | `authority` + `AbilityCheck` checks the sender is the owner | `reliable` | 0 | `life: int, direction: Vector2` |
-| `receive_ability_used` | `ShieldCharge` (`Ability`) | server -> every ready peer (the owner dashes) | `any_peer`, sender 1 | `reliable` | 0 | `life: int, direction: Vector2, ready_in: float` |
-| `receive_ability_refused` | `ShieldCharge` (`Ability`) | server -> owner | `any_peer`, sender 1 | `reliable` | 0 | `ready_in: float` |
+| `request_ability` | `Ability` (base of each ability) | owner -> server | `authority` + `AbilityCheck` checks the sender is the owner | `reliable` | 0 | `life: int, direction: Vector2` |
+| `receive_ability_used` | `Ability` (base of each ability) | server -> every ready peer (the owner's effect starts) | `any_peer`, sender 1 | `reliable` | 0 | `life: int, direction: Vector2, ready_in: float` |
+| `receive_ability_refused` | `Ability` (base of each ability) | server -> owner | `any_peer`, sender 1 | `reliable` | 0 | `ready_in: float` |
 | `receive_knockback` | `NetHero` (victim) | server -> every ready peer (the victim's owner moves) | `any_peer`, sender 1 | `reliable` | 0 | `life: int, attacker: int, offset: Vector2, duration_sec: float` |
 
 Damage, elimination and respawn share channel 0, so they always arrive in
