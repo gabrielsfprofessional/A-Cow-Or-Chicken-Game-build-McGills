@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" path="res://game/heroes/hero_data.gd" id="1_hero"]
 [ext_resource type="Resource" path="res://game/weapons/data/sidearm.tres" id="2_sidearm"]
+[ext_resource type="Resource" path="res://game/heroes/data/heal_drone.tres" id="3_drone"]
 
 [resource]
 script = ExtResource("1_hero")
@@ -10,3 +11,4 @@ role = "Keeps the team alive"
 move_speed = 300.0
 max_health = 100
 default_weapon = ExtResource("2_sidearm")
+ability = ExtResource("3_drone")

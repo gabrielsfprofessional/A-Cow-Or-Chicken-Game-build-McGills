@@ -1,5 +1,5 @@
 extends SceneTree
-## Tests for HealthState and Health (card T08). Owner: Gabe.
+## Tests for HealthState and Health (cards T08, T18). Owner: Gabe.
 ## Run: godot --headless --path . --script res://tests/health_test.gd
 ## Exits 1 when any case fails. tools/smoke.ps1 and smoke.sh run it.
 
@@ -19,6 +19,12 @@ func _initialize() -> void:
 	_ignores_bad_amounts()
 	_late_join_sync()
 	_client_mirror()
+	_heal()
+	_heal_caps_at_max()
+	_no_heal_while_eliminated()
+	_heal_ignores_bad_amounts()
+	_health_heal_signal()
+	_client_heal_mirror()
 	print("HEALTH TEST: %s (%d checks)" % ["PASS" if _failed == 0 else "FAIL, %d wrong" % _failed, _count])
 	quit(0 if _failed == 0 else 1)
 
@@ -31,13 +37,18 @@ func _new_state() -> HealthState:
 func _new_health() -> Array:
 	var health := HealthScene.instantiate() as Health
 	root.add_child(health)
-	var counts := {"damaged": 0, "eliminated": 0, "restored": 0, "last_after": -1}
+	var counts := {"damaged": 0, "eliminated": 0, "restored": 0, "last_after": -1, "healed": 0, "healed_amount": 0, "healed_after": -1}
 	health.damaged.connect(func(_amount: int, _attacker: int, _shot: int, after: int, _at: Vector2) -> void:
 		counts.damaged += 1
 		counts.last_after = after
 	)
 	health.eliminated.connect(func(_attacker: int) -> void: counts.eliminated += 1)
 	health.restored.connect(func() -> void: counts.restored += 1)
+	health.healed.connect(func(amount: int, _healer: int, after: int) -> void:
+		counts.healed += 1
+		counts.healed_amount = amount
+		counts.healed_after = after
+	)
 	return [health, counts]
 
 
@@ -117,6 +128,62 @@ func _client_mirror() -> void:
 	health.show_elimination(9)
 	health.show_elimination(9)
 	_expect_true("a mirrored elimination fires once", not health.is_alive() and counts.eliminated == 1)
+	health.free()
+
+
+# --- healing (T18) -----------------------------------------------------------------
+
+func _heal() -> void:
+	var state := _new_state()
+	state.damage(50)
+	_expect_true("a heal gives its amount and returns it", state.heal(5) == 5 and state.health == 55)
+
+
+func _heal_caps_at_max() -> void:
+	var state := _new_state()
+	state.damage(3)
+	_expect_true("a heal near max returns only what fit", state.heal(5) == 3 and state.health == 100)
+	_expect_true("a heal at max returns 0", state.heal(5) == 0 and state.health == 100)
+
+
+func _no_heal_while_eliminated() -> void:
+	var state := _new_state()
+	state.damage(100)
+	_expect_true("no heal while eliminated", state.heal(5) == 0 and state.health == 0 and state.eliminated)
+
+
+func _heal_ignores_bad_amounts() -> void:
+	var state := _new_state()
+	state.damage(50)
+	_expect_true("zero or negative heal does nothing", state.heal(0) == 0 and state.heal(-5) == 0 and state.health == 50)
+
+
+func _health_heal_signal() -> void:
+	var pair := _new_health()
+	var health := pair[0] as Health
+	var counts: Dictionary = pair[1]
+	health.take_damage(20, 9, 1, Vector2.ZERO)
+	_expect_true("Health.heal returns what it gave", health.heal(5, 7) == 5 and health.health() == 85)
+	_expect_true("and emits healed once with it", counts.healed == 1 and counts.healed_amount == 5 and counts.healed_after == 85)
+	health.heal(50, 7)
+	_expect_true("a heal to max emits what fit", counts.healed == 2 and counts.healed_amount == 15 and health.health() == 100)
+	health.heal(5, 7)
+	_expect_true("a heal that gives nothing emits nothing", counts.healed == 2)
+	health.take_damage(100, 9, 2, Vector2.ZERO)
+	_expect_true("an eliminated hero is not healed", health.heal(5, 7) == 0 and counts.healed == 2 and health.health() == 0)
+	health.free()
+
+
+func _client_heal_mirror() -> void:
+	var pair := _new_health()
+	var health := pair[0] as Health
+	var counts: Dictionary = pair[1]
+	health.show_damage(30, 9, 1, 70, Vector2.ZERO)
+	health.show_heal(5, 7, 75)
+	_expect_true("a mirrored heal takes the server's health", health.health() == 75 and counts.healed == 1 and counts.healed_after == 75)
+	health.show_elimination(9)
+	health.show_heal(5, 7, 80)
+	_expect_true("a mirrored heal while eliminated does nothing", health.health() == 0 and counts.healed == 1)
 	health.free()
 
 

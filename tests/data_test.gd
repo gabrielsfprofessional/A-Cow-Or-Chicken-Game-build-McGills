@@ -1,5 +1,5 @@
 extends SceneTree
-## Tests for the hero, ability and weapon data files (cards T13, T14). Owner: Gabe.
+## Tests for the hero, ability and weapon data files (cards T13, T14, T18). Owner: Gabe.
 ## Run: godot --headless --path . --script res://tests/data_test.gd
 ## Exits 1 when any case fails. tools/smoke.ps1 and smoke.sh run it, so every
 ## pull request checks all the data files, Adam's weapon edits included.
@@ -15,6 +15,12 @@ const ROSTER_PATH: String = "res://game/heroes/data/roster.tres"
 const SIDEARM_PATH: String = "res://game/weapons/data/sidearm.tres"
 const BRUISER_PATH: String = "res://game/heroes/data/bruiser.tres"
 const CHARGE_PATH: String = "res://game/heroes/data/shield_charge.tres"
+const SCOUT_PATH: String = "res://game/heroes/data/scout.tres"
+const JET_DASH_PATH: String = "res://game/heroes/data/jet_dash.tres"
+const MAGE_PATH: String = "res://game/heroes/data/mage.tres"
+const BLINK_PATH: String = "res://game/heroes/data/blink.tres"
+const MEDIC_PATH: String = "res://game/heroes/data/medic.tres"
+const HEAL_DRONE_PATH: String = "res://game/heroes/data/heal_drone.tres"
 const UNKNOWN_TYPE: String = "is not a HeroData, HeroRoster, CombatData, AbilityData or WeaponData file; check its script path"
 const SCRATCH_FOLDER: String = "user://data_test"
 const WRONG_SCRIPT_TRES: String = """[gd_resource type="Resource" script_class="HeroData" format=3]
@@ -39,6 +45,7 @@ var _count: int = 0
 func _initialize() -> void:
 	_every_data_file()
 	_roster_has_a_first_hero()
+	_roster_finds_heroes()
 	_good_hero_passes()
 	_speed_out_of_range()
 	_not_a_number()
@@ -49,10 +56,14 @@ func _initialize() -> void:
 	_range_flags()
 	_combat_out_of_range()
 	_bruiser_has_shield_charge()
+	_abilities_name_their_node()
 	_good_charge_passes()
 	_charge_out_of_range()
 	_charge_too_fast()
 	_charge_cap_fits_the_snap()
+	_blink_passes_and_ranges()
+	_heal_drone_passes_and_ranges()
+	_heal_drone_whole_ticks()
 	_ability_problems_passed_on()
 	_wrong_script_path()
 	print("DATA TEST: %s (%d checks)" % ["PASS" if _failed == 0 else "FAIL, %d wrong" % _failed, _count])
@@ -119,8 +130,21 @@ func _wrong_script_path() -> void:
 
 func _roster_has_a_first_hero() -> void:
 	var roster := load(ROSTER_PATH) as HeroRoster
-	_expect(roster != null and roster.first() != null, "roster.tres has a first hero (everyone plays it until T16)",
+	_expect(roster != null and roster.first() != null, "roster.tres has a first hero (the default until T16)",
 		"roster.tres is missing, not a HeroRoster or empty")
+
+
+## --hero=<file name> and client_ready's hero_index (T18) go through these.
+func _roster_finds_heroes() -> void:
+	var roster := load(ROSTER_PATH) as HeroRoster
+	var names: PackedStringArray = ["bruiser", "mage", "scout", "medic"]
+	var all_found := true
+	for i: int in names.size():
+		all_found = all_found and roster.index_of(names[i]) == i and roster.at(i) == load("res://game/heroes/data/%s.tres" % names[i])
+	_expect(all_found, "the roster is bruiser, mage, scout, medic (tools/run_bots.ps1 and smoke use that order)",
+		"index_of() or at() disagrees with roster.tres; update the tools too")
+	_expect(roster.index_of("dragon") == -1 and roster.index_of("") == -1, "an unknown hero name is -1", "it is not")
+	_expect(roster.at(-1) == null and roster.at(names.size()) == null, "a slot out of range is null", "it is not")
 
 
 # --- validate() on resources built here --------------------------------------------
@@ -130,6 +154,7 @@ func _good_hero() -> HeroData:
 	hero.display_name = "Test Hero"
 	hero.role = "Tests things"
 	hero.default_weapon = _good_weapon()
+	hero.ability = _good_charge()
 	return hero
 
 
@@ -239,25 +264,49 @@ func _combat_out_of_range() -> void:
 
 # --- abilities (T14) ----------------------------------------------------------------
 
-func _good_charge() -> ShieldChargeData:
-	var charge := ShieldChargeData.new()
+func _good_charge() -> DashData:
+	var charge := DashData.new()
 	charge.display_name = "Test Charge"
 	return charge
 
 
 func _bruiser_has_shield_charge() -> void:
 	var bruiser := load(BRUISER_PATH) as HeroData
-	_expect(bruiser != null and bruiser.ability is ShieldChargeData
+	_expect(bruiser != null and bruiser.ability is DashData
 			and bruiser.ability.resource_path == CHARGE_PATH,
 		"bruiser.tres has shield_charge.tres as its ability", "it does not")
+	var scout := load(SCOUT_PATH) as HeroData
+	var jet := scout.ability as DashData if scout != null else null
+	_expect(jet != null and jet.resource_path == JET_DASH_PATH and jet.charges == 2 and jet.knockback_px == 0.0,
+		"scout.tres has jet_dash.tres as its ability: 2 charges, no knockback (T18)", "it does not")
+	var mage := load(MAGE_PATH) as HeroData
+	_expect(mage != null and mage.ability is BlinkData and mage.ability.resource_path == BLINK_PATH,
+		"mage.tres has blink.tres as its ability (T18)", "it does not")
+	var medic := load(MEDIC_PATH) as HeroData
+	_expect(medic != null and medic.ability is HealDroneData and medic.ability.resource_path == HEAL_DRONE_PATH,
+		"medic.tres has heal_drone.tres as its ability (T18)", "it does not")
+
+
+## make() loads its node script by path at run time (T18), so a wrong path would
+## only show in the game. Checked here without loading it: it needs Net.
+func _abilities_name_their_node() -> void:
+	var folder := "res://game/heroes/data"
+	for file: String in DirAccess.get_files_at(folder):
+		var ability := load(folder.path_join(file)) as AbilityData if file.get_extension() == "tres" else null
+		if ability == null:
+			continue
+		var path := ability._node_script_path()
+		_expect(path != "" and ResourceLoader.exists(path), "%s names its node script (%s)" % [file, path],
+			"no script at that path")
 
 
 func _good_charge_passes() -> void:
 	var problems := _good_charge().validate()
 	_expect(problems.is_empty(), "a shield charge at the defaults passes", "; ".join(problems))
 	var hero := _good_hero()
-	_expect(hero.ability == null and hero.validate().is_empty(), "a hero with no ability passes (until T18)",
-		"; ".join(hero.validate()))
+	hero.ability = null
+	_expect_problems(hero.validate(), ["ability is empty; pick an AbilityData file such as shield_charge.tres"],
+		"a hero with no ability fails (T18)")
 
 
 func _charge_out_of_range() -> void:
@@ -282,6 +331,15 @@ func _charge_out_of_range() -> void:
 	charge = _good_charge()
 	charge.knockback_px = 0.0
 	_expect_problems(charge.validate(), [], "knockback_px 0 (pushes nobody) passes")
+	charge = _good_charge()
+	charge.charges = 0
+	_expect_problems(charge.validate(), ["charges is 0; it must be 1 to 5"], "charges 0 (T18)")
+	charge.charges = 6
+	_expect_problems(charge.validate(), ["charges is 6; it must be 1 to 5"], "charges 6")
+	charge.charges = 1
+	var one_ok := charge.validate().is_empty()
+	charge.charges = 5
+	_expect(one_ok and charge.validate().is_empty(), "charges 1 and 5 pass", "; ".join(charge.validate()))
 
 
 func _charge_too_fast() -> void:
@@ -301,11 +359,74 @@ func _charge_too_fast() -> void:
 ## The speed cap must stay within what one 50 ms update may jump before
 ## RemoteTimeline snaps instead of sliding.
 func _charge_cap_fits_the_snap() -> void:
-	var per_update := ShieldChargeData.MAX_SPEED_PX_PER_SEC * MoveCheck.STEP_SEC
+	var per_update := DashData.MAX_SPEED_PX_PER_SEC * MoveCheck.STEP_SEC
 	_expect(per_update <= RemoteTimeline.SNAP_DISTANCE,
 		"the charge speed cap (%d px per update) is within RemoteTimeline.SNAP_DISTANCE (%d px)" % [
 			roundi(per_update), roundi(RemoteTimeline.SNAP_DISTANCE)],
-		"lower ShieldChargeData.MAX_SPEED_PX_PER_SEC or raise SNAP_DISTANCE")
+		"lower DashData.MAX_SPEED_PX_PER_SEC or raise SNAP_DISTANCE")
+
+
+# --- Blink (T18) --------------------------------------------------------------------
+
+func _blink_passes_and_ranges() -> void:
+	var blink := BlinkData.new()
+	blink.display_name = "Test Blink"
+	_expect(blink.validate().is_empty(), "a blink at the defaults passes", "; ".join(blink.validate()))
+	blink.distance_px = 47.0
+	_expect_problems(blink.validate(), ["distance_px is 47 px; it must be 48 to 480 px"], "blink distance_px 47")
+	blink.distance_px = 481.0
+	_expect_problems(blink.validate(), ["distance_px is 481 px; it must be 48 to 480 px"], "blink distance_px 481")
+	blink.distance_px = 48.0
+	var low_ok := blink.validate().is_empty()
+	blink.distance_px = 480.0
+	_expect(low_ok and blink.validate().is_empty(), "blink distance_px 48 and 480 pass", "; ".join(blink.validate()))
+
+
+# --- Heal Drone (T18) ---------------------------------------------------------------
+
+func _good_drone() -> HealDroneData:
+	var drone := HealDroneData.new()
+	drone.display_name = "Test Drone"
+	return drone
+
+
+func _heal_drone_passes_and_ranges() -> void:
+	var drone := _good_drone()
+	_expect(drone.validate().is_empty(), "a heal drone at the defaults passes", "; ".join(drone.validate()))
+	_expect(drone.tick_count() == 8 and drone.total_heal_hp() == 40, "the defaults heal 8 ticks, 40 HP",
+		"got %d ticks, %d HP" % [drone.tick_count(), drone.total_heal_hp()])
+	drone.heal_per_tick_hp = 0
+	drone.tick_sec = 0.05
+	drone.duration_sec = 0.4
+	drone.radius_px = 47.0
+	_expect_problems(drone.validate(), [
+		"heal_per_tick_hp is 0 HP; it must be 1 to 50 HP",
+		"tick_sec is 0.05 s; it must be 0.1 to 2 s",
+		"duration_sec is 0.4 s; it must be 0.5 to 10 s",
+		"radius_px is 47 px; it must be 48 to 480 px",
+	], "each heal drone number out of range, once each")
+	drone = _good_drone()
+	drone.heal_per_tick_hp = 51
+	drone.radius_px = 481.0
+	_expect_problems(drone.validate(), [
+		"heal_per_tick_hp is 51 HP; it must be 1 to 50 HP",
+		"radius_px is 481 px; it must be 48 to 480 px",
+	], "heal_per_tick_hp 51 and radius_px 481")
+
+
+func _heal_drone_whole_ticks() -> void:
+	var drone := _good_drone()
+	drone.duration_sec = 4.2
+	_expect_problems(drone.validate(), [
+		"duration_sec is 4.2 s, not a whole number of tick_sec (0.5 s) ticks; make it a multiple of tick_sec",
+	], "duration_sec 4.2 with 0.5 s ticks fails")
+	drone.duration_sec = 4.5
+	_expect(drone.validate().is_empty() and drone.tick_count() == 9, "duration_sec 4.5 passes: 9 ticks",
+		"; ".join(drone.validate()))
+	drone.tick_sec = 0.3
+	drone.duration_sec = 0.9
+	_expect(drone.validate().is_empty() and drone.tick_count() == 3, "0.9 s of 0.3 s ticks passes despite float rounding",
+		"; ".join(drone.validate()))
 
 
 func _ability_problems_passed_on() -> void:

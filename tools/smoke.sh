@@ -2,7 +2,7 @@
 # Smoke test: import the project, run the game headless for 300 frames and fail
 # if Godot prints any script or engine error. Then run every tests/*_test.gd and
 # Adam's arena checks (when they exist) and fail if any exits non-zero or runs
-# longer than 60 s (it is then killed). Then play a bot match (card T09): a headless server and 2 test bots on UDP 7777.
+# longer than 60 s (it is then killed). Then play a bot match (cards T09, T18): a headless server and 4 test bots, one per hero, on UDP 7777.
 # Usage (Linux, CI, or Git Bash):  GODOT=/path/to/godot bash tools/smoke.sh
 set -uo pipefail
 GODOT="${GODOT:-godot}"
@@ -52,13 +52,17 @@ if [ "$FAILED" -gt 0 ]; then
   exit 1
 fi
 
-# Bot match (card T09): a headless server (40 s) and test bots 1 and 2 (25 s)
-# play on UDP 7777, the real network path. Passes when all three exit 0, no log
-# has an error, the server logged at least one hit and one ability_used (T14),
-# and nothing was refused ([Move], [Shot] or [Ability]). Anything still running
-# after 60 s is killed by PID.
-NAMES=(server bot1 bot2)
-LOGS=("$(mktemp)" "$(mktemp)" "$(mktemp)")
+# Bot match (cards T09, T18): a headless server (45 s) and test bots 1-4 (25 s
+# each, 1 s apart), one per hero, play on UDP 7777, the real network path.
+# Passes when all five exit 0, no log has an error, the server logged at least
+# one hit and an ability_used for each of the four abilities (T18), and nothing
+# was refused ([Move], [Shot] or [Ability]). Anything still running after 60 s
+# is killed by PID.
+# Bot n plays hero n; each must use its ability (the roster's file names and ability names).
+MATCH_HEROES=(bruiser mage scout medic)
+MATCH_ABILITIES=("Shield Charge" "Blink" "Jet Dash" "Heal Drone")
+NAMES=(server bot1 bot2 bot3 bot4)
+LOGS=("$(mktemp)" "$(mktemp)" "$(mktemp)" "$(mktemp)" "$(mktemp)")
 PIDS=()
 stop_match_leftovers() {
   for pid in "${PIDS[@]}"; do
@@ -72,7 +76,7 @@ stop_match_leftovers() {
 }
 trap stop_match_leftovers EXIT
 MATCH_START=$SECONDS
-"$GODOT" --headless --path "$ROOT" -- --server --quit-after-sec=40 >"${LOGS[0]}" 2>&1 &
+"$GODOT" --headless --path "$ROOT" -- --server --quit-after-sec=45 >"${LOGS[0]}" 2>&1 &
 PIDS+=("$!")
 STATE="timeout"
 while [ $((SECONDS - MATCH_START)) -lt 30 ]; do
@@ -93,11 +97,11 @@ fi
 # 1 s apart, so they also leave 1 s apart. Two peers leaving in the same server
 # frame make Godot's server relay log an ERROR: it tells the second about the
 # first after ENet has already dropped it.
-"$GODOT" --headless --path "$ROOT" -- --join=127.0.0.1 --bot=1 --quit-after-sec=25 >"${LOGS[1]}" 2>&1 &
-PIDS+=("$!")
-sleep 1
-"$GODOT" --headless --path "$ROOT" -- --join=127.0.0.1 --bot=2 --quit-after-sec=25 >"${LOGS[2]}" 2>&1 &
-PIDS+=("$!")
+for n in 1 2 3 4; do
+  if [ "$n" -gt 1 ]; then sleep 1; fi
+  "$GODOT" --headless --path "$ROOT" -- --join=127.0.0.1 --bot=$n --hero=${MATCH_HEROES[$((n - 1))]} --quit-after-sec=25 >"${LOGS[$n]}" 2>&1 &
+  PIDS+=("$!")
+done
 while [ $((SECONDS - MATCH_START)) -lt 60 ]; do
   RUNNING=0
   for pid in "${PIDS[@]}"; do
@@ -108,7 +112,7 @@ while [ $((SECONDS - MATCH_START)) -lt 60 ]; do
 done
 stop_match_leftovers
 MATCH_FAILED=0
-for i in 0 1 2; do
+for i in 0 1 2 3 4; do
   wait "${PIDS[$i]}"
   CODE=$?
   if [ "$CODE" -ne 0 ]; then
@@ -126,18 +130,20 @@ if [ "$HITS" -eq 0 ]; then
   echo "SMOKE: bot match: the server logged no [Combat] hero_damaged"
   MATCH_FAILED=1
 fi
-if [ "$ABILITIES" -eq 0 ]; then
-  echo "SMOKE: bot match: the server logged no [Combat] ability_used"
-  MATCH_FAILED=1
-fi
+for ability in "${MATCH_ABILITIES[@]}"; do
+  if ! grep -qE "\[Combat\] ability_used: Player [0-9]+ used $ability," "${LOGS[0]}"; then
+    echo "SMOKE: bot match: the server logged no ability_used for $ability"
+    MATCH_FAILED=1
+  fi
+done
 if [ "$MATCH_FAILED" -ne 0 ]; then
   # On GitHub nobody can open the temp files, so show the end of each log here.
-  for i in 0 1 2; do
+  for i in 0 1 2 3 4; do
     echo "--- ${NAMES[$i]} log, last 40 lines:"
     tail -n 40 "${LOGS[$i]}"
   done
-  echo "SMOKE: FAIL: bot match (logs: server ${LOGS[0]}, bot1 ${LOGS[1]}, bot2 ${LOGS[2]})"
+  echo "SMOKE: FAIL: bot match (logs: server ${LOGS[0]}, bot1-4 ${LOGS[1]} ${LOGS[2]} ${LOGS[3]} ${LOGS[4]})"
   exit 1
 fi
-echo "SMOKE: bot match passed (server and 2 bots exited 0, $HITS hits, $ABILITIES abilities, $((SECONDS - MATCH_START)) s)"
+echo "SMOKE: bot match passed (server and 4 bots exited 0, all four abilities used, $HITS hits, $ABILITIES abilities, $((SECONDS - MATCH_START)) s)"
 echo "SMOKE: PASS"

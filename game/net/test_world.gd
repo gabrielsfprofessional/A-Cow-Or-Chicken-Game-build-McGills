@@ -1,5 +1,5 @@
 extends Node2D
-## Proving ground for cards T06-T09, T13, T14: one hero per connected player, walls to
+## Proving ground for cards T06-T09, T13, T14, T18: one hero per connected player, walls to
 ## bump into and shoot at, room for test bots. Owner: Gabe (game/net). T16
 ## replaces it with the real arena.
 ##
@@ -8,7 +8,8 @@ extends Node2D
 ## live in game/heroes/net_hero.gd; shots in game/weapons.
 
 const HERO_SCENE: PackedScene = preload("res://game/heroes/net_hero.tscn")
-## Everyone plays the roster's first hero until T16's hero select (T13).
+## The heroes, in hero-select order. Until T16's hero select, "--hero=<file name>"
+## picks one (T18); the default is the first.
 const ROSTER: HeroRoster = preload("res://game/heroes/data/roster.tres")
 const RING_RADIUS: float = 260.0
 ## Middle of the 1920x1080 viewport. This world has no camera.
@@ -34,7 +35,7 @@ var _status_wait: float = 0.0
 
 func _ready() -> void:
 	# Every peer builds heroes the same way, so the spawner only has to send
-	# the peer id across.
+	# the peer id and hero index across.
 	_spawner.spawn_function = _make_hero
 	_heroes.child_entered_tree.connect(_on_heroes_changed)
 	_heroes.child_exiting_tree.connect(_on_heroes_changed)
@@ -43,6 +44,7 @@ func _ready() -> void:
 	Events.hero_respawned.connect(_on_hero_respawned)
 	Events.ability_used.connect(_on_ability_used)
 	Events.hero_knocked_back.connect(_on_hero_knocked_back)
+	Events.hero_healed.connect(_on_hero_healed)
 	if Net.state == Net.State.SERVER:
 		multiplayer.peer_disconnected.connect(_remove_hero)
 		var stats := ServerStats.new()
@@ -90,17 +92,22 @@ func bot_area() -> Rect2:
 	return BOT_AREA
 
 
-## A client telling the server its world is ready. The server answers with a
-## hero, then each hero's combat state (the spawner only knows spawn data).
+## A client telling the server its world is ready and which roster hero it
+## plays (T18; T16's hero select sends the same index). The server answers with
+## a hero, then each hero's combat state (the spawner only knows spawn data).
 @rpc("any_peer", "call_remote", "reliable")
-func client_ready() -> void:
+func client_ready(hero_index: int) -> void:
 	if not multiplayer.is_server():
 		return
 	var peer_id := multiplayer.get_remote_sender_id()
 	_ready_peers[peer_id] = true
 	if _heroes.has_node(NodePath(str(peer_id))):
 		return  # Already has a hero. A repeated hello changes nothing.
-	_spawner.spawn(peer_id)
+	if ROSTER.at(hero_index) == null:
+		print("[TestWorld] peer %d asked for hero %d; there is none, so it plays %s" % [
+			peer_id, hero_index, ROSTER.first().display_name])
+		hero_index = 0
+	_spawner.spawn([peer_id, hero_index])
 	print("[TestWorld] hero spawned for peer %d" % peer_id)
 	for child: Node in _heroes.get_children():
 		var hero := child as NetHero
@@ -110,7 +117,20 @@ func client_ready() -> void:
 
 func _say_hello() -> void:
 	print("[TestWorld] world ready, saying hello as peer %d" % multiplayer.get_unique_id())
-	client_ready.rpc_id(1)
+	client_ready.rpc_id(1, _chosen_hero())
+
+
+## The roster slot named by "--hero=<file name>" (debug builds), else 0. An
+## unknown name plays the first hero and says so.
+func _chosen_hero() -> int:
+	var wanted := Net.debug_flag(OS.is_debug_build(), OS.get_cmdline_user_args(), "--hero=")
+	if wanted == "":
+		return 0
+	var index := ROSTER.index_of(wanted.to_lower())
+	if index < 0:
+		print("[TestWorld] no hero named %s in the roster, so playing %s" % [wanted, ROSTER.first().display_name])
+		return 0
+	return index
 
 
 func _remove_hero(peer_id: int) -> void:
@@ -123,12 +143,17 @@ func _remove_hero(peer_id: int) -> void:
 
 
 ## Runs on every peer, server included, through the spawner. The spawn data is
-## the peer id alone; every peer picks the same HeroData from the same roster.
+## [peer_id, hero_index] (T18); every peer picks the same HeroData from the same
+## roster, so a late joiner gets each hero right too.
 func _make_hero(data: Variant) -> Node:
-	var peer_id := int(data)
+	var spawn: Array = data
+	var peer_id := int(spawn[0])
+	var hero_data := ROSTER.at(int(spawn[1]))
+	if hero_data == null:
+		hero_data = ROSTER.first()
 	var hero := HERO_SCENE.instantiate() as NetHero
 	# The owning client drives this hero; setup() makes it the authority.
-	hero.setup(peer_id, respawn_point(peer_id), _hero_color(peer_id), ROSTER.first())
+	hero.setup(peer_id, respawn_point(peer_id), _hero_color(peer_id), hero_data)
 	return hero
 
 
@@ -159,11 +184,18 @@ func _on_hero_respawned(peer_id: int, at: Vector2) -> void:
 
 
 func _on_ability_used(peer_id: int, ready_in_sec: float) -> void:
-	print("[Combat] ability_used: Player %d, ready again in %.1f s" % [peer_id, ready_in_sec])
+	var hero := _heroes.get_node_or_null(NodePath(str(peer_id))) as NetHero
+	var ability := hero.hero_data.ability.display_name if hero != null else "?"
+	print("[Combat] ability_used: Player %d used %s, ready again in %.1f s" % [peer_id, ability, ready_in_sec])
 
 
 func _on_hero_knocked_back(victim: int, attacker: int) -> void:
 	print("[Combat] knocked_back: Player %d by Player %d" % [victim, attacker])
+
+
+func _on_hero_healed(peer_id: int, healer: int, amount: int) -> void:
+	if amount > 0:
+		print("[Combat] hero_healed: Player %d by Player %d for %d" % [peer_id, healer, amount])
 
 
 func _refresh_status() -> void:
@@ -181,7 +213,12 @@ func _refresh_status() -> void:
 		parts.append("Eliminated, back in %d s" % ceili(own.respawn_in_sec()))
 	if own != null and own.has_ability():
 		var ready_in := own.ability_ready_in_sec()
-		parts.append("Q ready" if ready_in <= 0.0 else "Q %.1f s" % ready_in)
+		if ready_in > 0.0:
+			parts.append("Q %.1f s" % ready_in)
+		elif own.hero_data.ability.charges > 1:
+			parts.append("Q x%d" % own.ability_charges_left())  # T18
+		else:
+			parts.append("Q ready")
 	_status.text = "  |  ".join(parts)
 
 

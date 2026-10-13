@@ -21,5 +21,8 @@ signal hero_respawned(peer_id: int, position: Vector2)
 signal ability_used(peer_id: int, ready_in_sec: float)
 @warning_ignore("unused_signal")
 signal hero_knocked_back(victim_peer_id: int, attacker_peer_id: int)
+## Healing (T18). Fires on every peer like hero_damaged, only when amount > 0.
+@warning_ignore("unused_signal")
+signal hero_healed(peer_id: int, healer_peer_id: int, amount: int)
 @warning_ignore("unused_signal")
 signal profile_changed()

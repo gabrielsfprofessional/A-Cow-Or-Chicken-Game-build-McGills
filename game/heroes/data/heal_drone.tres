@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="HealDroneData" format=3]
+
+[ext_resource type="Script" path="res://game/heroes/heal_drone_data.gd" id="1_drone"]
+
+[resource]
+script = ExtResource("1_drone")
+display_name = "Heal Drone"
+cooldown_sec = 14.0
+charges = 1
+heal_per_tick_hp = 5
+tick_sec = 0.5
+duration_sec = 4.0
+radius_px = 144.0

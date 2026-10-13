@@ -1,7 +1,7 @@
 class_name NetHero
 extends CharacterBody2D
 ## A hero that moves and fights online. Owner: Gabe (game/heroes).
-## Cards T07, T08, T09, T13, T14. Messages: see game/net/README.md.
+## Cards T07, T08, T09, T13, T14, T18. Messages: see game/net/README.md.
 ##
 ## - Its numbers come from one HeroData (T13), given in setup(): move speed for
 ##   the owner and the server's MoveCheck, max health, and the default weapon.
@@ -18,7 +18,7 @@ extends CharacterBody2D
 ##   its input and brings it back.
 ## - Every respawn raises `life`. Moves and fire carry the life they were sent
 ##   in, and another life's are dropped silently.
-## - T14: the "Ability" child (ShieldCharge, built from HeroData.ability) and
+## - T14: the "Ability" child (built by HeroData.ability's make(), T18) and
 ##   forced motion: a dash or a knockback runs a whole number of physics ticks
 ##   with an equal step each, ignores move input, stops at a wall, and ends on
 ##   a snap-back, elimination or respawn. A new one replaces the one running.
@@ -64,7 +64,7 @@ var _underruns_logged: int = 0
 ## respawns it then; clients count down to it for the status line.
 var _respawn_at_sec: float = 0.0
 ## The Q ability (T14), or null for a hero without one.
-var _ability: ShieldCharge = null
+var _ability: Ability = null
 ## Owner: the forced motion running (T14): its step per physics tick and ticks left.
 var _forced_step: Vector2 = Vector2.ZERO
 var _forced_ticks_left: int = 0
@@ -85,10 +85,10 @@ func setup(peer_id: int, spawn_position: Vector2, hero_color: Color, hero: HeroD
 	hero_data = hero
 	($Weapon as Weapon).data = hero.default_weapon
 	($Health as Health).max_health = hero.max_health
-	if hero.ability is ShieldChargeData:
-		_ability = ShieldCharge.new()
+	if hero.ability != null:
+		_ability = hero.ability.make() as Ability
+	if _ability != null:
 		_ability.name = "Ability"
-		_ability.data = hero.ability as ShieldChargeData
 		add_child(_ability)
 	# After the ability, so it gets the owner's authority too.
 	set_multiplayer_authority(peer_id)
@@ -116,6 +116,7 @@ func _ready() -> void:
 		_out_queue = DelayQueue.new(Net.sim_lag_msec(), Net.sim_jitter_msec())
 		_in_queue = DelayQueue.new(Net.sim_lag_msec(), Net.sim_jitter_msec())
 	_health.damaged.connect(_on_damaged)
+	_health.healed.connect(_on_healed)
 	_health.eliminated.connect(_on_eliminated)
 	_update_label()
 	reset_physics_interpolation()
@@ -163,6 +164,17 @@ func ability_ready_in_sec() -> float:
 	return _ability.ready_in_sec() if _ability != null else 0.0
 
 
+## Q charges ready now (T18); 0 for a hero without an ability. Exact for the
+## owner (T17's HUD) and the server.
+func ability_charges_left() -> int:
+	return _ability.charges_left() if _ability != null else 0
+
+
+## Owner only: true while a dash, blink or knockback is moving the hero (T18).
+func in_forced_motion() -> bool:
+	return _forced_ticks_left > 0
+
+
 ## Owner only: moves the hero by `offset` over `duration_sec`, ignoring move
 ## input (T14). The tick count is rounded, never below 1, and each tick takes an
 ## equal step, so the distance is exact unless a wall stops it.
@@ -193,6 +205,14 @@ func knock_back(attacker: int, offset: Vector2, duration_sec: float) -> void:
 		if can_receive(peer):
 			receive_knockback.rpc_id(peer, life, attacker, offset, duration_sec)
 	Events.hero_knocked_back.emit(owner_peer, attacker)
+
+
+## Server only (T18): `healer` gives this hero up to `amount` health. Returns
+## what it gave; the Health signal tells every ready peer.
+func heal(healer: int, amount: int) -> int:
+	if not multiplayer.is_server():
+		return 0
+	return _health.heal(amount, healer)
 
 
 ## Remote heroes only: how far ahead the buffer reaches, in milliseconds.
@@ -312,6 +332,15 @@ func receive_damage(attacker: int, shot_id: int, amount: int, health_after: int,
 	if multiplayer.get_remote_sender_id() != 1:
 		return
 	_health.show_damage(amount, attacker, shot_id, health_after, hit_position)
+
+
+## Server -> every ready peer: `healer` healed this hero by `amount`, to
+## `health_after` (T18). Channel 0, so it stays in order with damage.
+@rpc("any_peer", "call_remote", "reliable", 0)
+func receive_heal(healer: int, amount: int, health_after: int) -> void:
+	if multiplayer.get_remote_sender_id() != 1:
+		return
+	_health.show_heal(amount, healer, health_after)
 
 
 ## Server -> every ready peer: this hero was eliminated.
@@ -434,6 +463,16 @@ func _on_damaged(amount: int, attacker: int, shot_id: int, health_after: int, hi
 	Events.hero_damaged.emit(owner_peer, attacker, amount, hit_position)
 
 
+## Health was healed (T18): on the server it just did it; on a client the message arrived.
+func _on_healed(amount: int, healer: int, health_after: int) -> void:
+	_update_label()
+	if multiplayer.is_server():
+		for peer: int in multiplayer.get_peers():
+			if can_receive(peer):
+				receive_heal.rpc_id(peer, healer, amount, health_after)
+	Events.hero_healed.emit(owner_peer, healer, amount)
+
+
 func _on_eliminated(attacker: int) -> void:
 	_respawn_at_sec = _now_sec() + COMBAT.respawn_sec
 	_show_eliminated(true)
@@ -487,7 +526,7 @@ func _end_forced_motion() -> void:
 
 
 func _update_label() -> void:
-	_name_label.text = "Player %d  %d" % [owner_peer, _health.health()]
+	_name_label.text = "Player %d  %s  %d" % [owner_peer, hero_data.display_name, _health.health()]
 
 
 func _world() -> Node:
