@@ -14,11 +14,17 @@ var music: int = 100
 var sfx: int = 100
 var ui_scale: float = 1.0
 var fullscreen: bool = false
+## The last address that really joined. Saved. "" until the first good join.
+var last_address: String = ""
+## The address of the join in progress or the last one tried this session. Memory
+## only, so a typo can be fixed but is never saved.
+var last_tried: String = ""
 
 
 func _ready() -> void:
 	load_settings()
 	apply_all()
+	Net.joined.connect(_on_net_joined)
 
 
 func load_settings() -> void:
@@ -39,6 +45,7 @@ func load_settings() -> void:
 	var wanted: float = float(data.get("ui_scale", ui_scale))
 	ui_scale = wanted if wanted in SCALES else 1.0
 	fullscreen = bool(data.get("fullscreen", fullscreen))
+	last_address = str(data.get("last_address", "")).strip_edges()
 
 
 ## Writes to a temp file first, then renames, so a crash never leaves a half-written file.
@@ -50,6 +57,7 @@ func save_settings() -> void:
 		"sfx": sfx,
 		"ui_scale": ui_scale,
 		"fullscreen": fullscreen,
+		"last_address": last_address,
 	}
 	var tmp: String = PATH + ".tmp"
 	var file: FileAccess = FileAccess.open(tmp, FileAccess.WRITE)
@@ -59,6 +67,12 @@ func save_settings() -> void:
 	file.store_string(JSON.stringify(data, "\t"))
 	file.close()
 	DirAccess.rename_absolute(ProjectSettings.globalize_path(tmp), ProjectSettings.globalize_path(PATH))
+
+
+## The Join screen calls this just before Net.play(). The address is only kept
+## for good (last_address) once Net.joined fires.
+func begin_join(address: String) -> void:
+	last_tried = address.strip_edges()
 
 
 func apply_all() -> void:
@@ -97,6 +111,13 @@ func set_ui_scale(value: float) -> void:
 func set_fullscreen(value: bool) -> void:
 	fullscreen = value
 	_apply_window_mode()
+
+
+func _on_net_joined() -> void:
+	if last_tried == "" or last_tried == last_address:
+		return
+	last_address = last_tried
+	save_settings()
 
 
 func _apply_volume(bus: StringName) -> void:
