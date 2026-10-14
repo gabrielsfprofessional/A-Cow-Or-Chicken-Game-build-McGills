@@ -11,5 +11,5 @@ extends AbilityData
 @export_range(48.0, 480.0, 1.0, "suffix:px") var distance_px: float = 240.0
 
 
-func _node_script_path() -> String:
+func node_script_path() -> String:
 	return "res://game/heroes/blink.gd"

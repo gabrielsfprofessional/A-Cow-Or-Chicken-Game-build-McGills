@@ -205,11 +205,14 @@ func _start_on_server(life: int, now: float) -> void:
 
 
 ## Each charge's ready time from an answer. A missing entry counts as ready and
-## an extra one is ignored; each is clamped to 0..cooldown_sec.
+## an extra one is ignored; each is clamped to 0..cooldown_sec, and NaN counts as
+## ready (clampf keeps NaN; the server still judges every request).
 func _resync(charge_ready_in: PackedFloat64Array) -> void:
 	var now := _now_sec()
 	for i: int in _ready_at.size():
 		var ready_in := charge_ready_in[i] if i < charge_ready_in.size() else 0.0
+		if is_nan(ready_in):
+			ready_in = 0.0
 		_ready_at[i] = now + clampf(ready_in, 0.0, data.cooldown_sec)
 
 

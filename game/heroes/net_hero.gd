@@ -87,6 +87,9 @@ func setup(peer_id: int, spawn_position: Vector2, hero_color: Color, hero: HeroD
 	($Health as Health).max_health = hero.max_health
 	if hero.ability != null:
 		_ability = hero.ability.make() as Ability
+		if _ability == null:
+			push_error("%s: its ability %s made no Ability node, so it has no Q" % [
+				hero.resource_path, hero.ability.resource_path])
 	if _ability != null:
 		_ability.name = "Ability"
 		add_child(_ability)
