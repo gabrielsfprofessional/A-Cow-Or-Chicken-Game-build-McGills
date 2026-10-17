@@ -26,13 +26,17 @@ func _ready() -> void:
 	_address.caret_column = _address.text.length()
 
 
-## The address tried this session, else the last one that worked, else the server's.
+## The address tried this session, else the one shipped in server.cfg (it changes with
+## new builds), else the last one that worked, else this computer.
 func _starting_address() -> String:
 	if Settings.last_tried != "":
 		return Settings.last_tried
+	var shipped: String = Net.server_address()
+	if shipped != "127.0.0.1":
+		return shipped
 	if Settings.last_address != "":
 		return Settings.last_address
-	return Net.server_address()
+	return shipped
 
 
 ## Shows the reason Net left behind, once.

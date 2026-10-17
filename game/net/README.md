@@ -60,6 +60,7 @@ Reasons players can see today, all written for a 12-year-old:
 - `Update the game from the Drive folder (server v0.0.1+net3, you v0.0.1+net2)` (an older build)
 - `The server refused the connection. It may be full, or running a different version.`
 - `Lost connection to the server. It may have been closed.`
+- `Could not open the game world. Tell Gabe.` (the world scene failed to load)
 
 A failed join or a lost connection puts the player back on the Join screen
 (`game/ui/join_screen.tscn`), with no pop-up. `Net` keeps the reason in the public
