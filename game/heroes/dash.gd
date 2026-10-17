@@ -6,8 +6,8 @@ extends Ability
 ## - The server grants the dash distance to the hero's MoveCheck before it tells
 ##   anyone; the owner runs it as forced motion when the yes arrives.
 ## - While the dash lasts and knockback_px > 0, the server sweeps each accepted
-##   move that drew on the grant (ChargeSweep) and knocks back each hero it
-##   finds, once per dash.
+##   move that drew on the grant (ChargeSweep) and knocks back each enemy it
+##   finds that is not spawn-protected, once per dash.
 
 ## Sweeping stops once this much more than the dash distance has been swept,
 ## so a knockback that hits the dasher right after doesn't carry the charge.

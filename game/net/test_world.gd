@@ -85,8 +85,9 @@ func rules() -> MatchRules:
 
 
 ## Every peer: peer id -> team from every team_assigned heard so far. Empty: no teams.
+## A copy: teams change through team_assigned, not here.
 func teams_seen() -> Dictionary[int, int]:
-	return _teams_seen
+	return _teams_seen.duplicate()
 
 
 func _on_team_assigned(peer_id: int, team: int) -> void:
@@ -158,6 +159,7 @@ func _chosen_hero() -> int:
 
 func _remove_hero(peer_id: int) -> void:
 	_ready_peers.erase(peer_id)
+	_teams_seen.erase(peer_id)
 	var hero := _heroes.get_node_or_null(NodePath(str(peer_id)))
 	if hero == null:
 		return

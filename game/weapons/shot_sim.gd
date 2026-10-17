@@ -134,7 +134,9 @@ func _step_one(space: PhysicsDirectSpaceState2D, slot: int, delta: float) -> voi
 	if allies_of.is_valid():
 		var attacker := _attacker[slot]
 		if not _allies_cache.has(attacker):
-			_allies_cache[attacker] = allies_of.call(attacker)
+			var got: Array[RID] = []
+			got.assign(allies_of.call(attacker))  # Also takes an untyped Array.
+			_allies_cache[attacker] = got
 		allies = _allies_cache[attacker]
 	_prepare(_shooter[slot], _radius[slot], from, HIT_MASK, allies)
 	var overlaps := space.intersect_shape(_query, MAX_OVERLAPS)
