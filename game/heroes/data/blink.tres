@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="BlinkData" format=3]
+
+[ext_resource type="Script" path="res://game/heroes/blink_data.gd" id="1_blink"]
+
+[resource]
+script = ExtResource("1_blink")
+display_name = "Blink"
+cooldown_sec = 8.0
+charges = 1
+distance_px = 240.0
