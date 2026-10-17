@@ -564,7 +564,7 @@ defaults back). No autoload: heroes, shots and bots already ask the world for
 - Firing does not end protection. Whether it should is Adam's T12 call.
 - Not here yet: clients don't see protection or the rules' respawn delay (the
   countdown still reads `combat.tres`; a late joiner gets the server's
-  countdown, up to 60 s). Both need an RPC, so NET_PROTOCOL 6.
+  countdown, up to 60 s). Both need an RPC, so NET_PROTOCOL +1 (7).
 - Tested by `tests/match_rules_test.gd` with a 2-team MatchRules.
 - ShotSim's `allies_of` returns an `Array[RID]`; an untyped Array is copied in.
 

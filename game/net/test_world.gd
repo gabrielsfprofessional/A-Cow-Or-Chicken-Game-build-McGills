@@ -85,7 +85,8 @@ func rules() -> MatchRules:
 
 
 ## Every peer: peer id -> team from every team_assigned heard so far. Empty: no teams.
-## A copy: teams change through team_assigned, not here.
+## A copy: teams change through team_assigned, not here. The server drops a peer
+## that leaves; clients keep it (harmless: it has no hero to target).
 func teams_seen() -> Dictionary[int, int]:
 	return _teams_seen.duplicate()
 
