@@ -19,7 +19,7 @@ const MAX_SPEED_PX_PER_SEC: float = 4000.0
 @export_range(0.05, 1.0, 0.01, "suffix:s") var knockback_duration_sec: float = 0.2
 
 
-func _node_script_path() -> String:
+func node_script_path() -> String:
 	return "res://game/heroes/dash.gd"
 
 

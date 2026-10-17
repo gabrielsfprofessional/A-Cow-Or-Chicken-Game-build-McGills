@@ -206,6 +206,9 @@ func join(address: String) -> Error:
 		return err
 	multiplayer.multiplayer_peer = peer
 	_log("joining %s:%d as version %s" % [_join_target, DEFAULT_PORT, version()])
+	if sim_lag_msec() > 0 or sim_jitter_msec() > 0:
+		# One line, so a test's log proves the fake lag was on.
+		_log("sim lag %d ms, jitter %d ms" % [sim_lag_msec(), sim_jitter_msec()])
 	_watch_join_timeout(_join_attempt)
 	return OK
 

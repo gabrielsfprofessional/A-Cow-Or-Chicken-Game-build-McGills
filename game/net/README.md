@@ -239,7 +239,7 @@ window). A release build ignores them. The status line lists the active ones.
 | Flag | What it does |
 | --- | --- |
 | `--sim-lag=<ms>` | Delays this client's movement messages by `<ms>`, both ways. |
-| `--sim-jitter=<ms>` | Adds a random 0 to `<ms>` on top. Messages never overtake each other. |
+| `--sim-jitter=<ms>` | Adds a random 0 to `<ms>` on top. Messages never overtake each other. With either flag on, joining prints one line, `[Net] sim lag 100 ms, jitter 20 ms`, so the log proves it was on. |
 | `--speed-cheat=<x>` | Multiplies this client's own speed. 2 gets it snapped back. |
 | `--fire-cheat=<x>` | Multiplies this client's fire rate (T08, parsed in `game/weapons/weapon.gd`). 2 gets extra shots refused. |
 | `--version-override=<v>` | Pretends to be version `<v>` (see above). |

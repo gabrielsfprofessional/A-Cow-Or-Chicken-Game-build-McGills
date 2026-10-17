@@ -24,7 +24,7 @@ func total_heal_hp() -> int:
 	return tick_count() * heal_per_tick_hp
 
 
-func _node_script_path() -> String:
+func node_script_path() -> String:
 	return "res://game/heroes/heal_drone.gd"
 
 

@@ -57,6 +57,7 @@ func _initialize() -> void:
 	_combat_out_of_range()
 	_bruiser_has_shield_charge()
 	_abilities_name_their_node()
+	_make_refuses_bad_scripts()
 	_good_charge_passes()
 	_charge_out_of_range()
 	_charge_too_fast()
@@ -295,9 +296,31 @@ func _abilities_name_their_node() -> void:
 		var ability := load(folder.path_join(file)) as AbilityData if file.get_extension() == "tres" else null
 		if ability == null:
 			continue
-		var path := ability._node_script_path()
+		var path := ability.node_script_path()
 		_expect(path != "" and ResourceLoader.exists(path), "%s names its node script (%s)" % [file, path],
 			"no script at that path")
+
+
+## make() refuses, with an error, data that names no node script, a missing one,
+## or one that doesn't extend Ability (T18 follow-up), before building anything.
+## The real ability scripts aren't loaded here: they need Net.
+func _make_refuses_bad_scripts() -> void:
+	_expect(AbilityData.new().make() == null, "make() with no node script gives null", "it built a node")
+	for path: String in ["res://game/heroes/no_such_ability.gd", "res://game/heroes/health_state.gd"]:
+		var data := _data_naming(path)
+		_expect(data != null and data.make() == null, "make() naming %s gives null" % path, "it built a node")
+	var not_ability := load("res://game/heroes/health_state.gd") as Script
+	_expect(not AbilityData.extends_ability(not_ability) and not AbilityData.extends_ability(null),
+		"extends_ability() is false for health_state.gd and null", "it said true")
+
+
+## An AbilityData whose node_script_path() is `path`, from a script built here.
+func _data_naming(path: String) -> AbilityData:
+	var script := GDScript.new()
+	script.source_code = "extends AbilityData\n\nfunc node_script_path() -> String:\n\treturn \"%s\"\n" % path
+	if script.reload() != OK:
+		return null
+	return script.new() as AbilityData
 
 
 func _good_charge_passes() -> void:
