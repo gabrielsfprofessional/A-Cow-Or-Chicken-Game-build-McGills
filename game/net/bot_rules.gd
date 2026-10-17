@@ -115,8 +115,8 @@ func is_look_due(now: float) -> bool:
 	return true
 
 
-## Picks the nearest live, visible enemy (is_enemy) within range_px, and rolls a new aim error. Returns its peer id (also in `target`),
-## or 0 when there is none.
+## Picks the nearest live, visible enemy (is_enemy) within range_px, and rolls
+## a new aim error. Returns its peer id (also in `target`), or 0 when there is none.
 func pick_target(self_id: int, from: Vector2, heroes: Array[Seen], range_px: float) -> int:
 	var best := 0
 	var best_px := INF

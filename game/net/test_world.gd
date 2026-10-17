@@ -22,6 +22,9 @@ var _ready_peers: Dictionary[int, bool] = {}
 var _status_wait: float = 0.0
 ## Server: who hits whom, respawns and protection. A mode replaces it (set_rules).
 var _rules: MatchRules = MatchRules.new()
+## Every peer: teams heard from Events.team_assigned since this world loaded, so a
+## bot whose hero spawns after the replay still knows them (teams_seen()).
+var _teams_seen: Dictionary[int, int] = {}
 
 @onready var _heroes: Node2D = $Heroes
 @onready var _shots: Shots = $Shots
@@ -42,6 +45,7 @@ func _ready() -> void:
 	Events.ability_used.connect(_on_ability_used)
 	Events.hero_knocked_back.connect(_on_hero_knocked_back)
 	Events.hero_healed.connect(_on_hero_healed)
+	Events.team_assigned.connect(_on_team_assigned)
 	if Net.state == Net.State.SERVER:
 		multiplayer.peer_disconnected.connect(_remove_hero)
 		var stats := ServerStats.new()
@@ -78,6 +82,15 @@ func shots() -> Shots:
 ## Server: the match rules heroes, shots and bots follow (week-3 seams).
 func rules() -> MatchRules:
 	return _rules
+
+
+## Every peer: peer id -> team from every team_assigned heard so far. Empty: no teams.
+func teams_seen() -> Dictionary[int, int]:
+	return _teams_seen
+
+
+func _on_team_assigned(peer_id: int, team: int) -> void:
+	_teams_seen[peer_id] = team
 
 
 ## Server: a mode (T15) installs its rules here, before heroes spawn. Null puts

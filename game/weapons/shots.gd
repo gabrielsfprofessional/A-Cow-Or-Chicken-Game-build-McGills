@@ -133,24 +133,28 @@ func _on_server_hit(attacker_id: int, shot_id: int, damage: int, health: Health,
 		health.take_damage(damage, attacker_id, shot_id, at)
 
 
-## Server: the heroes this attacker's shots pass through (non-enemies under the
-## world's MatchRules). Empty with no teams, so only the shooter is skipped.
+## Server: the heroes this attacker's shots pass through (MatchRules.allies_among).
+## Empty under the default rules, so only the shooter is skipped. Needs Shots
+## to be a child of the world root and the heroes under its "Heroes" node.
 func _allies_of(attacker_id: int) -> Array[RID]:
-	var allies: Array[RID] = []
+	var bodies: Array[RID] = []
 	var world := get_parent()
 	if world == null or not world.has_method(&"rules"):
-		return allies
+		return bodies
 	var rules := world.call(&"rules") as MatchRules
-	if rules == null or rules.team_of(attacker_id) < 0:
-		return allies
 	var heroes := world.get_node_or_null(^"Heroes")
-	if heroes == null:
-		return allies
+	if rules == null or heroes == null:
+		return bodies
+	var by_peer: Dictionary[int, RID] = {}
+	var peers: Array[int] = []
 	for child: Node in heroes.get_children():
 		var hero := child as NetHero
-		if hero != null and hero.owner_peer != attacker_id and not rules.is_enemy(attacker_id, hero.owner_peer):
-			allies.append(hero.get_rid())
-	return allies
+		if hero != null:
+			by_peer[hero.owner_peer] = hero.get_rid()
+			peers.append(hero.owner_peer)
+	for peer: int in rules.allies_among(attacker_id, peers):
+		bodies.append(by_peer[peer])
+	return bodies
 
 
 ## A free slot, or the oldest shot's when all are busy.

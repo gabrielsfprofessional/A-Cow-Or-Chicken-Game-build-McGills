@@ -16,14 +16,16 @@ extends RefCounted
 ## (week-3 seams), since clients draw a shot until a wall or a hit. A body with a
 ## live Health child takes damage; anything else stops the shot like a wall.
 ## It expires after range_px. Fixed arrays with slot reuse and one reused query
-## and shape: our code creates no nodes and grows no arrays per tick; Godot's
-## query calls still return small new values.
+## and shape: our code creates no nodes per tick; Godot's query calls still
+## return small new values. allies_of is asked once per attacker per step
+## (cached), so a busy fight costs one hero walk per shooter, not per shot.
 
 const CAPACITY: int = 256
 const WORLD_MASK: int = 1
 const HIT_MASK: int = 1 | 2
 ## Most overlaps looked at when a shot starts a tick inside something.
 const MAX_OVERLAPS: int = 8
+const NO_ALLIES: Array[RID] = []
 
 ## Called once per hit: (attacker_id: int, shot_id: int, damage: int,
 ## health: Health, hit_position: Vector2). The shot is already gone.
@@ -31,6 +33,8 @@ var on_hit: Callable = Callable()
 ## Optional: (attacker_id: int) -> Array[RID], the bodies that attacker's shots
 ## pass through. Unset or empty: only the shooter (no teams).
 var allies_of: Callable = Callable()
+## allies_of answers for this step, by attacker id; cleared at each step's start.
+var _allies_cache: Dictionary[int, Array] = {}
 ## Totals since this sim was made, for tests and logs.
 var hits: int = 0
 var stopped: int = 0
@@ -102,6 +106,7 @@ func start(space: PhysicsDirectSpaceState2D, shooter: RID, attacker_id: int, sho
 func step(space: PhysicsDirectSpaceState2D, delta: float) -> void:
 	if _free_count == CAPACITY:
 		return
+	_allies_cache.clear()
 	for slot: int in range(CAPACITY):
 		if _active[slot] == 1:
 			_step_one(space, slot, delta)
@@ -125,9 +130,12 @@ func position_of(slot: int) -> Vector2:
 
 func _step_one(space: PhysicsDirectSpaceState2D, slot: int, delta: float) -> void:
 	var from := _position[slot]
-	var allies: Array[RID] = []
+	var allies: Array[RID] = NO_ALLIES
 	if allies_of.is_valid():
-		allies = allies_of.call(_attacker[slot])
+		var attacker := _attacker[slot]
+		if not _allies_cache.has(attacker):
+			_allies_cache[attacker] = allies_of.call(attacker)
+		allies = _allies_cache[attacker]
 	_prepare(_shooter[slot], _radius[slot], from, HIT_MASK, allies)
 	var overlaps := space.intersect_shape(_query, MAX_OVERLAPS)
 	if not overlaps.is_empty():
@@ -187,7 +195,7 @@ func _live_health(collider: Object) -> Health:
 	return health if health != null and health.is_alive() else null
 
 
-func _prepare(shooter: RID, radius: float, at: Vector2, mask: int, allies: Array[RID] = []) -> void:
+func _prepare(shooter: RID, radius: float, at: Vector2, mask: int, allies: Array[RID] = NO_ALLIES) -> void:
 	if _shape.radius != radius:
 		_shape.radius = radius
 	_query.transform = Transform2D(0.0, at)

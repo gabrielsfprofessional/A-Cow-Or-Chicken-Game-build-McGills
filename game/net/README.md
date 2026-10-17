@@ -528,7 +528,9 @@ Adam's mode (T15) emits all four on **every** peer, the server and each client,
 and **replays the current state to a late joiner** (every peer's team, both
 scores, the clock) once that peer is ready (`world.is_peer_ready()`, after its
 `client_ready`), so a newcomer's HUD and bots start right. Gabe's code only
-listens: bots (`BotRules.set_team`) never target a teammate.
+listens: the world keeps every team it hears (`teams_seen()`), and bots copy it
+when their hero spawns, then follow `team_assigned`, so they never target a
+teammate whether the replay comes before or after the hero.
 
 ### MatchRules (game/core/match_rules.gd)
 
@@ -540,12 +542,12 @@ defaults back). No autoload: heroes, shots and bots already ask the world for
 
 | Method | Default (the game today) | Used by |
 | --- | --- | --- |
-| `team_of(peer_id) -> int` | -1 (no team) | Shots: no team means no allies to skip |
-| `is_enemy(a, b) -> bool` | `a != b` | Shots pass through non-enemies; Shield Charge knocks back enemies only |
+| `team_of(peer_id) -> int` | -1 (no team) | `can_heal` |
+| `is_enemy(a, b) -> bool` | `a != b` | Shots pass through non-enemies (`allies_among`); Shield Charge knocks back enemies only; bots |
 | `respawn_point(peer_id) -> Vector2` | the T06 ring | First spawn (sent in the spawn data) and every respawn |
 | `respawn_delay_sec(peer_id) -> float` | `combat.tres` `respawn_sec` (4 s) | The server's respawn |
 | `spawn_protection_sec() -> float` | 0 | After each respawn: no damage, no knockback; healing allowed |
-| `can_heal(healer, target)` (don't override) | self, or no teams, or not an enemy | The Heal Drone: everyone today, teammates once T15 installs teams |
+| `can_heal(healer, target)` (built on the two above; override those instead) | self; everyone while neither side has a team; else not an enemy | The Heal Drone: everyone today, teammates once T15 installs teams (a healer with no team then heals no one on a team) |
 
 - A shot that hits a protected hero is absorbed: `receive_damage` and
   `Events.hero_damaged` still fire, with **amount 0**, so every client ends the
@@ -553,7 +555,8 @@ defaults back). No autoload: heroes, shots and bots already ask the world for
 - Each respawn with protection logs `[Combat] protected: Player <id> for <s> s`.
 - Firing does not end protection. Whether it should is Adam's T12 call.
 - Not here yet: clients don't see protection or the rules' respawn delay (the
-  countdown still reads `combat.tres`). Both need an RPC, so NET_PROTOCOL 6.
+  countdown still reads `combat.tres`; a late joiner gets the server's
+  countdown, up to 60 s). Both need an RPC, so NET_PROTOCOL 6.
 - Tested by `tests/match_rules_test.gd` with a 2-team MatchRules.
 
 ### Hero choice (T16)
@@ -567,7 +570,8 @@ before joining (`Net.join()`, or `Net.play()` once T10 lands). `client_ready` se
 Plan only; no scene yet.
 1. The match scene replaces `test_world.tscn`: Net loads it before joining, as now.
 2. It keeps test_world's root script contract: `rules()`/`set_rules()`, `respawn_point()`,
-   `shots()`, `bot_area()`, `is_peer_ready()` and `client_ready()`.
+   `shots()`, `bot_area()`, `teams_seen()`, `is_peer_ready()` and `client_ready()`.
+   Fixed paths: `Shots` and `Heroes` are direct children of the root, heroes direct children of `Heroes`.
 3. Gabe's parts move over unchanged: `Heroes` + `HeroSpawner`, `Shots`,
    `ServerStats` and the combat log lines.
 4. Adam's map is an instanced child: TileMapLayer walls on physics layer 1, two

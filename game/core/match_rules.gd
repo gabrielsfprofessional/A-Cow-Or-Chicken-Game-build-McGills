@@ -44,7 +44,23 @@ func spawn_protection_sec() -> float:
 	return 0.0
 
 
-## Not for overriding: who the Heal Drone heals. Self, everyone while the healer
-## has no team, else non-enemies.
+## Who the Heal Drone heals: itself, everyone while neither side has a team
+## (the default: is_enemy says everyone else is an enemy, but before teams the
+## drone heals all), else non-enemies only. Built on team_of and is_enemy, so a
+## mode overrides those, not this.
 func can_heal(healer: int, target: int) -> bool:
-	return healer == target or team_of(healer) < 0 or not is_enemy(healer, target)
+	if healer == target:
+		return true
+	if team_of(healer) < 0 and team_of(target) < 0:
+		return true
+	return not is_enemy(healer, target)
+
+
+## The peers in `peers`, other than `attacker`, that its shots pass through
+## (non-enemies). Empty under the defaults. Shots and the tests use it.
+func allies_among(attacker: int, peers: Array[int]) -> Array[int]:
+	var allies: Array[int] = []
+	for peer: int in peers:
+		if peer != attacker and not is_enemy(attacker, peer):
+			allies.append(peer)
+	return allies

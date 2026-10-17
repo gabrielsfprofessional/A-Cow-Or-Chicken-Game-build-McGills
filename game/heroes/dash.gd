@@ -38,6 +38,8 @@ func on_server_moved(from: Vector2, to: Vector2) -> void:
 			continue
 		if not _hero.match_rules().is_enemy(_hero.owner_peer, victim.owner_peer):
 			continue  # Allies are passed, not pushed.
+		if victim.is_protected():
+			continue  # Not marked, so this dash can still push it once protection ends.
 		_hit_peers[victim.owner_peer] = true
 		victim.knock_back(_hero.owner_peer, _check.direction * dash.knockback_px, dash.knockback_duration_sec)
 

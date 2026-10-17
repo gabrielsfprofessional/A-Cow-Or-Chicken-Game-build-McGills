@@ -30,11 +30,14 @@ const SEND_RATE: int = 20
 const SNAP_INTERVAL_MSEC: int = 500
 ## [Move] (server rejects) and [Remote] (underruns) lines per hero at most this often.
 const LOG_INTERVAL_MSEC: int = 1000
-## Respawn time, until T15's mode rules take it.
+## Clients' respawn countdown. The server's delay comes from MatchRules.
 const COMBAT: CombatData = preload("res://game/heroes/data/combat.tres")
 ## A forced-motion grant lasts its duration plus this, for the round trip and
 ## the owner's send queue (T14).
 const FORCED_MOTION_GRACE_SEC: float = 1.0
+## A late joiner trusts the server's respawn countdown up to this (a mode's
+## MatchRules may use a longer delay than combat.tres); only a garbage value is cut.
+const MAX_RESPAWN_SYNC_SEC: float = 60.0
 
 var owner_peer: int = 0
 ## This hero's numbers (T13), set by setup(). The same file on every peer.
@@ -411,7 +414,7 @@ func receive_combat_state(life_number: int, health: int, eliminated: bool, respa
 		return
 	life = life_number
 	_health.sync(health, eliminated)
-	_respawn_at_sec = _now_sec() + clampf(respawn_in, 0.0, COMBAT.respawn_sec)
+	_respawn_at_sec = _now_sec() + clampf(respawn_in, 0.0, MAX_RESPAWN_SYNC_SEC)
 	_show_eliminated(eliminated)
 	_update_label()
 

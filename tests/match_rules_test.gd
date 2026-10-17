@@ -94,6 +94,13 @@ func _two_team_decisions() -> void:
 	_expect_true("teams: heals an ally", rules.can_heal(BLUE_A, BLUE_B))
 	_expect_true("teams: heals itself", rules.can_heal(ORANGE, ORANGE))
 	_expect_true("teams: never heals an enemy", not rules.can_heal(BLUE_A, ORANGE) and not rules.can_heal(ORANGE, BLUE_A))
+	_expect_true("teams: a healer with no team heals no one on a team", not rules.can_heal(NO_TEAM, ORANGE) and not rules.can_heal(NO_TEAM, BLUE_A))
+	_expect_true("teams: it still heals itself", rules.can_heal(NO_TEAM, NO_TEAM))
+	var peers: Array[int] = [BLUE_A, BLUE_B, ORANGE, NO_TEAM]
+	_expect_eq("teams: allies_among is the teammates", rules.allies_among(BLUE_A, peers), [BLUE_B])
+	_expect_eq("teams: no team, no allies", rules.allies_among(NO_TEAM, peers), [])
+	var defaults: MatchRules = MatchRulesScript.new()
+	_expect_eq("default: allies_among is empty", defaults.allies_among(BLUE_A, peers), [])
 
 
 func _respawn_uses_rules() -> void:
@@ -181,14 +188,13 @@ func _fire(shooter: CharacterBody2D, bodies: Dictionary[int, CharacterBody2D], r
 	sim.on_hit = func(_attacker: int, _shot: int, damage: int, health: Health, at: Vector2) -> void:
 		health.take_damage(damage, _attacker, _shot, at)
 		hits.append(health)
-	# What Shots._allies_of does, over this test's bodies.
+	# What Shots._allies_of does (MatchRules.allies_among), over this test's bodies.
 	sim.allies_of = func(attacker: int) -> Array[RID]:
 		var allies: Array[RID] = []
-		if rules.team_of(attacker) < 0:
-			return allies
-		for peer: int in bodies:
-			if peer != attacker and not rules.is_enemy(attacker, peer):
-				allies.append(bodies[peer].get_rid())
+		var peers: Array[int] = []
+		peers.assign(bodies.keys())
+		for peer: int in rules.allies_among(attacker, peers):
+			allies.append(bodies[peer].get_rid())
 		return allies
 	var data := WeaponData.new()
 	data.damage = 20
