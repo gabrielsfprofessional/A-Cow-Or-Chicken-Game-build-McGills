@@ -76,6 +76,12 @@ func _on_join_failed(_reason: String) -> void:
 	_address.grab_focus()
 
 
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_cancel"):
+		get_viewport().set_input_as_handled()
+		_on_back_pressed()
+
+
 func _on_back_pressed() -> void:
 	if not _joining:
 		get_tree().change_scene_to_file(MENU_SCENE)

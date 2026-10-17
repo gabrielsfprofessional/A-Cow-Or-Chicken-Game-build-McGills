@@ -5,10 +5,12 @@ extends Control
 const JOIN_SCENE: String = "res://game/ui/join_screen.tscn"
 
 @onready var _version: Label = $Center/Menu/Version
+@onready var _play: Button = $Center/Menu/PlayButton
 
 
 func _ready() -> void:
 	_version.text = "Version %s" % Game.version()
+	_play.grab_focus()
 
 
 func _on_play_pressed() -> void:
