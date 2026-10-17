@@ -122,8 +122,11 @@ mismatched build into a family game.
    select sends it. The server turns a slot with no hero into 0 and logs
    `[TestWorld] peer <id> asked for hero <n>; there is none, so it plays <first>`.
 3. Only then does the server spawn that client's hero through the
-   `HeroSpawner` (`MultiplayerSpawner`) with spawn data `[peer_id, hero_index]`,
-   so every peer, a late joiner included, builds the same hero: a `NetHero`
+   `HeroSpawner` (`MultiplayerSpawner`) with spawn data `[peer_id, hero_index,
+   spawn_position]` (the position since the week-3 seams: the server's
+   `MatchRules` picks it; spawn data without it falls back to the T06 ring, so
+   builds on either side of that change still agree under the default rules and
+   NET_PROTOCOL stays 5), so every peer, a late joiner included, builds the same hero: a `NetHero`
    under `Heroes`, named with the peer id, labelled `Player <id>  <hero>  <hp>`,
    with multiplayer authority set to that peer.
 4. When a peer disconnects, the server frees its hero and the spawner takes the
@@ -506,3 +509,72 @@ which the test world adds on the server; T16's arena must add it too.
 
 It reads traffic only while the peer is an active ENet host: on an inactive
 one, reading `host` or popping a statistic prints an `ERROR:`.
+
+## Seams for week 3
+
+What Adam's T12/T15 and John's T16/T17 build on. All server-side, no RPC
+change: NET_PROTOCOL stays 5.
+
+### Match events (`Events`, game/core/events.gd)
+
+| Signal | Meaning |
+| --- | --- |
+| `team_assigned(peer_id, team)` | This peer plays for team 0 (Blue `#3B82F6`) or 1 (Orange `#F97316`). |
+| `team_score_changed(team, score)` | That team's score is now `score`. |
+| `match_clock_changed(seconds_left)` | Whole seconds left; at most once a second. |
+| `match_ended(winning_team)` | 0 or 1, or -1 for a draw. |
+
+Adam's mode (T15) emits all four on **every** peer, the server and each client,
+and **replays the current state to a late joiner** (every peer's team, both
+scores, the clock) once that peer is ready (`world.is_peer_ready()`, after its
+`client_ready`), so a newcomer's HUD and bots start right. Gabe's code only
+listens: bots (`BotRules.set_team`) never target a teammate.
+
+### MatchRules (game/core/match_rules.gd)
+
+The server asks the world's `rules()` who hits whom and where heroes come back.
+A mode extends `MatchRules`, overrides what it needs and installs it on the
+server with `world.set_rules(MyRules.new())` before heroes spawn (`null` puts the
+defaults back). No autoload: heroes, shots and bots already ask the world for
+`respawn_point()`, `shots()` and `bot_area()`.
+
+| Method | Default (the game today) | Used by |
+| --- | --- | --- |
+| `team_of(peer_id) -> int` | -1 (no team) | Shots: no team means no allies to skip |
+| `is_enemy(a, b) -> bool` | `a != b` | Shots pass through non-enemies; Shield Charge knocks back enemies only |
+| `respawn_point(peer_id) -> Vector2` | the T06 ring | First spawn (sent in the spawn data) and every respawn |
+| `respawn_delay_sec(peer_id) -> float` | `combat.tres` `respawn_sec` (4 s) | The server's respawn |
+| `spawn_protection_sec() -> float` | 0 | After each respawn: no damage, no knockback; healing allowed |
+| `can_heal(healer, target)` (don't override) | self, or no teams, or not an enemy | The Heal Drone: everyone today, teammates once T15 installs teams |
+
+- A shot that hits a protected hero is absorbed: `receive_damage` and
+  `Events.hero_damaged` still fire, with **amount 0**, so every client ends the
+  shot there. John's T25: amount can be 0.
+- Each respawn with protection logs `[Combat] protected: Player <id> for <s> s`.
+- Firing does not end protection. Whether it should is Adam's T12 call.
+- Not here yet: clients don't see protection or the rules' respawn delay (the
+  countdown still reads `combat.tres`). Both need an RPC, so NET_PROTOCOL 6.
+- Tested by `tests/match_rules_test.gd` with a 2-team MatchRules.
+
+### Hero choice (T16)
+
+`Game.hero_choice` (game/core/game.gd): T16's hero select sets the roster slot
+before joining (`Net.join()`, or `Net.play()` once T10 lands). `client_ready` sends it when it is
+0 or more, else `--hero=` (debug builds only), else 0. It works in release builds.
+
+## Match scene (T16)
+
+Plan only; no scene yet.
+1. The match scene replaces `test_world.tscn`: Net loads it before joining, as now.
+2. It keeps test_world's root script contract: `rules()`/`set_rules()`, `respawn_point()`,
+   `shots()`, `bot_area()`, `is_peer_ready()` and `client_ready()`.
+3. Gabe's parts move over unchanged: `Heroes` + `HeroSpawner`, `Shots`,
+   `ServerStats` and the combat log lines.
+4. Adam's map is an instanced child: TileMapLayer walls on physics layer 1, two
+   team spawn areas and the bot area as marked nodes.
+5. Adam's mode is a child node that installs its MatchRules from those spawn
+   points on the server and emits the match events.
+6. John's HUD (T17) and hero select (T16) listen to Events; neither holds a
+   reference to the world.
+7. `test_world.tscn` stays as the proving ground for bots and smoke until the
+   match scene passes the same bot match.

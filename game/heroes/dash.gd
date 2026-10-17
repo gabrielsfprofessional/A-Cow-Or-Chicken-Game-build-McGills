@@ -36,6 +36,8 @@ func on_server_moved(from: Vector2, to: Vector2) -> void:
 		var victim := body as NetHero
 		if victim == null or not victim.is_alive() or _hit_peers.has(victim.owner_peer):
 			continue
+		if not _hero.match_rules().is_enemy(_hero.owner_peer, victim.owner_peer):
+			continue  # Allies are passed, not pushed.
 		_hit_peers[victim.owner_peer] = true
 		victim.knock_back(_hero.owner_peer, _check.direction * dash.knockback_px, dash.knockback_duration_sec)
 

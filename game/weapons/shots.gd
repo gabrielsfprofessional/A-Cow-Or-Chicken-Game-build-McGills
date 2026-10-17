@@ -4,7 +4,8 @@ extends Node2D
 ## heroes. Owner: Gabe (game/weapons). Card T08.
 ##
 ## - On the server it runs a ShotSim every physics tick: those shots decide hits,
-##   and a hit calls take_damage on the target's Health.
+##   and a hit calls the hero's take_hit (spawn protection) or the Health's
+##   take_damage. Shots pass through the shooter's teammates (the world's MatchRules).
 ## - On clients it draws shots: origin + direction x speed x age, ending at the
 ##   first wall (one cast_motion against layer 1 when the shot appears), at
 ##   range_px, or at the server's hit position (end_visual). Fixed arrays with
@@ -36,6 +37,7 @@ func _ready() -> void:
 	if Net.state == Net.State.SERVER:
 		_sim = ShotSim.new()
 		_sim.on_hit = _on_server_hit
+		_sim.allies_of = _allies_of
 		return
 	set_physics_process(false)
 	_active.resize(VISUAL_CAPACITY)
@@ -122,8 +124,33 @@ func _draw() -> void:
 			draw_circle(_origin[slot] + _direction[slot] * travelled, _radius[slot], SHOT_COLOR)
 
 
+## A hero's own take_hit applies spawn protection; any other Health just takes it.
 func _on_server_hit(attacker_id: int, shot_id: int, damage: int, health: Health, at: Vector2) -> void:
-	health.take_damage(damage, attacker_id, shot_id, at)
+	var hero := health.get_parent() as NetHero
+	if hero != null:
+		hero.take_hit(attacker_id, shot_id, damage, at)
+	else:
+		health.take_damage(damage, attacker_id, shot_id, at)
+
+
+## Server: the heroes this attacker's shots pass through (non-enemies under the
+## world's MatchRules). Empty with no teams, so only the shooter is skipped.
+func _allies_of(attacker_id: int) -> Array[RID]:
+	var allies: Array[RID] = []
+	var world := get_parent()
+	if world == null or not world.has_method(&"rules"):
+		return allies
+	var rules := world.call(&"rules") as MatchRules
+	if rules == null or rules.team_of(attacker_id) < 0:
+		return allies
+	var heroes := world.get_node_or_null(^"Heroes")
+	if heroes == null:
+		return allies
+	for child: Node in heroes.get_children():
+		var hero := child as NetHero
+		if hero != null and hero.owner_peer != attacker_id and not rules.is_enemy(attacker_id, hero.owner_peer):
+			allies.append(hero.get_rid())
+	return allies
 
 
 ## A free slot, or the oldest shot's when all are busy.

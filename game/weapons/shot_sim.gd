@@ -11,7 +11,9 @@ extends RefCounted
 ##    stepped onto the shot or overlaps the shooter.
 ## 2. cast_motion over the tick's motion, then get_rest_info at the unsafe
 ##    point for what it touched (intersect_shape there if that comes back empty).
-## Layers 1 (world) and 2 (heroes); the shooter is always excluded. A body with a
+## Layers 1 (world) and 2 (heroes); the shooter is always excluded, and so is
+## every body allies_of returns for the attacker: shots pass through teammates
+## (week-3 seams), since clients draw a shot until a wall or a hit. A body with a
 ## live Health child takes damage; anything else stops the shot like a wall.
 ## It expires after range_px. Fixed arrays with slot reuse and one reused query
 ## and shape: our code creates no nodes and grows no arrays per tick; Godot's
@@ -26,6 +28,9 @@ const MAX_OVERLAPS: int = 8
 ## Called once per hit: (attacker_id: int, shot_id: int, damage: int,
 ## health: Health, hit_position: Vector2). The shot is already gone.
 var on_hit: Callable = Callable()
+## Optional: (attacker_id: int) -> Array[RID], the bodies that attacker's shots
+## pass through. Unset or empty: only the shooter (no teams).
+var allies_of: Callable = Callable()
 ## Totals since this sim was made, for tests and logs.
 var hits: int = 0
 var stopped: int = 0
@@ -120,7 +125,10 @@ func position_of(slot: int) -> Vector2:
 
 func _step_one(space: PhysicsDirectSpaceState2D, slot: int, delta: float) -> void:
 	var from := _position[slot]
-	_prepare(_shooter[slot], _radius[slot], from, HIT_MASK)
+	var allies: Array[RID] = []
+	if allies_of.is_valid():
+		allies = allies_of.call(_attacker[slot])
+	_prepare(_shooter[slot], _radius[slot], from, HIT_MASK, allies)
 	var overlaps := space.intersect_shape(_query, MAX_OVERLAPS)
 	if not overlaps.is_empty():
 		_finish(slot, _first_live_health(overlaps), from)
@@ -179,15 +187,22 @@ func _live_health(collider: Object) -> Health:
 	return health if health != null and health.is_alive() else null
 
 
-func _prepare(shooter: RID, radius: float, at: Vector2, mask: int) -> void:
+func _prepare(shooter: RID, radius: float, at: Vector2, mask: int, allies: Array[RID] = []) -> void:
 	if _shape.radius != radius:
 		_shape.radius = radius
 	_query.transform = Transform2D(0.0, at)
 	_query.motion = Vector2.ZERO
 	_query.collision_mask = mask
-	if _exclude[0] != shooter:
-		_exclude[0] = shooter
-		_query.exclude = _exclude
+	if allies.is_empty():
+		if _exclude.size() != 1 or _exclude[0] != shooter:
+			_exclude.resize(1)
+			_exclude[0] = shooter
+			_query.exclude = _exclude
+		return
+	_exclude.resize(1)
+	_exclude[0] = shooter
+	_exclude.append_array(allies)
+	_query.exclude = _exclude
 
 
 func _free_slot(slot: int) -> void:

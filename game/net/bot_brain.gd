@@ -46,6 +46,7 @@ func _ready() -> void:
 	weapon.fired.connect(_on_fired)
 	Events.hero_damaged.connect(_on_hero_damaged)
 	Events.hero_eliminated.connect(_on_hero_eliminated)
+	Events.team_assigned.connect(_on_team_assigned)
 	var now := _now_sec()
 	_rules.restart(now, hero.global_position)
 	_stats_at_sec = now + STATS_INTERVAL_SEC
@@ -168,6 +169,11 @@ func _on_hero_eliminated(victim: int, attacker: int) -> void:
 		_eliminations += 1
 	if victim == hero.owner_peer:
 		_deaths += 1
+
+
+## Week-3 seams: bots never target a teammate (no teams: everyone is fair game).
+func _on_team_assigned(peer_id: int, team: int) -> void:
+	_rules.set_team(peer_id, team)
 
 
 func _print_stats() -> void:

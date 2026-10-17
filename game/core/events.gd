@@ -5,8 +5,22 @@ extends Node
 
 @warning_ignore("unused_signal")
 signal match_started(mode: StringName)
+## Match (week-3 seams, for T15-T17). Teams: 0 = Blue #3B82F6, 1 = Orange #F97316.
+## Adam's mode emits these on every peer (the server and each client) and
+## replays the current state to a late joiner once its world is ready. Gabe's
+## code only listens.
+## The match is over. winning_team is 0 or 1, or -1 for a draw.
 @warning_ignore("unused_signal")
 signal match_ended(winning_team: int)
+## This peer is on this team (0 or 1) for the match.
+@warning_ignore("unused_signal")
+signal team_assigned(peer_id: int, team: int)
+## A team's score is now `score`.
+@warning_ignore("unused_signal")
+signal team_score_changed(team: int, score: int)
+## Whole seconds left on the match clock; at most once a second.
+@warning_ignore("unused_signal")
+signal match_clock_changed(seconds_left: int)
 ## Combat (T08). All three fire on every peer: on the server when it decides,
 ## on each client when the server's message arrives.
 @warning_ignore("unused_signal")

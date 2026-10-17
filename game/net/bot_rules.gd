@@ -64,11 +64,28 @@ var _aim_error_rad: float = 0.0
 var _firing: bool = false
 ## When the trigger next flips between burst and pause; -1 while not shooting.
 var _switch_at_sec: float = -1.0
+## Peer id -> team, from Events.team_assigned (week-3 seams). Empty: no teams.
+var _teams: Dictionary[int, int] = {}
 
 
 func _init(rng: RandomNumberGenerator, area: Rect2) -> void:
 	_rng = rng
 	_area = area
+
+
+## Remembers a peer's team (BotBrain feeds it Events.team_assigned).
+func set_team(peer_id: int, team: int) -> void:
+	_teams[peer_id] = team
+
+
+## True when the bot may shoot `other`: always with no teams (either side
+## unknown or -1), else only another team.
+func is_enemy(self_id: int, other: int) -> bool:
+	if other == self_id:
+		return false
+	var mine: int = _teams.get(self_id, -1)
+	var theirs: int = _teams.get(other, -1)
+	return mine < 0 or theirs < 0 or mine != theirs
 
 
 ## Starts over from `from`: a new walk point, a look at once and no target.
@@ -98,14 +115,13 @@ func is_look_due(now: float) -> bool:
 	return true
 
 
-## Picks the nearest live, visible hero within range_px that isn't the bot
-## itself, and rolls a new aim error. Returns its peer id (also in `target`),
+## Picks the nearest live, visible enemy (is_enemy) within range_px, and rolls a new aim error. Returns its peer id (also in `target`),
 ## or 0 when there is none.
 func pick_target(self_id: int, from: Vector2, heroes: Array[Seen], range_px: float) -> int:
 	var best := 0
 	var best_px := INF
 	for seen: Seen in heroes:
-		if seen.peer_id == self_id or not seen.alive or not seen.visible:
+		if not is_enemy(self_id, seen.peer_id) or not seen.alive or not seen.visible:
 			continue
 		var px := from.distance_to(seen.position)
 		if px <= range_px and px < best_px:
