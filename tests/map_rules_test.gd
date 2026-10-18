@@ -1,5 +1,6 @@
 extends SceneTree
-## Tests for card T39's MapRules: heroes spawn on the map's points, by team.
+## Tests for card T39: MapRules (heroes spawn on the map's points, by team) and
+## ReadyPeers.recipients() (send_to_ready reaches ready, connected peers only).
 ## Owner: Gabe.
 ## Run: godot --headless --path . --script res://tests/map_rules_test.gd
 ## Exits 1 when any case fails. tools/smoke.ps1 and smoke.sh run it.
@@ -31,6 +32,7 @@ func _initialize() -> void:
 	_no_points_falls_back_to_the_ring()
 	_one_sided_map()
 	_from_the_arena()
+	_send_to_ready_recipients()
 	print("MAP RULES TEST: %s (%d checks)" % ["PASS" if _failed == 0 else "FAIL, %d wrong" % _failed, _count])
 	quit(0 if _failed == 0 else 1)
 
@@ -103,6 +105,18 @@ func _from_the_arena() -> void:
 			off.append("%d -> %s" % [peer, rules.point_name(peer)])
 	_expect(off.is_empty(), "on the arena every pick is one of its Spawn markers", ", ".join(off))
 	arena.free()
+
+
+func _send_to_ready_recipients() -> void:
+	var peers := ReadyPeers.new()
+	peers.add(30)
+	peers.add(10)
+	peers.add(99)  # Ready, then left: not in the connected list any more.
+	var got := peers.recipients(PackedInt32Array([10, 20, 30]))
+	_expect(got == [10, 30], "send_to_ready skips peers that aren't ready or left", str(got))
+	peers.remove(10)
+	got = peers.recipients(PackedInt32Array([10, 20, 30]))
+	_expect(got == [30] and not peers.has(10), "a removed peer gets nothing", str(got))
 
 
 ## Counts only a failure, so a 199-peer loop doesn't print 199 lines.

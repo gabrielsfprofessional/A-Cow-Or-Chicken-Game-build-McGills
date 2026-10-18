@@ -12,6 +12,13 @@ signal match_started(mode: StringName)
 # keeps the teams it heard (teams_seen()), so the replay may come before or
 # after the joiner's hero spawns.
 
+## Server only (T39): a peer said client_ready and got its hero, once per peer.
+## A mode assigns its team and starts the late-join replay here.
+@warning_ignore("unused_signal")
+signal peer_became_ready(peer_id: int)
+## Server only (T39): a connected peer left (ready or not).
+@warning_ignore("unused_signal")
+signal peer_left(peer_id: int)
 ## The match is over. winning_team is 0 or 1, or -1 for a draw.
 @warning_ignore("unused_signal")
 signal match_ended(winning_team: int)

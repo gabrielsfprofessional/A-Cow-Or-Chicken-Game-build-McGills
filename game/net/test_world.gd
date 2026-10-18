@@ -25,7 +25,7 @@ const BOT_WALL_CLEARANCE_PX: float = 32.0
 
 ## Server only: peers that said client_ready, so relays never reach a peer
 ## whose world is not loaded yet.
-var _ready_peers: Dictionary[int, bool] = {}
+var _ready_peers: ReadyPeers = ReadyPeers.new()
 var _status_wait: float = 0.0
 ## Server: who hits whom, respawns and protection. A mode replaces it (set_rules).
 var _rules: MatchRules = MatchRules.new()
@@ -81,6 +81,13 @@ func _process(delta: float) -> void:
 ## Server only: true once the peer has said client_ready.
 func is_peer_ready(peer_id: int) -> bool:
 	return _ready_peers.has(peer_id)
+
+
+## Server: node.rpc_id(peer, method, ...args) to every ready peer (T39), so a relay
+## never reaches a peer whose world is not loaded. Modes send their events with it.
+func send_to_ready(node: Node, method: StringName, args: Array = []) -> void:
+	for peer_id: int in _ready_peers.recipients(multiplayer.get_peers()):
+		node.callv(&"rpc_id", [peer_id, method] + args)
 
 
 ## The world's shots: the server's simulation and every client's drawing.
@@ -260,7 +267,7 @@ func client_ready(hero_index: int) -> void:
 	if not multiplayer.is_server():
 		return
 	var peer_id := multiplayer.get_remote_sender_id()
-	_ready_peers[peer_id] = true
+	_ready_peers.add(peer_id)
 	if _heroes.has_node(NodePath(str(peer_id))):
 		return  # Already has a hero. A repeated hello changes nothing.
 	if ROSTER.at(hero_index) == null:
@@ -274,6 +281,7 @@ func client_ready(hero_index: int) -> void:
 		var hero := child as NetHero
 		if hero != null:
 			hero.send_combat_state(peer_id)
+	Events.peer_became_ready.emit(peer_id)
 
 
 func _say_hello() -> void:
@@ -298,7 +306,8 @@ func _chosen_hero() -> int:
 
 
 func _remove_hero(peer_id: int) -> void:
-	_ready_peers.erase(peer_id)
+	_ready_peers.remove(peer_id)
+	Events.peer_left.emit(peer_id)
 	_teams_seen.erase(peer_id)
 	var hero := _heroes.get_node_or_null(NodePath(str(peer_id)))
 	if hero == null:
