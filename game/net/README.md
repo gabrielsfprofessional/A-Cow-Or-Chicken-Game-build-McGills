@@ -27,17 +27,18 @@ every folder needs it.
 
 ## The Net API (card T06)
 
-Built for the Join screen in T10. Call these on the `Net` autoload from anywhere.
+Built for the Join screen (T10). Call these on the `Net` autoload from anywhere.
 
 ### Methods
 
 | Call | What it does |
 | --- | --- |
 | `Net.host() -> Error` | Hosts the game on UDP 7777 for up to 16 players and loads the test world. The dedicated server calls this itself; nothing else needs to. Returns `OK`, or an ENet error if the port is taken. |
+| `Net.play(address: String) -> void` | What the Join screen calls. Loads the test world first, then joins (the order that gives the server's spawns somewhere to land), so the answer is the same as `join()`: `joined` or `join_failed`. A second call while one is under way, or while already connecting or in a game, is ignored. If the world cannot load, the player lands back on the Join screen with the reason. `--join=` on the command line calls it too. |
 | `Net.join(address: String) -> Error` | Connects to `address` on UDP 7777. An empty string means `Net.server_address()`. Returns straight away: the answer arrives as `joined` or `join_failed`, always within 5 seconds. |
 | `Net.leave() -> void` | Hangs up. Emits `left("")` and does **not** change the scene, so the caller decides where to go next. Does nothing when already offline. |
 
-Also useful: `Net.server_address()` (address from the git-ignored `server.cfg`,
+Also useful: `Net.last_reason` (see below), `Net.server_address()` (address from the git-ignored `server.cfg`,
 falling back to `127.0.0.1`), `Net.version()` (the version sent in the
 handshake), and `Net.state` (`Net.State.OFFLINE`, `CONNECTING`, `CLIENT` or
 `SERVER`) for deciding what a screen should show.
@@ -59,10 +60,12 @@ Reasons players can see today, all written for a 12-year-old:
 - `Update the game from the Drive folder (server v0.0.1+net3, you v0.0.1+net2)` (an older build)
 - `The server refused the connection. It may be full, or running a different version.`
 - `Lost connection to the server. It may have been closed.`
+- `Could not open the game world. Tell Gabe.` (the world scene failed to load)
 
-Until T10 lands, `Net` shows the reason with `OS.alert` and goes back to the main
-menu by itself. **T10 should stop that**: once the Join screen listens to these
-signals and shows the reason, drop the `_return_to_menu` call from `game/core/net.gd`.
+A failed join or a lost connection puts the player back on the Join screen
+(`game/ui/join_screen.tscn`), with no pop-up. `Net` keeps the reason in the public
+`Net.last_reason`; the Join screen shows it once and clears it. The server never
+changes scene.
 
 ## Running it
 
