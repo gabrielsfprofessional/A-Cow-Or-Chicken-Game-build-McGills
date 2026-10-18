@@ -160,5 +160,67 @@ if ($problems.Count -gt 0) {
     exit 1
 }
 Write-Host ("SMOKE: bot match passed (server and 4 bots exited 0, all four abilities used, {0} hits, {1} abilities, {2:N0} s)" -f $damage, $abilities, $seconds)
+
+# Arena check (card T39): a server on Adam's arena (--map=arena) and bots 1-2
+# (20 s, 1 s apart). Passes when all three exit 0, the server built the arena and
+# spawned both heroes on its Spawn markers, each bot built the map before saying
+# hello, and no log has an error or a refusal. Anything left after 45 s is killed by PID.
+$match = [ordered]@{}
+$started = Get-Date
+$state = "timeout"
+try {
+    Start-MatchProcess "arena-server" "--server --map=arena --quit-after-sec=32"
+    $serverLog = $match["arena-server"].Logs[0]
+    while (((Get-Date) - $started).TotalSeconds -lt 30) {
+        $text = [string](Get-Content $serverLog -Raw -ErrorAction SilentlyContinue)
+        if ($text -match "could not host") { $state = "in use"; break }
+        if ($text -match "server up") { $state = "up"; break }
+        if ($match["arena-server"].Process.HasExited) { $state = "exited"; break }
+        Start-Sleep -Milliseconds 200
+    }
+    if ($state -eq "up") {
+        for ($n = 1; $n -le 2; $n++) {
+            if ($n -gt 1) { Start-Sleep -Seconds 1 }
+            Start-MatchProcess "arena-bot$n" "--join=127.0.0.1 --bot=$n --hero=$($matchHeroes[$n - 1]) --quit-after-sec=20"
+        }
+        while (((Get-Date) - $started).TotalSeconds -lt 45) {
+            if (-not ($match.Values | Where-Object { -not $_.Process.HasExited })) { break }
+            Start-Sleep -Milliseconds 250
+        }
+    }
+} finally {
+    Stop-MatchLeftovers
+}
+if ($state -ne "up") {
+    Get-Content $serverLog | ForEach-Object { Write-Host $_ -ForegroundColor Red }
+    Write-Host "SMOKE: FAIL: the arena check server did not start ($state, log: $serverLog)" -ForegroundColor Red
+    exit 1
+}
+$problems = @()
+foreach ($name in $match.Keys) {
+    $code = $match[$name].Process.ExitCode
+    if ($code -ne 0) { $problems += "$name exited $code" }
+}
+$matchLogs = @($match.Values | ForEach-Object { $_.Logs })
+$matchErrors = @(Select-String -Path $matchLogs -Pattern "SCRIPT ERROR|Parse Error|ERROR:")
+$refusals = @(Select-String -Path $matchLogs -Pattern "\[Move\]|\[Shot\]|\[Ability\]")
+if ($matchErrors.Count -gt 0) { $problems += "$($matchErrors.Count) error line(s)" }
+if ($refusals.Count -gt 0) { $problems += "$($refusals.Count) [Move]/[Shot]/[Ability] line(s)" }
+if (-not (Select-String -Path $serverLog -Pattern "\[TestWorld\] map arena built" -Quiet)) { $problems += "the server never built the arena" }
+$spawned = @(Select-String -Path $serverLog -Pattern "\[TestWorld\] hero spawned for peer")
+$onMarkers = @($spawned | Where-Object { $_.Line -match " at Spawn[AB]\d+ \(" })
+if ($spawned.Count -ne 2 -or $onMarkers.Count -ne 2) { $problems += "$($onMarkers.Count) of $($spawned.Count) heroes spawned on a Spawn marker (want 2 of 2)" }
+foreach ($n in 1, 2) {
+    $botLog = $match["arena-bot$n"].Logs[0]
+    $built = Select-String -Path $botLog -Pattern "\[TestWorld\] map arena built" | Select-Object -First 1
+    $hello = Select-String -Path $botLog -Pattern "saying hello" | Select-Object -First 1
+    if ($null -eq $built -or $null -eq $hello -or $built.LineNumber -gt $hello.LineNumber) { $problems += "arena-bot$n did not build the map before its hello" }
+}
+if ($problems.Count -gt 0) {
+    ($matchErrors + $refusals) | ForEach-Object { Write-Host "$($_.Filename):$($_.LineNumber): $($_.Line)" -ForegroundColor Red }
+    Write-Host ("SMOKE: FAIL: arena check: {0} (logs: {1}\acoc-smoke-arena-server.log, -arena-bot1, -arena-bot2)" -f ($problems -join "; "), $env:TEMP) -ForegroundColor Red
+    exit 1
+}
+Write-Host "SMOKE: arena check passed (server and 2 bots exited 0, both heroes on Spawn markers, map built before hello)"
 Write-Host "SMOKE: PASS" -ForegroundColor Green
 exit 0
