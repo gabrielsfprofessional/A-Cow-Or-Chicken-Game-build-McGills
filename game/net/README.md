@@ -528,31 +528,34 @@ and **replays the current state to a late joiner** (every peer's team, both
 scores, the clock) once that peer is ready (`world.is_peer_ready()`, after its
 `client_ready`), so a newcomer's HUD and bots start right.
 
-Until T39 (Maps online) there is no relay and no "peer became ready" hook:
+How the mode sends them (T39's hooks, see "Maps online"):
 - The mode decides on the server and sends the events to clients with its own
-  `@rpc` in game/modes. That pull request also changes the `NET_PROTOCOL` line in
-  game/core/net.gd (+1, pre-approved) and nothing else in net code.
-- For the late-join replay, check `world.is_peer_ready(peer_id)` each frame
-  for peers not yet replayed to.
-- T39 adds server hooks for "a peer became ready" and "a peer left", and a
-  helper that sends only to ready peers; the mode then switches to those. Gabe's code only
-listens: the world keeps every team it hears (`teams_seen()`), and bots copy it
-when their hero spawns, then follow `team_assigned`, so they never target a
-teammate whether the replay comes before or after the hero.
+  `@rpc` in game/modes, through `world.send_to_ready(self, &"its_rpc", [args])`,
+  so they never reach a peer whose world isn't loaded. That pull request also
+  changes the `NET_PROTOCOL` line in game/core/net.gd (+1, pre-approved) and
+  nothing else in net code.
+- Late-join replay: on `Events.peer_became_ready(peer_id)` (server only, once per
+  peer), assign the newcomer's team and send it the current state with `rpc_id`.
+- `Events.peer_left(peer_id)` (server only) is the cue for auto-balance.
+
+Gabe's code only listens: the world keeps every team it hears (`teams_seen()`),
+and bots copy it when their hero spawns, then follow `team_assigned`, so they
+never target a teammate whether the replay comes before or after the hero.
 
 ### MatchRules (game/core/match_rules.gd)
 
 The server asks the world's `rules()` who hits whom and where heroes come back.
 A mode extends `MatchRules`, overrides what it needs and installs it on the
 server with `world.set_rules(MyRules.new())` before heroes spawn (`null` puts the
-defaults back). No autoload: heroes, shots and bots already ask the world for
+defaults back). On a map (T39) the defaults are `MapRules`, so a mode there extends
+`MapRules` to keep the map's spawn points. No autoload: heroes, shots and bots already ask the world for
 `respawn_point()`, `shots()` and `bot_area()`.
 
 | Method | Default (the game today) | Used by |
 | --- | --- | --- |
 | `team_of(peer_id) -> int` | -1 (no team) | `can_heal` |
 | `is_enemy(a, b) -> bool` | `a != b` | Shots pass through non-enemies (`allies_among`); Shield Charge knocks back enemies only. Not bots: they follow `team_assigned` (no team = enemy), so a mode with another enemy rule must tell its bots too |
-| `respawn_point(peer_id) -> Vector2` | the T06 ring | First spawn (sent in the spawn data) and every respawn |
+| `respawn_point(peer_id) -> Vector2` | the T06 ring; on a map, its Spawn points (`MapRules`, T39) | First spawn (sent in the spawn data) and every respawn |
 | `respawn_delay_sec(peer_id) -> float` | `combat.tres` `respawn_sec` (4 s) | The server's respawn |
 | `spawn_protection_sec() -> float` | 0 | After each respawn (not the first spawn; T12 decides whether that gets it too): no damage, no knockback; healing allowed. T12 reads its seconds from a .tres in game/modes/data, not a number in code |
 | `can_heal(healer, target)` (built on the two above; override those instead) | self; everyone while neither side has a team; else not an enemy | The Heal Drone: everyone today, teammates once T15 installs teams (a healer with no team then heals no one on a team). A no-team mode (free-for-all) that must not heal enemies overrides this one |
@@ -574,6 +577,88 @@ defaults back). No autoload: heroes, shots and bots already ask the world for
 before joining (`Net.join()`, or `Net.play()` once T10 lands). `client_ready` sends it when it is
 0 or more, else `--hero=` (debug builds only), else 0. It works in release builds.
 
+## Maps online (card T39)
+
+The server runs one of Adam's maps by name, and every player builds the same one
+before their hero spawns. NET_PROTOCOL 7 (the `load_map` message).
+
+### Picking the map
+
+- `game/maps/data/maps.tres` (a `MapList`, Adam edits it): lowercase name -> scene
+  path. `arena` is Adam's graybox; T20 adds `practice`. `test` is reserved: no map,
+  just the test world. `tests/data_test.gd` checks every entry against the contract below.
+- Server: `-- --server --map=<name>`. It is a server setting, not a debug aid, so a
+  release server (T29) reads it too. No flag or `--map=test`: the test world. An
+  unknown name logs `[TestWorld] no map named <name> in maps.tres, so using the test world`
+  and runs the test world. `tools/run_server.bat` asks `Map (Enter = test):`.
+- Nobody types the map on a client.
+
+### How a client gets it
+
+1. The client loads the test world and joins, as before.
+2. The server's world sends `load_map(name)` (reliable, channel 0) to each peer the
+   moment it connects, so late joiners get it too.
+3. The client builds the map as the world's first child (`Map`, behind the heroes),
+   removes the test world's own floor and walls, logs `[TestWorld] map <name> built`,
+   and only then sends `client_ready`. On the test world, `load_map("test")` builds
+   nothing and lets the hello go.
+4. A name the client's `maps.tres` doesn't have (a mismatched build) ends the join:
+   "Could not load the map <name>. Update the game from the Drive folder."
+
+Server spawn lines name the point: `[TestWorld] hero spawned for peer <id> at SpawnA2 (216, 840)`.
+
+### The map contract
+
+A scene listed in `maps.tres` keeps all of these (data_test checks the first two):
+- The root is a Node2D with `map_size: Vector2` (px). The map's top-left corner is (0, 0).
+- Spawn points: Marker2D children of `Spawns`, 8 or more. A name starting `SpawnA`
+  is team 0 (Blue), `SpawnB` team 1 (Orange).
+- `bot_area() -> Rect2` on the root is optional. Without it, bots wander the map
+  inside a 48 px outer wall, kept 32 px clear of it.
+- Walls and cover are on physics layer 1 and mask nothing (heroes and shots collide with layer 1).
+- Offline-only nodes remove themselves outside an F6 run (`ArenaMap.is_f6_run()`).
+  Any Camera2D in the map is taken out before the map enters the tree online: the
+  player's own hero camera is the only one.
+- No hero, no camera of its own online, and no gameplay script that runs on clients only.
+
+### Spawns: MapRules
+
+On a map the server installs `MapRules` (game/core/map_rules.gd) through
+`set_rules()` before any hero spawns. It picks from the map's points: team 0 the A
+points, team 1 the B points, no team any point; stable per peer. A map root may
+offer `make_rules() -> MatchRules` instead. A mode (T15) extends `MapRules` and
+installs it the same way; T12 refines which point a hero gets.
+
+### Camera
+
+With a map in, each client's own hero gets a Camera2D (`OwnCamera`, physics process
+mode, zoom 1) limited to `Rect2(Vector2.ZERO, map_size)`. The test world has none.
+
+### Server hooks for modes
+
+| Hook | When |
+| --- | --- |
+| `Events.peer_became_ready(peer_id)` | Server only, once per peer: its `client_ready` was accepted and its hero spawned |
+| `Events.peer_left(peer_id)` | Server only: a connected peer left (ready or not) |
+| `world.send_to_ready(node, method, args)` | Server: `node.rpc_id(peer, method, ...args)` to every ready, connected peer (`ReadyPeers`) |
+
+### Plans (no code yet)
+
+- **T20 dummies.** A target scene in game/maps: a `Health` node and a body on
+  physics layer 2, like a hero's. ShotSim's hit mask already includes layer 2, but
+  today a hit is handed to a NetHero, so Gabe makes the server hand it to any target
+  with a `Health` (game/weapons). The server decides the damage; the dummy sends the
+  number to ready peers with its own `receive_damage` RPC (NetHero's arguments), so
+  that PR is NET_PROTOCOL +1. Clients show it with T25's damage numbers. A dummy
+  refills instead of reaching 0: never eliminated, never respawned, no hero events.
+- **One-click Practice Range** (main menu). The client starts a local headless
+  server, `--server --map=practice`, waits for "server up" in its output, then
+  `Net.play("127.0.0.1")`. It stops that process by PID when the player leaves.
+  T29 checks that a release build can do this.
+- **T16's lobby.** The server starts on the map the host names. The host picks
+  the next map and starts the match; a map change sends `load_map` to every ready
+  peer and spawns heroes again. Until then: one map per server run.
+
 ## Match scene (T16)
 
 Plan only; no scene yet.
@@ -583,7 +668,7 @@ Plan only; no scene yet.
    Fixed paths: `Shots` and `Heroes` are direct children of the root, heroes direct children of `Heroes`.
 3. Gabe's parts move over unchanged: `Heroes` + `HeroSpawner`, `Shots`,
    `ServerStats` and the combat log lines.
-4. Adam's map is an instanced child: TileMapLayer walls on physics layer 1, two
+4. Adam's map is an instanced child, built the T39 way ("Maps online"): walls on physics layer 1, two
    team spawn areas and the bot area as marked nodes.
 5. Adam's mode is a child node that installs its MatchRules from those spawn
    points on the server and emits the match events.
