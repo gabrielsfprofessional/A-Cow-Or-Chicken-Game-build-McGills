@@ -17,7 +17,8 @@ var fullscreen: bool = false
 ## The last address that really joined. Saved. "" until the first good join.
 var last_address: String = ""
 ## The shipped server.cfg address at the time of that join. If a new build ships a
-## different one, the saved address is stale. Saved. "" counts as changed.
+## different one, the saved address is stale. Saved. "" counts as changed, so a file
+## from before this field hides its saved address until the next good join re-saves it.
 var last_shipped: String = ""
 ## The address of the join in progress or the last one tried this session. Memory
 ## only, so a typo can be fixed but is never saved.
