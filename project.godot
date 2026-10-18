@@ -26,6 +26,7 @@ Events="*res://game/core/events.gd"
 Game="*res://game/core/game.gd"
 Net="*res://game/core/net.gd"
 Settings="*res://game/ui/settings.gd"
+Overlay="*res://game/ui/overlay.gd"
 
 [display]
 
