@@ -51,6 +51,13 @@ func heal(amount: int, healer_id: int) -> int:
 	return given
 
 
+## Server only (week-3 seams): a shot hit but did no harm (spawn protection).
+## Emits damaged with amount 0, so the hit still reaches every client.
+func absorb(attacker_id: int, shot_id: int, hit_position: Vector2) -> void:
+	if is_alive():
+		damaged.emit(0, attacker_id, shot_id, _rules().health, hit_position)
+
+
 ## Client mirror of a server hit.
 func show_damage(amount: int, attacker_id: int, shot_id: int, health_after: int, hit_position: Vector2) -> void:
 	if not is_alive():

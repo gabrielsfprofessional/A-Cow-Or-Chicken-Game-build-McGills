@@ -4,7 +4,8 @@ extends Node2D
 ## heroes. Owner: Gabe (game/weapons). Card T08.
 ##
 ## - On the server it runs a ShotSim every physics tick: those shots decide hits,
-##   and a hit calls take_damage on the target's Health.
+##   and a hit calls the hero's take_hit (spawn protection) or the Health's
+##   take_damage. Shots pass through the shooter's teammates (the world's MatchRules).
 ## - On clients it draws shots: origin + direction x speed x age, ending at the
 ##   first wall (one cast_motion against layer 1 when the shot appears), at
 ##   range_px, or at the server's hit position (end_visual). Fixed arrays with
@@ -36,6 +37,7 @@ func _ready() -> void:
 	if Net.state == Net.State.SERVER:
 		_sim = ShotSim.new()
 		_sim.on_hit = _on_server_hit
+		_sim.allies_of = _allies_of
 		return
 	set_physics_process(false)
 	_active.resize(VISUAL_CAPACITY)
@@ -122,8 +124,37 @@ func _draw() -> void:
 			draw_circle(_origin[slot] + _direction[slot] * travelled, _radius[slot], SHOT_COLOR)
 
 
+## A hero's own take_hit applies spawn protection; any other Health just takes it.
 func _on_server_hit(attacker_id: int, shot_id: int, damage: int, health: Health, at: Vector2) -> void:
-	health.take_damage(damage, attacker_id, shot_id, at)
+	var hero := health.get_parent() as NetHero
+	if hero != null:
+		hero.take_hit(attacker_id, shot_id, damage, at)
+	else:
+		health.take_damage(damage, attacker_id, shot_id, at)
+
+
+## Server: the heroes this attacker's shots pass through (MatchRules.allies_among).
+## Empty under the default rules, so only the shooter is skipped. Needs Shots
+## to be a child of the world root and the heroes under its "Heroes" node.
+func _allies_of(attacker_id: int) -> Array[RID]:
+	var bodies: Array[RID] = []
+	var world := get_parent()
+	if world == null or not world.has_method(&"rules"):
+		return bodies
+	var rules := world.call(&"rules") as MatchRules
+	var heroes := world.get_node_or_null(^"Heroes")
+	if rules == null or heroes == null:
+		return bodies
+	var by_peer: Dictionary[int, RID] = {}
+	var peers: Array[int] = []
+	for child: Node in heroes.get_children():
+		var hero := child as NetHero
+		if hero != null:
+			by_peer[hero.owner_peer] = hero.get_rid()
+			peers.append(hero.owner_peer)
+	for peer: int in rules.allies_among(attacker_id, peers):
+		bodies.append(by_peer[peer])
+	return bodies
 
 
 ## A free slot, or the oldest shot's when all are busy.

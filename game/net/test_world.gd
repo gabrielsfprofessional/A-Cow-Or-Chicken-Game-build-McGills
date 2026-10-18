@@ -9,13 +9,8 @@ extends Node2D
 
 const HERO_SCENE: PackedScene = preload("res://game/heroes/net_hero.tscn")
 ## The heroes, in hero-select order. Until T16's hero select, "--hero=<file name>"
-## picks one (T18); the default is the first.
+## picks one (T18); the default is the first. Net.chosen_hero_index overrides both.
 const ROSTER: HeroRoster = preload("res://game/heroes/data/roster.tres")
-const RING_RADIUS: float = 260.0
-## Middle of the 1920x1080 viewport. This world has no camera.
-const WORLD_CENTER: Vector2 = Vector2(960.0, 540.0)
-## Golden-ratio step, so nearby peer ids land far apart on the ring.
-const RING_STEP: float = 0.618034
 ## How often the status lines refresh, in seconds.
 const STATUS_INTERVAL: float = 0.5
 ## The floor inside the 32 px border walls, kept 32 px clear of them (T09).
@@ -25,6 +20,11 @@ const BOT_AREA: Rect2 = Rect2(64.0, 64.0, 1792.0, 952.0)
 ## whose world is not loaded yet.
 var _ready_peers: Dictionary[int, bool] = {}
 var _status_wait: float = 0.0
+## Server: who hits whom, respawns and protection. A mode replaces it (set_rules).
+var _rules: MatchRules = MatchRules.new()
+## Every peer: teams heard from Events.team_assigned since this world loaded, so a
+## bot whose hero spawns after the replay still knows them (teams_seen()).
+var _teams_seen: Dictionary[int, int] = {}
 
 @onready var _heroes: Node2D = $Heroes
 @onready var _shots: Shots = $Shots
@@ -45,6 +45,7 @@ func _ready() -> void:
 	Events.ability_used.connect(_on_ability_used)
 	Events.hero_knocked_back.connect(_on_hero_knocked_back)
 	Events.hero_healed.connect(_on_hero_healed)
+	Events.team_assigned.connect(_on_team_assigned)
 	if Net.state == Net.State.SERVER:
 		multiplayer.peer_disconnected.connect(_remove_hero)
 		var stats := ServerStats.new()
@@ -78,11 +79,32 @@ func shots() -> Shots:
 	return _shots
 
 
-## Where a hero spawns and respawns. Same spot on every peer: the peer id alone
-## decides it (the T06 ring). T12 replaces it with team spawns.
+## Server: the match rules heroes, shots and bots follow (week-3 seams).
+func rules() -> MatchRules:
+	return _rules
+
+
+## Every peer: peer id -> team from every team_assigned heard so far. Empty: no teams.
+## A copy: teams change through team_assigned, not here. The server drops a peer
+## that leaves; clients keep it (harmless: it has no hero to target).
+func teams_seen() -> Dictionary[int, int]:
+	return _teams_seen.duplicate()
+
+
+func _on_team_assigned(peer_id: int, team: int) -> void:
+	_teams_seen[peer_id] = team
+
+
+## Server: a mode (T15) installs its rules here, before heroes spawn. Null puts
+## the defaults back.
+func set_rules(new_rules: MatchRules) -> void:
+	_rules = new_rules if new_rules != null else MatchRules.new()
+
+
+## Server: where a hero spawns and respawns (the rules decide; the T06 ring by
+## default). Clients get the first spot in the spawn data, later ones with the respawn.
 func respawn_point(peer_id: int) -> Vector2:
-	var angle := fposmod(float(peer_id) * RING_STEP, 1.0) * TAU
-	return WORLD_CENTER + Vector2(cos(angle), sin(angle)) * RING_RADIUS
+	return _rules.respawn_point(peer_id)
 
 
 ## Where test bots wander (T09): BotBrain walks to random points in it. Points
@@ -107,7 +129,7 @@ func client_ready(hero_index: int) -> void:
 		print("[TestWorld] peer %d asked for hero %d; there is none, so it plays %s" % [
 			peer_id, hero_index, ROSTER.first().display_name])
 		hero_index = 0
-	_spawner.spawn([peer_id, hero_index])
+	_spawner.spawn([peer_id, hero_index, respawn_point(peer_id)])
 	print("[TestWorld] hero spawned for peer %d" % peer_id)
 	for child: Node in _heroes.get_children():
 		var hero := child as NetHero
@@ -120,9 +142,12 @@ func _say_hello() -> void:
 	client_ready.rpc_id(1, _chosen_hero())
 
 
-## The roster slot named by "--hero=<file name>" (debug builds), else 0. An
-## unknown name plays the first hero and says so.
+## Net.chosen_hero_index when T16's hero select set it (any build), else the roster
+## slot named by "--hero=<file name>" (debug builds), else 0. An unknown name
+## plays the first hero and says so.
 func _chosen_hero() -> int:
+	if Net.chosen_hero_index >= 0:
+		return Net.chosen_hero_index
 	var wanted := Net.debug_flag(OS.is_debug_build(), OS.get_cmdline_user_args(), "--hero=")
 	if wanted == "":
 		return 0
@@ -135,6 +160,7 @@ func _chosen_hero() -> int:
 
 func _remove_hero(peer_id: int) -> void:
 	_ready_peers.erase(peer_id)
+	_teams_seen.erase(peer_id)
 	var hero := _heroes.get_node_or_null(NodePath(str(peer_id)))
 	if hero == null:
 		return
@@ -143,22 +169,27 @@ func _remove_hero(peer_id: int) -> void:
 
 
 ## Runs on every peer, server included, through the spawner. The spawn data is
-## [peer_id, hero_index] (T18); every peer picks the same HeroData from the same
-## roster, so a late joiner gets each hero right too.
+## [peer_id, hero_index, spawn_position] (T18, week-3 seams); every peer picks the
+## same HeroData from the same roster, so a late joiner gets each hero right too.
+## The server decides the spot (its MatchRules); without one, the T06 ring.
+## A late joiner gets the first spot, then the hero's current position with its relays.
 func _make_hero(data: Variant) -> Node:
 	var spawn: Array = data
 	var peer_id := int(spawn[0])
 	var hero_data := ROSTER.at(int(spawn[1]))
 	if hero_data == null:
 		hero_data = ROSTER.first()
+	var spot := MatchRules.new().respawn_point(peer_id)
+	if spawn.size() > 2 and spawn[2] is Vector2:
+		spot = spawn[2]
 	var hero := HERO_SCENE.instantiate() as NetHero
 	# The owning client drives this hero; setup() makes it the authority.
-	hero.setup(peer_id, respawn_point(peer_id), _hero_color(peer_id), hero_data)
+	hero.setup(peer_id, spot, _hero_color(peer_id), hero_data)
 	return hero
 
 
 func _hero_color(peer_id: int) -> Color:
-	return Color.from_hsv(fposmod(float(peer_id) * RING_STEP, 1.0), 0.55, 0.95)
+	return Color.from_hsv(fposmod(float(peer_id) * MatchRules.RING_STEP, 1.0), 0.55, 0.95)
 
 
 func _on_heroes_changed(_hero: Node) -> void:

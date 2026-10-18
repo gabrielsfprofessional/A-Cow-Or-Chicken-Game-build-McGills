@@ -5,7 +5,8 @@ extends Ability
 ##
 ## - The server heals: one tick every tick_sec from tick_sec through
 ##   duration_sec, real time, each giving heal_per_tick_hp to every alive hero
-##   within radius_px of the healer (the healer included). It stops at once if
+##   within radius_px of the healer (the healer included) that MatchRules.can_heal
+##   allows: everyone with no teams, teammates once T15 installs teams. It stops at once if
 ##   the healer is eliminated. A new use starts the ticks over.
 ## - Every client draws the drone, with a ring at radius_px, from the moment
 ##   the yes arrives until duration_sec later or the healer's elimination (it
@@ -74,9 +75,10 @@ func _effect_physics(_delta: float) -> void:
 ## Server: one tick's healing for every alive hero in range.
 func _heal_tick() -> void:
 	var drone := _drone()
+	var rules := _hero.match_rules()
 	for node: Node in _hero.get_parent().get_children():
 		var other := node as NetHero
-		if other == null or not other.is_alive():
+		if other == null or not other.is_alive() or not rules.can_heal(_hero.owner_peer, other.owner_peer):
 			continue
 		if other.global_position.distance_to(_hero.global_position) <= drone.radius_px:
 			other.heal(_hero.owner_peer, drone.heal_per_tick_hp)

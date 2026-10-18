@@ -19,9 +19,25 @@ T14 and T18, the Q abilities (messages in `game/net/README.md`):
 | `heal_drone.gd` | `HealDrone` (T18): on the server, a heal tick every `tick_sec` through `duration_sec` for every alive hero within `radius_px` of the healer (the healer included), stopped by the healer's elimination. Every client draws the drone and its ring. |
 | `ability_check.gd` | `AbilityCheck`: the server's pure check on each request (owner, life, alive, direction, a charge ready; T18: each charge comes back `cooldown_sec` after its own use). Tested by `tests/ability_check_test.gd`. |
 | `charge_sweep.gd` | `ChargeSweep`: which heroes a dash stretch passes through. Tested against real physics by `tests/charge_sweep_test.gd`. |
+| `spawn_protection.gd` | `SpawnProtection` (week-3 seams): the server's timer after a respawn, protected while now < its end. `NetHero.take_hit()` absorbs a shot and `knock_back()` does nothing while it runs; healing still works. Tested by `tests/match_rules_test.gd`. |
 
 NetHero runs the forced motion itself (a dash, a blink or a knockback): whole physics
 ticks, equal steps, stopped by walls, ended by a snap-back, elimination or respawn.
+
+Who a Q touches comes from the world's `MatchRules` (`game/core/match_rules.gd`,
+see game/net/README.md, "Seams for week 3"): Shield Charge knocks back enemies
+only, the Heal Drone heals `can_heal()` heroes only (with no teams: everyone).
+
+Kept on purpose (post-merge audit of T18, Gabe's call):
+- **Blink passes through heroes** (#5). It is a teleport: only walls stop it,
+  never a hero in the way, and it lands wherever the hero fits.
+- **A Q press during a knockback is held** (#6), like one during your own dash:
+  it goes out when the knockback ends, if a charge is ready. Revisit if any
+  `knockback_duration_sec` goes above 0.3 s, where the wait starts to feel like a dropped key.
+
+A protected hit still sends `receive_damage`, with **amount 0**, so every client
+ends the shot on that hero. `Events.hero_damaged` fires with amount 0 too: T25's
+damage numbers and hit sounds (John) should skip or soften amount 0.
 
 T08: `health.tscn` (Health: put it under anything on physics layer 2 to make it
 hittable) and `health_state.gd` (its rules). T18 adds healing: `heal()` on the
