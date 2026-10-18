@@ -1,6 +1,7 @@
 # Smoke test: import the project, run the game headless for 300 frames and fail
-# if Godot prints any script or engine error. Then run every tests/*_test.gd and
-# Adam's arena checks (when they exist) and fail if any exits non-zero or runs
+# if Godot prints any script or engine error. Then run every tests/*_test.gd,
+# Adam's check_arena.gd and every test_*.gd in game/maps/tools and
+# game/modes/tools (when they exist), and fail if any exits non-zero or runs
 # longer than 60 s (it is then killed by PID). Then play
 # a bot match (cards T09, T18): a headless server and 4 test bots, one per hero, on UDP 7777.
 # Run from the repo folder:
@@ -31,8 +32,13 @@ if ($hits) {
 $scriptLimitSec = 60
 $scripts = @(Get-ChildItem -Path (Join-Path $root "tests") -Filter "*_test.gd" | Sort-Object Name |
     ForEach-Object { "res://tests/" + $_.Name })
-foreach ($arena in @("game/maps/tools/check_arena.gd", "game/maps/tools/test_arena_check.gd")) {
-    if (Test-Path (Join-Path $root $arena)) { $scripts += "res://" + $arena }
+if (Test-Path (Join-Path $root "game/maps/tools/check_arena.gd")) { $scripts += "res://game/maps/tools/check_arena.gd" }
+foreach ($folder in @("game/maps/tools", "game/modes/tools")) {
+    $dir = Join-Path $root $folder
+    if (Test-Path $dir) {
+        $scripts += @(Get-ChildItem -Path $dir -Filter "test_*.gd" | Sort-Object Name |
+            ForEach-Object { "res://$folder/" + $_.Name })
+    }
 }
 $failed = 0
 foreach ($script in $scripts) {
