@@ -20,9 +20,9 @@ signal join_failed(reason: String)
 signal left(reason: String)
 
 const DEFAULT_PORT: int = 7777
-## Wire format version (T06 = 1, T07 = 2, T08 = 3, T14 = 4, T18 = 5, week-3 seams = 6). Bump it on every change to RPCs,
+## Wire format version (T06 = 1, T07 = 2, T08 = 3, T14 = 4, T18 = 5, week-3 seams = 6, T39 = 7). Bump it on every change to RPCs,
 ## channels or payloads: builds with a different number refuse each other.
-const NET_PROTOCOL: int = 6
+const NET_PROTOCOL: int = 7
 ## ENet channels on top of the default one (channel 0). Only create_client takes it (see host()).
 const CHANNEL_COUNT: int = 1
 ## Movement messages (T07). See game/net/README.md.

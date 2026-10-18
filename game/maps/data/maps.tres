@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="MapList" format=3]
+
+[ext_resource type="Script" path="res://game/core/map_list.gd" id="1_maps"]
+
+[resource]
+script = ExtResource("1_maps")
+maps = Dictionary[String, String]({
+"arena": "res://game/maps/arena/arena_graybox.tscn"
+})

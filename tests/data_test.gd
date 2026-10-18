@@ -9,6 +9,7 @@ extends SceneTree
 ## 2. validate() itself, on resources built here: each kind of problem is caught,
 ##    and range flags (or_greater, or_less, suffix, exp, degrees) read right.
 ## 3. A .tres with a wrong script path fails, naming the file.
+## 4. The map list (T39): maps.tres passes, and each kind of broken entry is caught.
 
 const DATA_FOLDERS: PackedStringArray = ["res://game/heroes/data", "res://game/weapons/data"]
 const ROSTER_PATH: String = "res://game/heroes/data/roster.tres"
@@ -21,6 +22,9 @@ const MAGE_PATH: String = "res://game/heroes/data/mage.tres"
 const BLINK_PATH: String = "res://game/heroes/data/blink.tres"
 const MEDIC_PATH: String = "res://game/heroes/data/medic.tres"
 const HEAL_DRONE_PATH: String = "res://game/heroes/data/heal_drone.tres"
+## Checked by path, not by folder, so Adam's other files in game/maps/data never trip it.
+const MAPS_PATH: String = "res://game/maps/data/maps.tres"
+const ARENA_SCENE: String = "res://game/maps/arena/arena_graybox.tscn"
 const UNKNOWN_TYPE: String = "is not a HeroData, HeroRoster, CombatData, AbilityData or WeaponData file; check its script path"
 const SCRATCH_FOLDER: String = "user://data_test"
 const WRONG_SCRIPT_TRES: String = """[gd_resource type="Resource" script_class="HeroData" format=3]
@@ -67,6 +71,8 @@ func _initialize() -> void:
 	_heal_drone_whole_ticks()
 	_ability_problems_passed_on()
 	_wrong_script_path()
+	_map_list_passes()
+	_broken_map_entries()
 	print("DATA TEST: %s (%d checks)" % ["PASS" if _failed == 0 else "FAIL, %d wrong" % _failed, _count])
 	quit(0 if _failed == 0 else 1)
 
@@ -476,3 +482,47 @@ func _expect(ok: bool, what: String, problem: String) -> void:
 	else:
 		_failed += 1
 		print("  FAIL  %s: %s" % [what, problem])
+
+
+# --- the map list (T39) -------------------------------------------------------------
+
+func _map_list_passes() -> void:
+	var list := ResourceLoader.load(MAPS_PATH, "", ResourceLoader.CACHE_MODE_IGNORE) as MapList
+	_expect(list != null, "maps.tres is a MapList", "won't load as a MapList; check its script path")
+	if list == null:
+		return
+	var problems := list.validate()
+	_expect(problems.is_empty(), "maps.tres passes", "; ".join(problems))
+	_expect(list.scene_path("arena") == ARENA_SCENE, "maps.tres lists the arena", "arena -> %s" % list.scene_path("arena"))
+	_expect(list.scene_path(MapList.TEST) == "", "\"test\" is no map", "test -> %s" % list.scene_path(MapList.TEST))
+
+
+func _broken_map_entries() -> void:
+	var list := MapList.new()
+	list.maps = {"test": ARENA_SCENE}
+	_expect(_has_problem(list.validate(), "test: \"test\" is reserved"), "the name \"test\" fails", "; ".join(list.validate()))
+	list.maps = {"Big Arena": ARENA_SCENE}
+	_expect(_has_problem(list.validate(), "Big Arena: the name must be lowercase"), "an uppercase name with a space fails", "; ".join(list.validate()))
+	list.maps = {"gone": "res://game/maps/nope.tscn"}
+	_expect(_has_problem(list.validate(), "gone: there is no scene at res://game/maps/nope.tscn"), "a missing scene fails", "; ".join(list.validate()))
+	list.maps = {}
+	_expect(_has_problem(list.validate(), "the list has no maps"), "an empty list fails", "; ".join(list.validate()))
+	# The arena with two spawn points taken out: 6 left, 8 needed.
+	var arena := (load(ARENA_SCENE) as PackedScene).instantiate()
+	var spawns := arena.get_node("Spawns")
+	for i: int in 2:
+		var marker := spawns.get_child(0)
+		spawns.remove_child(marker)
+		marker.free()
+	var problems := MapList.contract_problems(arena)
+	_expect(_has_problem(problems, "it has 6 spawn points; it needs at least 8"), "a map with 6 spawn points fails", "; ".join(problems))
+	arena.free()
+	_expect(MapList.team_of_spawn("SpawnA3") == 0 and MapList.team_of_spawn("SpawnB1") == 1 and MapList.team_of_spawn("Exit") == -1,
+		"spawn names give their team", "A/B/other -> %d/%d/%d" % [MapList.team_of_spawn("SpawnA3"), MapList.team_of_spawn("SpawnB1"), MapList.team_of_spawn("Exit")])
+
+
+func _has_problem(problems: PackedStringArray, start: String) -> bool:
+	for problem: String in problems:
+		if problem.begins_with(start):
+			return true
+	return false
