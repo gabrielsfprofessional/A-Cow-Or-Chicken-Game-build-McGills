@@ -9,7 +9,7 @@ extends Node2D
 
 const HERO_SCENE: PackedScene = preload("res://game/heroes/net_hero.tscn")
 ## The heroes, in hero-select order. Until T16's hero select, "--hero=<file name>"
-## picks one (T18); the default is the first. Game.hero_choice overrides both.
+## picks one (T18); the default is the first. Net.chosen_hero_index overrides both.
 const ROSTER: HeroRoster = preload("res://game/heroes/data/roster.tres")
 ## How often the status lines refresh, in seconds.
 const STATUS_INTERVAL: float = 0.5
@@ -142,12 +142,12 @@ func _say_hello() -> void:
 	client_ready.rpc_id(1, _chosen_hero())
 
 
-## Game.hero_choice when T16's hero select set it (any build), else the roster
+## Net.chosen_hero_index when T16's hero select set it (any build), else the roster
 ## slot named by "--hero=<file name>" (debug builds), else 0. An unknown name
 ## plays the first hero and says so.
 func _chosen_hero() -> int:
-	if Game.hero_choice >= 0:
-		return Game.hero_choice
+	if Net.chosen_hero_index >= 0:
+		return Net.chosen_hero_index
 	var wanted := Net.debug_flag(OS.is_debug_build(), OS.get_cmdline_user_args(), "--hero=")
 	if wanted == "":
 		return 0

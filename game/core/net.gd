@@ -53,6 +53,10 @@ enum State {
 
 ## Read-only for other cards. T10 uses it to pick what the Join screen shows.
 var state: State = State.OFFLINE
+## The roster slot this player plays (week-3 seams). T16's hero select sets it
+## before joining; -1 means not chosen, so "--hero=" (debug builds) or the first
+## hero. Works in release builds.
+var chosen_hero_index: int = -1
 
 var _peer_versions: Dictionary[int, String] = {}
 var _server_version: String = ""

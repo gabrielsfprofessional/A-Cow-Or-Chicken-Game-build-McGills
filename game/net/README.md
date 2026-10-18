@@ -570,7 +570,7 @@ defaults back). No autoload: heroes, shots and bots already ask the world for
 
 ### Hero choice (T16)
 
-`Game.hero_choice` (game/core/game.gd): T16's hero select sets the roster slot
+`Net.chosen_hero_index` (game/core/net.gd): T16's hero select sets the roster slot
 before joining (`Net.join()`, or `Net.play()` once T10 lands). `client_ready` sends it when it is
 0 or more, else `--hero=` (debug builds only), else 0. It works in release builds.
 

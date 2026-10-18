@@ -20,11 +20,6 @@ const KEYS: Dictionary = {
 ## Debug builds: "-- --quit-after-sec=<n>" ends the run after n seconds (T09).
 const QUIT_AFTER_FLAG: String = "--quit-after-sec="
 
-## The roster slot this player plays (week-3 seams). T16's hero select sets it
-## before joining; -1 means not chosen, so "--hero=" (debug builds) or the first
-## hero. Works in release builds.
-var hero_choice: int = -1
-
 
 func _ready() -> void:
 	_register_inputs()
