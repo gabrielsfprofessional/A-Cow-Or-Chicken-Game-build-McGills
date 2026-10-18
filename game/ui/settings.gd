@@ -16,6 +16,9 @@ var ui_scale: float = 1.0
 var fullscreen: bool = false
 ## The last address that really joined. Saved. "" until the first good join.
 var last_address: String = ""
+## The shipped server.cfg address at the time of that join. If a new build ships a
+## different one, the saved address is stale. Saved. "" counts as changed.
+var last_shipped: String = ""
 ## The address of the join in progress or the last one tried this session. Memory
 ## only, so a typo can be fixed but is never saved.
 var last_tried: String = ""
@@ -46,6 +49,7 @@ func load_settings() -> void:
 	ui_scale = wanted if wanted in SCALES else 1.0
 	fullscreen = bool(data.get("fullscreen", fullscreen))
 	last_address = str(data.get("last_address", "")).strip_edges()
+	last_shipped = str(data.get("last_shipped", "")).strip_edges()
 
 
 ## Writes to a temp file first, then renames, so a crash never leaves a half-written file.
@@ -58,6 +62,7 @@ func save_settings() -> void:
 		"ui_scale": ui_scale,
 		"fullscreen": fullscreen,
 		"last_address": last_address,
+		"last_shipped": last_shipped,
 	}
 	var tmp: String = PATH + ".tmp"
 	var file: FileAccess = FileAccess.open(tmp, FileAccess.WRITE)
@@ -114,9 +119,11 @@ func set_fullscreen(value: bool) -> void:
 
 
 func _on_net_joined() -> void:
-	if last_tried == "" or last_tried == last_address:
+	var shipped: String = Net.server_address()
+	if last_tried == "" or (last_tried == last_address and shipped == last_shipped):
 		return
 	last_address = last_tried
+	last_shipped = shipped
 	save_settings()
 
 
