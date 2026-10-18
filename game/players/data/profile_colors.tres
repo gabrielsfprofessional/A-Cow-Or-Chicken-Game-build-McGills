@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ProfileColors" format=3]
+
+[ext_resource type="Script" path="res://game/players/profile_colors.gd" id="1_colors"]
+
+[resource]
+script = ExtResource("1_colors")
+swatch_count = 8
+swatches = Array[Color]([Color(0.949020, 0.333333, 0.352941, 1), Color(0.960784, 0.850980, 0.039216, 1), Color(0.274510, 0.654902, 0.345098, 1), Color(0.070588, 0.647059, 0.580392, 1), Color(0.752941, 0.517647, 0.988235, 1), Color(0.941176, 0.352941, 0.580392, 1), Color(0.941176, 0.941176, 0.941176, 1), Color(0.678431, 0.498039, 0.345098, 1)])
+team_names = PackedStringArray("Blue", "Orange")
+team_colors = Array[Color]([Color(0.231373, 0.509804, 0.964706, 1), Color(0.976471, 0.450980, 0.086275, 1)])
+ui_background = Color(0.109804, 0.121569, 0.160784, 1)
+min_team_distance = 30.0
+min_contrast = 4.5
