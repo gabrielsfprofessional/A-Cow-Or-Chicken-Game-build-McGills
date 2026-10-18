@@ -46,6 +46,8 @@ func _ready() -> void:
 	weapon.fired.connect(_on_fired)
 	Events.hero_damaged.connect(_on_hero_damaged)
 	Events.hero_eliminated.connect(_on_hero_eliminated)
+	_copy_world_teams()
+	Events.team_assigned.connect(_on_team_assigned)
 	var now := _now_sec()
 	_rules.restart(now, hero.global_position)
 	_stats_at_sec = now + STATS_INTERVAL_SEC
@@ -154,12 +156,23 @@ func _area() -> Rect2:
 	return Rect2(hero.global_position, Vector2.ZERO)
 
 
+## Teams the world heard before this bot's hero spawned (a late join's replay).
+func _copy_world_teams() -> void:
+	var heroes := hero.get_parent()
+	var world := heroes.get_parent() if heroes != null else null
+	if world == null or not world.has_method(&"teams_seen"):
+		return
+	var seen: Dictionary[int, int] = world.call(&"teams_seen")
+	for peer_id: int in seen:
+		_rules.set_team(peer_id, seen[peer_id])
+
+
 func _on_fired(_shot_id: int) -> void:
 	_shots += 1
 
 
-func _on_hero_damaged(_victim: int, attacker: int, _amount: int, _at: Vector2) -> void:
-	if attacker == hero.owner_peer:
+func _on_hero_damaged(_victim: int, attacker: int, amount: int, _at: Vector2) -> void:
+	if attacker == hero.owner_peer and amount > 0:  # 0: absorbed by spawn protection.
 		_hits += 1
 
 
@@ -168,6 +181,11 @@ func _on_hero_eliminated(victim: int, attacker: int) -> void:
 		_eliminations += 1
 	if victim == hero.owner_peer:
 		_deaths += 1
+
+
+## Week-3 seams: bots never target a teammate (no teams: everyone is fair game).
+func _on_team_assigned(peer_id: int, team: int) -> void:
+	_rules.set_team(peer_id, team)
 
 
 func _print_stats() -> void:

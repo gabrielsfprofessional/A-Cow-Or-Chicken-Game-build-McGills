@@ -30,11 +30,14 @@ const SEND_RATE: int = 20
 const SNAP_INTERVAL_MSEC: int = 500
 ## [Move] (server rejects) and [Remote] (underruns) lines per hero at most this often.
 const LOG_INTERVAL_MSEC: int = 1000
-## Respawn time, until T15's mode rules take it.
+## Clients' respawn countdown. The server's delay comes from MatchRules.
 const COMBAT: CombatData = preload("res://game/heroes/data/combat.tres")
 ## A forced-motion grant lasts its duration plus this, for the round trip and
 ## the owner's send queue (T14).
 const FORCED_MOTION_GRACE_SEC: float = 1.0
+## A late joiner trusts the server's respawn countdown up to this (a mode's
+## MatchRules may use a longer delay than combat.tres); only a garbage value is cut.
+const MAX_RESPAWN_SYNC_SEC: float = 60.0
 
 var owner_peer: int = 0
 ## This hero's numbers (T13), set by setup(). The same file on every peer.
@@ -68,6 +71,10 @@ var _ability: Ability = null
 ## Owner: the forced motion running (T14): its step per physics tick and ticks left.
 var _forced_step: Vector2 = Vector2.ZERO
 var _forced_ticks_left: int = 0
+## Server: spawn protection after each respawn (week-3 seams); MatchRules sets how long.
+var _protection: SpawnProtection = SpawnProtection.new()
+## Used when the world has no rules() (a hero outside a world, in tests).
+static var _default_rules: MatchRules = MatchRules.new()
 
 @onready var _health: Health = $Health
 @onready var _collider: CollisionShape2D = $Collider
@@ -200,8 +207,9 @@ func grant_motion(extra_px: float, duration_sec: float) -> void:
 
 ## Server only: `attacker`'s dash pushes this hero by `offset` over
 ## `duration_sec`. Grants the distance first, then tells every ready peer.
+## Nothing happens while spawn protection lasts.
 func knock_back(attacker: int, offset: Vector2, duration_sec: float) -> void:
-	if not multiplayer.is_server() or not is_alive():
+	if not multiplayer.is_server() or not is_alive() or is_protected():
 		return
 	grant_motion(offset.length(), duration_sec)
 	for peer: int in multiplayer.get_peers():
@@ -216,6 +224,31 @@ func heal(healer: int, amount: int) -> int:
 	if not multiplayer.is_server():
 		return 0
 	return _health.heal(amount, healer)
+
+
+## Server only: a shot hit this hero. While spawn protection lasts the shot is
+## absorbed: receive_damage still goes out, with amount 0, so every client ends
+## the shot here. Returns the health taken.
+func take_hit(attacker: int, shot_id: int, amount: int, at: Vector2) -> int:
+	if is_protected():
+		_health.absorb(attacker, shot_id, at)
+		return 0
+	return _health.take_damage(amount, attacker, shot_id, at)
+
+
+## Server only: true while this hero's spawn protection lasts.
+func is_protected() -> bool:
+	return _protection.is_protected(_now_sec())
+
+
+## The world's MatchRules (server), or the defaults.
+func match_rules() -> MatchRules:
+	var world := _world()
+	if world != null and world.has_method(&"rules"):
+		var rules := world.call(&"rules") as MatchRules
+		if rules != null:
+			return rules
+	return _default_rules
 
 
 ## Remote heroes only: how far ahead the buffer reaches, in milliseconds.
@@ -381,7 +414,7 @@ func receive_combat_state(life_number: int, health: int, eliminated: bool, respa
 		return
 	life = life_number
 	_health.sync(health, eliminated)
-	_respawn_at_sec = _now_sec() + clampf(respawn_in, 0.0, COMBAT.respawn_sec)
+	_respawn_at_sec = _now_sec() + clampf(respawn_in, 0.0, MAX_RESPAWN_SYNC_SEC)
 	_show_eliminated(eliminated)
 	_update_label()
 
@@ -476,8 +509,14 @@ func _on_healed(amount: int, healer: int, health_after: int) -> void:
 	Events.hero_healed.emit(owner_peer, healer, amount)
 
 
+## Clients count down combat.tres respawn_sec: the server's own delay (MatchRules)
+## only reaches them with the respawn itself, until an RPC carries it.
 func _on_eliminated(attacker: int) -> void:
-	_respawn_at_sec = _now_sec() + COMBAT.respawn_sec
+	var delay := COMBAT.respawn_sec
+	if multiplayer.is_server():
+		delay = match_rules().respawn_delay_sec(owner_peer)
+		_protection.stop()
+	_respawn_at_sec = _now_sec() + delay
 	_show_eliminated(true)
 	_update_label()
 	if multiplayer.is_server():
@@ -494,6 +533,10 @@ func _respawn_on_server() -> void:
 		spot = world.call(&"respawn_point", owner_peer)
 	_respawn(spot, life + 1)
 	_check.reset(spot, _now_sec())
+	var protect_sec := match_rules().spawn_protection_sec()
+	_protection.start(_now_sec(), protect_sec)
+	if protect_sec > 0.0:
+		print("[Combat] protected: Player %d for %.1f s" % [owner_peer, protect_sec])
 	for peer: int in multiplayer.get_peers():
 		if can_receive(peer):
 			receive_respawn.rpc_id(peer, spot, life)
