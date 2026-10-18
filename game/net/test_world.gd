@@ -65,7 +65,9 @@ func _ready() -> void:
 		stats.name = "ServerStats"
 		add_child(stats)
 	# A client: Net loads this world before it joins, and hello waits for the
-	# server's load_map, so the map is built before any hero spawns here (T39).
+	# server's load_map, so the map is built before this player's own hero spawns
+	# (T39). Other players' heroes can arrive a few packets earlier (the spawner
+	# replays them on connect), so nothing may assume the map exists when a hero enters.
 	_refresh_status()
 
 
@@ -116,6 +118,8 @@ func _on_team_assigned(peer_id: int, team: int) -> void:
 func set_rules(new_rules: MatchRules) -> void:
 	if new_rules != null:
 		_rules = new_rules
+	elif _map != null and _map.has_method(&"make_rules"):
+		_rules = _map.call(&"make_rules") as MatchRules
 	elif _map != null:
 		_rules = MapRules.from_map(_map)
 	else:
@@ -210,8 +214,7 @@ func _build_map(new_map_name: String) -> bool:
 	_map_name = new_map_name
 	print("[TestWorld] map %s built (%d offline-only cameras removed)" % [new_map_name, cameras.size()])
 	if Net.state == Net.State.SERVER:
-		# The map's own rules if it has make_rules(), else MapRules from its spawns.
-		set_rules(map.call(&"make_rules") as MatchRules if map.has_method(&"make_rules") else null)
+		set_rules(null)  # The map's make_rules() if it has one, else MapRules from its spawns.
 	return true
 
 
@@ -254,6 +257,8 @@ func _on_hero_entered(node: Node) -> void:
 func _map_failed(reason: String) -> void:
 	print("[TestWorld] %s" % reason)
 	Net.leave()
+	# The player never got in: say so the way a failed join does (a test bot exits 1).
+	Net.join_failed.emit(reason)
 	if DisplayServer.get_name() != "headless":
 		OS.alert(reason, "A Cow or Chicken")
 	get_tree().change_scene_to_file.call_deferred(Net.MAIN_MENU)

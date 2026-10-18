@@ -514,9 +514,16 @@ func _broken_map_entries() -> void:
 		var marker := spawns.get_child(0)
 		spawns.remove_child(marker)
 		marker.free()
-	var problems := MapList.contract_problems(arena)
-	_expect(_has_problem(problems, "it has 6 spawn points; it needs at least 8"), "a map with 6 spawn points fails", "; ".join(problems))
+	var packed := PackedScene.new()
+	packed.pack(arena)
 	arena.free()
+	DirAccess.make_dir_recursive_absolute(SCRATCH_FOLDER)
+	var six_path := SCRATCH_FOLDER.path_join("six_spawns.tscn")
+	ResourceSaver.save(packed, six_path)
+	list.maps = {"small": six_path}
+	var problems := list.validate()
+	_expect(_has_problem(problems, "small: it has 6 spawn points; it needs at least 8"), "a map with 6 spawn points fails, naming the entry", "; ".join(problems))
+	DirAccess.remove_absolute(six_path)
 	_expect(MapList.team_of_spawn("SpawnA3") == 0 and MapList.team_of_spawn("SpawnB1") == 1 and MapList.team_of_spawn("Exit") == -1,
 		"spawn names give their team", "A/B/other -> %d/%d/%d" % [MapList.team_of_spawn("SpawnA3"), MapList.team_of_spawn("SpawnB1"), MapList.team_of_spawn("Exit")])
 

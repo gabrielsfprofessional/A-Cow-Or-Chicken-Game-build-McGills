@@ -24,8 +24,15 @@ func _init(points: Dictionary[String, Vector2] = {}) -> void:
 		_points.append(points[spawn_name])
 
 
-## Rules from a map in the tree: every Marker2D under Spawns whose name gives a team.
+## Rules from a map in the tree.
 static func from_map(map: Node) -> MapRules:
+	return MapRules.new(points_of(map))
+
+
+## A map's spawn points by name, in the world's coordinates: every Marker2D under
+## Spawns whose name gives a team. A mode builds its own subclass from these:
+## MyRules.new(MapRules.points_of(map)).
+static func points_of(map: Node) -> Dictionary[String, Vector2]:
 	var points: Dictionary[String, Vector2] = {}
 	var spawns := map.get_node_or_null(MapList.SPAWNS_NODE)
 	if spawns != null:
@@ -33,7 +40,7 @@ static func from_map(map: Node) -> MapRules:
 			var marker := child as Marker2D
 			if marker != null and MapList.team_of_spawn(marker.name) >= 0:
 				points[String(marker.name)] = marker.global_position
-	return MapRules.new(points)
+	return points
 
 
 func respawn_point(peer_id: int) -> Vector2:

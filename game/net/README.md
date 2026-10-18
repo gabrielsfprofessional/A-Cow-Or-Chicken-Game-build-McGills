@@ -600,10 +600,13 @@ before their hero spawns. NET_PROTOCOL 7 (the `load_map` message).
    moment it connects, so late joiners get it too.
 3. The client builds the map as the world's first child (`Map`, behind the heroes),
    removes the test world's own floor and walls, logs `[TestWorld] map <name> built`,
-   and only then sends `client_ready`. On the test world, `load_map("test")` builds
+   and only then sends `client_ready`. Other players' heroes can arrive a few packets
+   before the map (the spawner replays them on connect), so nothing may assume the
+   map exists when a hero enters; the player's own hero always comes after it. On the test world, `load_map("test")` builds
    nothing and lets the hello go.
-4. A name the client's `maps.tres` doesn't have (a mismatched build) ends the join:
-   "Could not load the map <name>. Update the game from the Drive folder."
+4. A name the client's `maps.tres` doesn't have (a mismatched build) ends the join
+   (`Net.join_failed`, so a test bot exits 1): "Could not load the map <name>.
+   Update the game from the Drive folder."
 
 Server spawn lines name the point: `[TestWorld] hero spawned for peer <id> at SpawnA2 (216, 840)`.
 
@@ -626,8 +629,9 @@ A scene listed in `maps.tres` keeps all of these (data_test checks the first two
 On a map the server installs `MapRules` (game/core/map_rules.gd) through
 `set_rules()` before any hero spawns. It picks from the map's points: team 0 the A
 points, team 1 the B points, no team any point; stable per peer. A map root may
-offer `make_rules() -> MatchRules` instead. A mode (T15) extends `MapRules` and
-installs it the same way; T12 refines which point a hero gets.
+offer `make_rules() -> MatchRules` instead (`set_rules(null)` goes back to it). A
+mode (T15) extends `MapRules`, builds it with `MyRules.new(MapRules.points_of(map))`
+and installs it the same way; T12 refines which point a hero gets.
 
 ### Camera
 
