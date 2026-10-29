@@ -94,7 +94,7 @@ func _ready() -> void:
 func server_address() -> String:
 	var config := ConfigFile.new()
 	if config.load(CONFIG_PATH) == OK:
-		return str(config.get_value("server", "address", "127.0.0.1"))
+		return str(config.get_value("server", "address", "127.0.0.1")).strip_edges()
 	return "127.0.0.1"
 
 
@@ -189,7 +189,11 @@ func host() -> Error:
 	multiplayer.multiplayer_peer = peer
 	state = State.SERVER
 	_log("server up on UDP %d, version %s, room for %d players" % [DEFAULT_PORT, version(), MAX_PLAYERS])
-	_load_world()
+	var loaded := await _load_world()
+	if not loaded and Game.is_server():
+		_log("the server has no world, quitting")
+		get_tree().quit(1)
+		return ERR_CANT_CREATE
 	return OK
 
 
@@ -249,7 +253,7 @@ func _autostart() -> void:
 	# Let the main scene finish loading before swapping it out.
 	await get_tree().process_frame
 	if Game.is_server():
-		host()
+		await host()
 		return
 	var address := join_argument()
 	if address == "":
@@ -375,6 +379,7 @@ func _on_connected_to_server() -> void:
 	if state != State.CONNECTING:
 		return  # Already given up on this attempt. Do not resurrect it.
 	state = State.CLIENT
+	last_reason = ""
 	_stop_throttle(1)
 	_log("connected as peer %d after %s (server version %s)" % [
 		multiplayer.get_unique_id(), _since_join(), _server_version,
@@ -424,8 +429,8 @@ func _fail_join(reason: String) -> void:
 		return
 	_close_peer()
 	_log("join failed after %s: %s" % [_since_join(), reason])
-	join_failed.emit(reason)
 	_return_to_join_screen(reason)
+	join_failed.emit(reason)
 
 
 func _close_peer() -> void:
