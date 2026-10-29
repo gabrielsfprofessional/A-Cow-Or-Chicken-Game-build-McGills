@@ -7,6 +7,7 @@ extends SceneTree
 ## Building a real map online is covered by smoke's arena check.
 
 const ARENA_SCENE: PackedScene = preload("res://game/maps/arena/arena_graybox.tscn")
+const PRACTICE_SCENE: PackedScene = preload("res://game/maps/practice/practice_range.tscn")
 const PEERS: Array[int] = [2, 3, 17, 1743561404, 186990725, 475170837, 99, 1000]
 
 
@@ -31,7 +32,9 @@ func _initialize() -> void:
 	_stable_per_peer()
 	_no_points_falls_back_to_the_ring()
 	_one_sided_map()
+	_untagged_points()
 	_from_the_arena()
+	_from_the_practice_range()
 	_send_to_ready_recipients()
 	print("MAP RULES TEST: %s (%d checks)" % ["PASS" if _failed == 0 else "FAIL, %d wrong" % _failed, _count])
 	quit(0 if _failed == 0 else 1)
@@ -89,6 +92,20 @@ func _one_sided_map() -> void:
 	_expect(rules.point_name(3).begins_with("SpawnA"), "a team with no points of its own uses all of them", rules.point_name(3))
 
 
+## A point with no team in its name (the practice range's PlayerSpawn) serves every team,
+## and a team with points of its own never takes the other team's.
+func _untagged_points() -> void:
+	var single: Dictionary[String, Vector2] = {"PlayerSpawn": Vector2(50.0, 60.0)}
+	var rules := EvenOdd.new(single)
+	_expect(rules.point_name(2) == "PlayerSpawn" and rules.point_name(3) == "PlayerSpawn",
+		"one untagged point serves both teams", "%s / %s" % [rules.point_name(2), rules.point_name(3)])
+	var mixed: Dictionary[String, Vector2] = {"SpawnA1": Vector2(10.0, 10.0), "PlayerSpawn": Vector2(50.0, 60.0)}
+	var wrong: PackedStringArray = []
+	for peer: int in PEERS:
+		if peer % 2 == 1 and EvenOdd.new(mixed).point_name(peer) != "PlayerSpawn":
+			wrong.append("%d -> %s" % [peer, EvenOdd.new(mixed).point_name(peer)])
+	_expect(wrong.is_empty(), "Orange never takes a SpawnA point; it uses the shared one", ", ".join(wrong))
+
 func _from_the_arena() -> void:
 	var arena := ARENA_SCENE.instantiate() as Node2D
 	# The world drops map cameras before a map enters the tree; so does this test.
@@ -105,6 +122,22 @@ func _from_the_arena() -> void:
 			off.append("%d -> %s" % [peer, rules.point_name(peer)])
 	_expect(off.is_empty(), "on the arena every pick is one of its Spawn markers", ", ".join(off))
 	arena.free()
+
+
+func _from_the_practice_range() -> void:
+	var practice := PRACTICE_SCENE.instantiate() as Node2D
+	for camera: Node in practice.find_children("*", "Camera2D", true, false):
+		camera.get_parent().remove_child(camera)
+		camera.free()
+	root.add_child(practice)
+	var rules := MapRules.from_map(practice)
+	var spot := (practice.get_node("Spawns/PlayerSpawn") as Marker2D).global_position
+	var off: PackedStringArray = []
+	for peer: int in PEERS:
+		if rules.point_name(peer) != "PlayerSpawn" or not rules.respawn_point(peer).is_equal_approx(spot):
+			off.append("%d -> %s" % [peer, rules.point_name(peer)])
+	_expect(off.is_empty(), "on the practice range every peer spawns on PlayerSpawn", ", ".join(off))
+	practice.free()
 
 
 func _send_to_ready_recipients() -> void:

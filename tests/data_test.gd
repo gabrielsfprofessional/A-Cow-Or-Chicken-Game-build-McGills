@@ -25,6 +25,7 @@ const HEAL_DRONE_PATH: String = "res://game/heroes/data/heal_drone.tres"
 ## Checked by path, not by folder, so Adam's other files in game/maps/data never trip it.
 const MAPS_PATH: String = "res://game/maps/data/maps.tres"
 const ARENA_SCENE: String = "res://game/maps/arena/arena_graybox.tscn"
+const PRACTICE_SCENE: String = "res://game/maps/practice/practice_range.tscn"
 const UNKNOWN_TYPE: String = "is not a HeroData, HeroRoster, CombatData, AbilityData or WeaponData file; check its script path"
 const SCRATCH_FOLDER: String = "user://data_test"
 const WRONG_SCRIPT_TRES: String = """[gd_resource type="Resource" script_class="HeroData" format=3]
@@ -507,25 +508,45 @@ func _broken_map_entries() -> void:
 	_expect(_has_problem(list.validate(), "gone: there is no scene at res://game/maps/nope.tscn"), "a missing scene fails", "; ".join(list.validate()))
 	list.maps = {}
 	_expect(_has_problem(list.validate(), "the list has no maps"), "an empty list fails", "; ".join(list.validate()))
-	# The arena with two spawn points taken out: 6 left, 8 needed.
+	# The arena with every spawn point taken out: 0 left, 1 needed. Its 8 team spawns
+	# are the arena's own rule (Adam's check_arena.gd), not the map contract.
 	var arena := (load(ARENA_SCENE) as PackedScene).instantiate()
 	var spawns := arena.get_node("Spawns")
-	for i: int in 2:
-		var marker := spawns.get_child(0)
+	for marker: Node in spawns.get_children():
 		spawns.remove_child(marker)
 		marker.free()
-	var packed := PackedScene.new()
-	packed.pack(arena)
-	arena.free()
-	DirAccess.make_dir_recursive_absolute(SCRATCH_FOLDER)
-	var six_path := SCRATCH_FOLDER.path_join("six_spawns.tscn")
-	ResourceSaver.save(packed, six_path)
-	list.maps = {"small": six_path}
+	var empty_path := _save_scratch(arena, "no_spawns.tscn")
+	list.maps = {"empty": empty_path}
 	var problems := list.validate()
-	_expect(_has_problem(problems, "small: it has 6 spawn points; it needs at least 8"), "a map with 6 spawn points fails, naming the entry", "; ".join(problems))
-	DirAccess.remove_absolute(six_path)
+	_expect(_has_problem(problems, "empty: it has 0 spawn points; it needs at least 1"), "a map with no spawn points fails, naming the entry", "; ".join(problems))
+	DirAccess.remove_absolute(empty_path)
+	# A Spawns child that isn't a Marker2D.
+	arena = (load(ARENA_SCENE) as PackedScene).instantiate()
+	var not_marker := Node2D.new()
+	not_marker.name = "Sign"
+	arena.get_node("Spawns").add_child(not_marker)
+	not_marker.owner = arena
+	var sign_path := _save_scratch(arena, "sign_spawn.tscn")
+	list.maps = {"signs": sign_path}
+	problems = list.validate()
+	_expect(_has_problem(problems, "signs: Spawns/Sign must be a Marker2D"), "a Spawns child that isn't a Marker2D fails", "; ".join(problems))
+	DirAccess.remove_absolute(sign_path)
+	# Adam's practice range: one PlayerSpawn with no team keeps the contract.
+	problems = MapList.entry_problems("practice", PRACTICE_SCENE)
+	_expect(problems.is_empty(), "the practice range (one PlayerSpawn) keeps the contract", "; ".join(problems))
 	_expect(MapList.team_of_spawn("SpawnA3") == 0 and MapList.team_of_spawn("SpawnB1") == 1 and MapList.team_of_spawn("Exit") == -1,
 		"spawn names give their team", "A/B/other -> %d/%d/%d" % [MapList.team_of_spawn("SpawnA3"), MapList.team_of_spawn("SpawnB1"), MapList.team_of_spawn("Exit")])
+
+
+## Packs the scene root into a scratch .tscn, frees the root and returns the path.
+func _save_scratch(scene_root: Node, file_name: String) -> String:
+	var packed := PackedScene.new()
+	packed.pack(scene_root)
+	scene_root.free()
+	DirAccess.make_dir_recursive_absolute(SCRATCH_FOLDER)
+	var path := SCRATCH_FOLDER.path_join(file_name)
+	ResourceSaver.save(packed, path)
+	return path
 
 
 func _has_problem(problems: PackedStringArray, start: String) -> bool:

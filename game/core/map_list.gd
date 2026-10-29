@@ -6,10 +6,12 @@ extends Resource
 ## The map contract every listed scene keeps is in game/net/README.md, "Maps online".
 
 const TEST: String = "test"
-## Spawn points a map needs at least (8 players, one point each).
-const MIN_SPAWNS: int = 8
+## Spawn points every map needs at least. The arena's own rule (8 team spawns) lives in
+## game/maps/arena/arena_graybox.gd; the practice range has one.
+const MIN_SPAWNS: int = 1
 const SPAWNS_NODE: String = "Spawns"
-## Spawn names start with the team: SpawnA = team 0 (Blue), SpawnB = team 1 (Orange).
+## A spawn name may start with a team: SpawnA = team 0 (Blue), SpawnB = team 1 (Orange).
+## Any other name (for example PlayerSpawn) is a spawn point for every team.
 const TEAM_PREFIXES: PackedStringArray = ["SpawnA", "SpawnB"]
 
 ## Lowercase name -> scene path, for example "arena" -> "res://game/maps/arena/arena_graybox.tscn".
@@ -66,10 +68,10 @@ static func contract_problems(root: Node) -> PackedStringArray:
 		return problems
 	var count := 0
 	for child: Node in spawns.get_children():
-		if child is Marker2D and team_of_spawn(child.name) >= 0:
+		if child is Marker2D:
 			count += 1
 		else:
-			problems.append("%s/%s must be a Marker2D named SpawnA... or SpawnB..." % [SPAWNS_NODE, child.name])
+			problems.append("%s/%s must be a Marker2D (a spawn point)" % [SPAWNS_NODE, child.name])
 	if count < MIN_SPAWNS:
 		problems.append("it has %d spawn points; it needs at least %d" % [count, MIN_SPAWNS])
 	return problems

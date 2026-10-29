@@ -33,7 +33,7 @@ Built for the Join screen (T10). Call these on the `Net` autoload from anywhere.
 
 | Call | What it does |
 | --- | --- |
-| `Net.host() -> Error` | Hosts the game on UDP 7777 for up to 16 players and loads the test world. The dedicated server calls this itself; nothing else needs to. Returns `OK`, or an ENet error if the port is taken. |
+| `Net.host() -> Error` | Hosts the game on UDP 7777 for up to 16 players and loads the test world. The dedicated server calls this itself; nothing else needs to. A coroutine: `await Net.host()`. Returns `OK`; an ENet error if the port is taken; or `ERR_CANT_CREATE` if the world fails to load, and then a dedicated server logs why and quits with exit code 1. |
 | `Net.play(address: String) -> void` | What the Join screen calls. Loads the test world first, then joins (the order that gives the server's spawns somewhere to land), so the answer is the same as `join()`: `joined` or `join_failed`. A second call while one is under way, or while already connecting or in a game, is ignored. If the world cannot load, the player lands back on the Join screen with the reason. `--join=` on the command line calls it too. |
 | `Net.join(address: String) -> Error` | Connects to `address` on UDP 7777. An empty string means `Net.server_address()`. Returns straight away: the answer arrives as `joined` or `join_failed`, always within 5 seconds. |
 | `Net.leave() -> void` | Hangs up. Emits `left("")` and does **not** change the scene, so the caller decides where to go next. Does nothing when already offline. |
@@ -103,8 +103,8 @@ message. A mismatch is refused before the peer counts as connected: the client
 shows `Update the game from the Drive folder (server vX, you vY)` and the server
 logs `refused peer <id>: version mismatch`.
 
-**NET_PROTOCOL** is 1 for T06 (which sent a bare version), 2 for T07, 3 for T08
-4 from T14 (the ability and knockback RPCs), 5 from T18 (`client_ready`'s hero index, the spawn data, the ability answers' charge times and `receive_heal`) and 6 from the week-3 seams (the spawn position in the spawn data). Bump it in the same pull request as any change to an RPC, its arguments, its channel or
+**NET_PROTOCOL** is 1 for T06 (which sent a bare version), 2 for T07, 3 for T08,
+4 from T14 (the ability and knockback RPCs), 5 from T18 (`client_ready`'s hero index, the spawn data, the ability answers' charge times and `receive_heal`) 6 from the week-3 seams (the spawn position in the spawn data) and 7 from T39 (the `load_map` message). Bump it in the same pull request as any change to an RPC, its arguments, its channel or
 the channel count. A build with a different wire format is then refused by name
 instead of failing later with channel or RPC errors.
 
@@ -617,8 +617,10 @@ Server spawn lines name the point: `[TestWorld] hero spawned for peer <id> at Sp
 
 A scene listed in `maps.tres` keeps all of these (data_test checks the first two):
 - The root is a Node2D with `map_size: Vector2` (px). The map's top-left corner is (0, 0).
-- Spawn points: Marker2D children of `Spawns`, 8 or more. A name starting `SpawnA`
-  is team 0 (Blue), `SpawnB` team 1 (Orange).
+- Spawn points: Marker2D children of `Spawns`, 1 or more, and nothing else under `Spawns`.
+  A name starting `SpawnA` is team 0 (Blue), `SpawnB` team 1 (Orange); any other name
+  (the practice range's `PlayerSpawn`) serves every team. How many a map needs is its
+  own rule: the arena checks its 8 team spawns itself (arena_graybox.gd, smoke runs it).
 - `bot_area() -> Rect2` on the root is optional. Without it, bots wander the map
   inside a 48 px outer wall, kept 32 px clear of it.
 - Walls and cover are on physics layer 1 and mask nothing (heroes and shots collide with layer 1).
@@ -654,10 +656,14 @@ mode, zoom 1) limited to `Rect2(Vector2.ZERO, map_size)`. The test world has non
 - **T20 dummies.** A target scene in game/maps: a `Health` node and a body on
   physics layer 2, like a hero's. ShotSim's hit mask already includes layer 2, but
   today a hit is handed to a NetHero, so Gabe makes the server hand it to any target
-  with a `Health` (game/weapons). The server decides the damage; the dummy sends the
-  number to ready peers with its own `receive_damage` RPC (NetHero's arguments), so
-  that PR is NET_PROTOCOL +1. Clients show it with T25's damage numbers. A dummy
-  refills instead of reaching 0: never eliminated, never respawned, no hero events.
+  with a `Health` (game/weapons). The server decides the damage. A dummy is not a
+  player, so it never emits `hero_damaged` (or any hero event): T22 counts those as
+  stats, and practice damage must never count. Instead it has its own event,
+  `Events.target_damaged(position: Vector2, amount: int)`: the server emits it, and
+  the dummy sends it to ready peers with its own `receive_damage` RPC, which emits it
+  on each client (so that PR is NET_PROTOCOL +1). T25 listens to it for the damage
+  number and hit sound; T22 never listens to it. A dummy refills instead of reaching
+  0: never eliminated, never respawned.
 - **One-click Practice Range** (main menu). The client starts a local headless
   server, `--server --map=practice`, waits for "server up" in its output, then
   `Net.play("127.0.0.1")`. It stops that process by PID when the player leaves.

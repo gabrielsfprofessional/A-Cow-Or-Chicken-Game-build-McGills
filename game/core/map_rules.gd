@@ -7,6 +7,7 @@ extends MatchRules
 ## set_rules() before any hero spawns. A mode (T15) extends this class and
 ## installs its own the same way, so team_of() steers the pick:
 ## team 0 -> SpawnA points, team 1 -> SpawnB points, no team -> any point.
+## A point with no team in its name (for example PlayerSpawn) serves every team.
 ## The pick is stable per peer (the ring's golden-ratio step); T12 refines it.
 
 var _names: Array[String] = []
@@ -30,7 +31,7 @@ static func from_map(map: Node) -> MapRules:
 
 
 ## A map's spawn points by name, in the world's coordinates: every Marker2D under
-## Spawns whose name gives a team. A mode builds its own subclass from these:
+## Spawns (a name without SpawnA or SpawnB serves every team). A mode builds its own subclass from these:
 ## MyRules.new(MapRules.points_of(map)).
 static func points_of(map: Node) -> Dictionary[String, Vector2]:
 	var points: Dictionary[String, Vector2] = {}
@@ -38,7 +39,7 @@ static func points_of(map: Node) -> Dictionary[String, Vector2]:
 	if spawns != null:
 		for child: Node in spawns.get_children():
 			var marker := child as Marker2D
-			if marker != null and MapList.team_of_spawn(marker.name) >= 0:
+			if marker != null:
 				points[String(marker.name)] = marker.global_position
 	return points
 
@@ -60,7 +61,8 @@ func pick(peer_id: int) -> int:
 	var team := team_of(peer_id)
 	var candidates: Array[int] = []
 	for i: int in _names.size():
-		if team < 0 or MapList.team_of_spawn(_names[i]) == team:
+		var point_team := MapList.team_of_spawn(_names[i])
+		if team < 0 or point_team < 0 or point_team == team:
 			candidates.append(i)
 	if candidates.is_empty():
 		for i: int in _names.size():
