@@ -37,6 +37,7 @@ Built for the Join screen (T10). Call these on the `Net` autoload from anywhere.
 | `Net.play(address: String) -> void` | What the Join screen calls. Loads the test world first, then joins (the order that gives the server's spawns somewhere to land), so the answer is the same as `join()`: `joined` or `join_failed`. A second call while one is under way, or while already connecting or in a game, is ignored. If the world cannot load, the player lands back on the Join screen with the reason. `--join=` on the command line calls it too. |
 | `Net.join(address: String) -> Error` | Connects to `address` on UDP 7777. An empty string means `Net.server_address()`. Returns straight away: the answer arrives as `joined` or `join_failed`, always within 5 seconds. |
 | `Net.leave() -> void` | Hangs up. Emits `left("")` and does **not** change the scene, so the caller decides where to go next. Does nothing when already offline. |
+| `Net.drop_out(reason: String) -> void` | Puts a player who was in a game out of it for a reason that isn't theirs (a lost server, a map this build doesn't have): closes the connection, emits `left(reason)` and goes back to the Join screen, which shows the reason. Does nothing unless in a game. Call it deferred from an RPC. |
 
 Also useful: `Net.last_reason` (see below), `Net.server_address()` (address from the git-ignored `server.cfg`,
 falling back to `127.0.0.1`), `Net.version()` (the version sent in the
@@ -607,9 +608,9 @@ before their hero spawns. NET_PROTOCOL 7 (the `load_map` message).
    before the map (the spawner replays them on connect), so nothing may assume the
    map exists when a hero enters; the player's own hero always comes after it. On the test world, `load_map("test")` builds
    nothing and lets the hello go.
-4. A name the client's `maps.tres` doesn't have (a mismatched build) ends the join
-   (`Net.join_failed`, so a test bot exits 1): "Could not load the map <name>.
-   Update the game from the Drive folder."
+4. A name the client's `maps.tres` doesn't have (a mismatched build) drops the player
+   out with `Net.drop_out(reason)`: `left(reason)` (so a test bot exits 1), then the Join
+   screen shows "Could not load the map <name>. Update the game from the Drive folder."
 
 Server spawn lines name the point: `[TestWorld] hero spawned for peer <id> at SpawnA2 (216, 840)`.
 
@@ -618,8 +619,8 @@ Server spawn lines name the point: `[TestWorld] hero spawned for peer <id> at Sp
 A scene listed in `maps.tres` keeps all of these (data_test checks the first two):
 - The root is a Node2D with `map_size: Vector2` (px). The map's top-left corner is (0, 0).
 - Spawn points: Marker2D children of `Spawns`, 1 or more, and nothing else under `Spawns`.
-  A name starting `SpawnA` is team 0 (Blue), `SpawnB` team 1 (Orange); any other name
-  (the practice range's `PlayerSpawn`) serves every team. How many a map needs is its
+  `SpawnA` or `SpawnA<number>` is team 0 (Blue), `SpawnB` or `SpawnB<number>` team 1
+  (Orange); any other name (the practice range's `PlayerSpawn`, or `SpawnBridge`) serves every team. How many a map needs is its
   own rule: the arena checks its 8 team spawns itself (arena_graybox.gd, smoke runs it).
 - `bot_area() -> Rect2` on the root is optional. Without it, bots wander the map
   inside a 48 px outer wall, kept 32 px clear of it.

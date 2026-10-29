@@ -77,9 +77,13 @@ static func contract_problems(root: Node) -> PackedStringArray:
 	return problems
 
 
-## 0 for a SpawnA... name, 1 for SpawnB..., -1 for anything else.
+## 0 for SpawnA or SpawnA<number>, 1 for SpawnB or SpawnB<number>, -1 for anything
+## else (so SpawnArea or SpawnBridge is a shared point, not a team one).
 static func team_of_spawn(spawn_name: String) -> int:
 	for team: int in TEAM_PREFIXES.size():
-		if spawn_name.begins_with(TEAM_PREFIXES[team]):
-			return team
+		var prefix: String = TEAM_PREFIXES[team]
+		if spawn_name.begins_with(prefix):
+			var rest := spawn_name.substr(prefix.length())
+			if rest.is_empty() or rest.is_valid_int():
+				return team
 	return -1

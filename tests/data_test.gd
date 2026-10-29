@@ -534,8 +534,8 @@ func _broken_map_entries() -> void:
 	# Adam's practice range: one PlayerSpawn with no team keeps the contract.
 	problems = MapList.entry_problems("practice", PRACTICE_SCENE)
 	_expect(problems.is_empty(), "the practice range (one PlayerSpawn) keeps the contract", "; ".join(problems))
-	_expect(MapList.team_of_spawn("SpawnA3") == 0 and MapList.team_of_spawn("SpawnB1") == 1 and MapList.team_of_spawn("Exit") == -1,
-		"spawn names give their team", "A/B/other -> %d/%d/%d" % [MapList.team_of_spawn("SpawnA3"), MapList.team_of_spawn("SpawnB1"), MapList.team_of_spawn("Exit")])
+	_expect(MapList.team_of_spawn("SpawnA3") == 0 and MapList.team_of_spawn("SpawnB1") == 1 and MapList.team_of_spawn("Exit") == -1 and MapList.team_of_spawn("SpawnBridge") == -1,
+		"spawn names give their team", "A/B/Exit/SpawnBridge -> %d/%d/%d/%d" % [MapList.team_of_spawn("SpawnA3"), MapList.team_of_spawn("SpawnB1"), MapList.team_of_spawn("Exit"), MapList.team_of_spawn("SpawnBridge")])
 
 
 ## Packs the scene root into a scratch .tscn, frees the root and returns the path.

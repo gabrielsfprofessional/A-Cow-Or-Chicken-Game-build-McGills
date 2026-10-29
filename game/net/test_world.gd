@@ -256,12 +256,7 @@ func _on_hero_entered(node: Node) -> void:
 ## arrives inside the peer's poll, where closing the peer crashes Godot (see net.gd).
 func _map_failed(reason: String) -> void:
 	print("[TestWorld] %s" % reason)
-	Net.leave()
-	# The player never got in: say so the way a failed join does (a test bot exits 1).
-	Net.join_failed.emit(reason)
-	if DisplayServer.get_name() != "headless":
-		OS.alert(reason, "A Cow or Chicken")
-	get_tree().change_scene_to_file.call_deferred(Net.MAIN_MENU)
+	Net.drop_out(reason)
 
 
 ## A client telling the server its world is ready and which roster hero it

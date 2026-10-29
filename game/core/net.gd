@@ -403,10 +403,17 @@ func _on_server_disconnected() -> void:
 
 
 func _lose_server() -> void:
+	drop_out("Lost connection to the server. It may have been closed.")
+
+
+## Out of a game the player was in, for a reason that isn't theirs (a lost server,
+## a map this build doesn't have). Emits left(reason), so a test bot exits 1, and puts
+## the player back on the Join screen, which shows the reason. Call it deferred from
+## an RPC: closing the peer inside its poll crashes Godot.
+func drop_out(reason: String) -> void:
 	if state != State.CLIENT:
 		return
 	_close_peer()
-	var reason := "Lost connection to the server. It may have been closed."
 	_log(reason)
 	left.emit(reason)
 	_return_to_join_screen(reason)
