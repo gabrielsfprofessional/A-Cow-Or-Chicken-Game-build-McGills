@@ -31,7 +31,7 @@ grow_vertical = 2
 
 [node name="Menu" type="VBoxContainer" parent="Center"]
 layout_mode = 2
-theme_override_constants/separation = 24
+theme_override_constants/separation = 12
 
 [node name="Title" type="Label" parent="Center/Menu"]
 layout_mode = 2
@@ -41,38 +41,43 @@ horizontal_alignment = 1
 
 [node name="Version" type="Label" parent="Center/Menu"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 28
 text = "Version"
+horizontal_alignment = 1
+
+[node name="PlayingAs" type="Label" parent="Center/Menu"]
+layout_mode = 2
 horizontal_alignment = 1
 
 [node name="PlayButton" type="Button" parent="Center/Menu"]
 custom_minimum_size = Vector2(520, 72)
 layout_mode = 2
-theme_override_font_sizes/font_size = 32
 text = "Play"
 
 [node name="PracticeButton" type="Button" parent="Center/Menu"]
 custom_minimum_size = Vector2(520, 72)
 layout_mode = 2
-theme_override_font_sizes/font_size = 32
 disabled = true
 text = "Practice Range (card T20)"
+
+[node name="ProfileButton" type="Button" parent="Center/Menu"]
+custom_minimum_size = Vector2(520, 72)
+layout_mode = 2
+text = "Profile"
 
 [node name="SettingsButton" type="Button" parent="Center/Menu"]
 custom_minimum_size = Vector2(520, 72)
 layout_mode = 2
-theme_override_font_sizes/font_size = 32
 text = "Settings"
 
 [node name="QuitButton" type="Button" parent="Center/Menu"]
 custom_minimum_size = Vector2(520, 72)
 layout_mode = 2
-theme_override_font_sizes/font_size = 32
 text = "Quit"
 
 [node name="UiScaler" type="Node" parent="."]
 script = ExtResource("2_scaler")
 
 [connection signal="pressed" from="Center/Menu/PlayButton" to="." method="_on_play_pressed"]
+[connection signal="pressed" from="Center/Menu/ProfileButton" to="." method="_on_profile_pressed"]
 [connection signal="pressed" from="Center/Menu/SettingsButton" to="." method="_on_settings_pressed"]
 [connection signal="pressed" from="Center/Menu/QuitButton" to="." method="_on_quit_pressed"]
