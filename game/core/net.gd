@@ -40,7 +40,7 @@ const JOIN_TIMEOUT: float = 5.0
 ## How long the server waits before dropping a version-mismatched peer.
 const REFUSE_DELAY: float = 1.0
 const TEST_WORLD: String = "res://game/net/test_world.tscn"
-const MAIN_MENU: String = "res://game/ui/main_menu.tscn"
+const JOIN_SCREEN: String = "res://game/ui/join_screen.tscn"
 ## Frames the auto-join waits for the world to load before it gives up.
 const WORLD_LOAD_FRAMES: int = 600
 
@@ -53,10 +53,15 @@ enum State {
 
 ## Read-only for other cards. T10 uses it to pick what the Join screen shows.
 var state: State = State.OFFLINE
+
 ## The roster slot this player plays (week-3 seams). T16's hero select sets it
 ## before joining; -1 means not chosen, so "--hero=" (debug builds) or the first
 ## hero. Works in release builds.
 var chosen_hero_index: int = -1
+
+## Why the last join failed or the connection was lost. The Join screen shows it
+## once and clears it.
+var last_reason: String = ""
 
 var _peer_versions: Dictionary[int, String] = {}
 var _server_version: String = ""
@@ -64,6 +69,8 @@ var _join_target: String = ""
 var _join_started_msec: int = 0
 ## Bumped on every join and leave so a stale timeout cannot fail a later attempt.
 var _join_attempt: int = 0
+## True from play() until the world has loaded and join() has started.
+var _play_busy: bool = false
 
 
 func _ready() -> void:
@@ -87,7 +94,7 @@ func _ready() -> void:
 func server_address() -> String:
 	var config := ConfigFile.new()
 	if config.load(CONFIG_PATH) == OK:
-		return str(config.get_value("server", "address", "127.0.0.1"))
+		return str(config.get_value("server", "address", "127.0.0.1")).strip_edges()
 	return "127.0.0.1"
 
 
@@ -182,7 +189,11 @@ func host() -> Error:
 	multiplayer.multiplayer_peer = peer
 	state = State.SERVER
 	_log("server up on UDP %d, version %s, room for %d players" % [DEFAULT_PORT, version(), MAX_PLAYERS])
-	_load_world()
+	var loaded := await _load_world()
+	if not loaded and Game.is_server():
+		_log("the server has no world, quitting")
+		get_tree().quit(1)
+		return ERR_CANT_CREATE
 	return OK
 
 
@@ -222,27 +233,38 @@ func leave() -> void:
 	left.emit("")
 
 
+## Open the test world, then join. The Join screen calls this.
+## The world loads first so the server's spawns have somewhere to land.
+## Answers like join(): "joined" or "join_failed(reason)". A second call while one
+## is under way, or while already connecting or in a game, is ignored.
+func play(address: String) -> void:
+	if _play_busy or state != State.OFFLINE:
+		return
+	_play_busy = true
+	var loaded := await _load_world()
+	_play_busy = false
+	if not loaded:
+		_fail_play("Could not open the game world. Tell Gabe.")
+		return
+	join(address)
+
+
 func _autostart() -> void:
 	# Let the main scene finish loading before swapping it out.
 	await get_tree().process_frame
 	if Game.is_server():
-		host()
+		await host()
 		return
 	var address := join_argument()
 	if address == "":
 		return  # A normal launch: stay on the main menu.
-	# The world has to exist before the handshake, so the server's spawns have
-	# somewhere to land and hello only goes out once we can draw heroes.
-	if not await _load_world():
-		return
-	join(address)
+	play(address)
 
 
 func _load_world() -> bool:
 	var err := get_tree().change_scene_to_file(TEST_WORLD)
 	if err != OK:
 		_log("could not load %s (error %d)" % [TEST_WORLD, err])
-		_alert("Could not load the test world (error %d)." % err)
 		return false
 	var waited := 0
 	while waited < WORLD_LOAD_FRAMES:
@@ -252,7 +274,6 @@ func _load_world() -> bool:
 		await get_tree().process_frame
 		waited += 1
 	_log("the test world did not load within %d frames" % WORLD_LOAD_FRAMES)
-	_alert("The test world did not load. Tell Gabe.")
 	return false
 
 
@@ -358,6 +379,7 @@ func _on_connected_to_server() -> void:
 	if state != State.CONNECTING:
 		return  # Already given up on this attempt. Do not resurrect it.
 	state = State.CLIENT
+	last_reason = ""
 	_stop_throttle(1)
 	_log("connected as peer %d after %s (server version %s)" % [
 		multiplayer.get_unique_id(), _since_join(), _server_version,
@@ -387,7 +409,7 @@ func _lose_server() -> void:
 	var reason := "Lost connection to the server. It may have been closed."
 	_log(reason)
 	left.emit(reason)
-	_return_to_menu(reason)
+	_return_to_join_screen(reason)
 
 
 # --- plumbing ----------------------------------------------------------------
@@ -407,8 +429,8 @@ func _fail_join(reason: String) -> void:
 		return
 	_close_peer()
 	_log("join failed after %s: %s" % [_since_join(), reason])
+	_return_to_join_screen(reason)
 	join_failed.emit(reason)
-	_return_to_menu(reason)
 
 
 func _close_peer() -> void:
@@ -421,29 +443,39 @@ func _close_peer() -> void:
 	multiplayer.multiplayer_peer = null
 
 
-## Say why, then put the player back where they can try again.
-## T10 replaces the alert with the Join screen's own message.
-func _return_to_menu(reason: String) -> void:
+## The world would not load, so there is no connection to close. Tell the Join
+## screen if it is still showing; otherwise put the player back on it.
+func _fail_play(reason: String) -> void:
+	_log(reason)
 	if Game.is_server():
 		return
-	_alert(reason)
+	_return_to_join_screen(reason)
+	join_failed.emit(reason)
+
+
+## Say why, then put the player back where they can try again.
+## The Join screen shows last_reason once it is up.
+func _return_to_join_screen(reason: String) -> void:
+	if Game.is_server():
+		return
+	last_reason = reason
 	var current := get_tree().current_scene
-	if current == null or current.scene_file_path != MAIN_MENU:
-		get_tree().change_scene_to_file.call_deferred(MAIN_MENU)
-		_log_menu_arrival()
+	if current == null or current.scene_file_path != JOIN_SCREEN:
+		get_tree().change_scene_to_file.call_deferred(JOIN_SCREEN)
+		_log_join_screen_arrival()
 
 
-## Logs once the menu is really up, not just asked for.
-func _log_menu_arrival() -> void:
+## Logs once the Join screen is really up, not just asked for.
+func _log_join_screen_arrival() -> void:
 	var waited := 0
 	while waited < WORLD_LOAD_FRAMES:
 		var current := get_tree().current_scene
-		if current != null and current.scene_file_path == MAIN_MENU:
-			_log("back to the main menu")
+		if current != null and current.scene_file_path == JOIN_SCREEN:
+			_log("back on the Join screen")
 			return
 		await get_tree().process_frame
 		waited += 1
-	_log("could not get back to the main menu")
+	_log("could not get back to the Join screen")
 
 
 func _alert(message: String) -> void:

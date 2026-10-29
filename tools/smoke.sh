@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Smoke test: import the project, run the game headless for 300 frames and fail
-# if Godot prints any script or engine error. Then run every tests/*_test.gd and
-# Adam's arena checks (when they exist) and fail if any exits non-zero or runs
+# if Godot prints any script or engine error. Then run every tests/*_test.gd,
+# Adam's check_arena.gd and every test_*.gd in game/maps/tools and
+# game/modes/tools (when they exist), and fail if any exits non-zero or runs
 # longer than 60 s (it is then killed). Then play a bot match (cards T09, T18): a headless server and 4 test bots, one per hero, on UDP 7777.
 # Usage (Linux, CI, or Git Bash):  GODOT=/path/to/godot bash tools/smoke.sh
 set -uo pipefail
@@ -25,8 +26,8 @@ SCRIPTS=()
 for f in "$ROOT"/tests/*_test.gd; do
   [ -e "$f" ] && SCRIPTS+=("res://tests/$(basename "$f")")
 done
-for f in game/maps/tools/check_arena.gd game/maps/tools/test_arena_check.gd; do
-  [ -e "$ROOT/$f" ] && SCRIPTS+=("res://$f")
+for f in "$ROOT"/game/maps/tools/check_arena.gd "$ROOT"/game/maps/tools/test_*.gd "$ROOT"/game/modes/tools/test_*.gd; do
+  [ -e "$f" ] && SCRIPTS+=("res://${f#"$ROOT"/}")
 done
 FAILED=0
 for s in "${SCRIPTS[@]}"; do
