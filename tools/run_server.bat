@@ -18,11 +18,15 @@ if not exist "%GODOT_EXE%" (
 	exit /b 1
 )
 
+set "MAP="
+set /p "MAP=Map (Enter = test): "
+if not defined MAP set "MAP=test"
+
 echo Starting the server. This window has no game in it - that is normal.
 echo Wait for the line that says "server up", then everyone can join.
 echo To stop the server, close this window.
 echo.
-"%GODOT_EXE%" --headless --path . -- --server
+"%GODOT_EXE%" --headless --path . -- --server "--map=%MAP%"
 
 echo.
 echo The server has stopped.

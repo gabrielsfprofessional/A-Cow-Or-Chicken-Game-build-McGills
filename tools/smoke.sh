@@ -147,4 +147,82 @@ if [ "$MATCH_FAILED" -ne 0 ]; then
   exit 1
 fi
 echo "SMOKE: bot match passed (server and 4 bots exited 0, all four abilities used, $HITS hits, $ABILITIES abilities, $((SECONDS - MATCH_START)) s)"
+
+# Arena check (card T39): a server on Adam's arena (--map=arena) and bots 1-2
+# (20 s, 1 s apart). Passes when all three exit 0, the server built the arena and
+# spawned both heroes on its Spawn markers, each bot built the map before saying
+# hello, and no log has an error or a refusal. Anything left after 45 s is killed by PID.
+NAMES=(arena-server arena-bot1 arena-bot2)
+LOGS=("$(mktemp)" "$(mktemp)" "$(mktemp)")
+PIDS=()
+trap stop_match_leftovers EXIT
+MATCH_START=$SECONDS
+"$GODOT" --headless --path "$ROOT" -- --server --map=arena --quit-after-sec=32 >"${LOGS[0]}" 2>&1 &
+PIDS+=("$!")
+STATE="timeout"
+while [ $((SECONDS - MATCH_START)) -lt 30 ]; do
+  if grep -q "could not host" "${LOGS[0]}"; then STATE="in use"; break; fi
+  if grep -q "server up" "${LOGS[0]}"; then STATE="up"; break; fi
+  if ! kill -0 "${PIDS[0]}" 2>/dev/null; then STATE="exited"; break; fi
+  sleep 0.2
+done
+if [ "$STATE" != "up" ]; then
+  cat "${LOGS[0]}"
+  echo "SMOKE: FAIL: the arena check server did not start ($STATE, log: ${LOGS[0]})"
+  exit 1
+fi
+for n in 1 2; do
+  if [ "$n" -gt 1 ]; then sleep 1; fi
+  "$GODOT" --headless --path "$ROOT" -- --join=127.0.0.1 --bot=$n --hero=${MATCH_HEROES[$((n - 1))]} --quit-after-sec=20 >"${LOGS[$n]}" 2>&1 &
+  PIDS+=("$!")
+done
+while [ $((SECONDS - MATCH_START)) -lt 45 ]; do
+  RUNNING=0
+  for pid in "${PIDS[@]}"; do
+    if kill -0 "$pid" 2>/dev/null; then RUNNING=$((RUNNING + 1)); fi
+  done
+  [ "$RUNNING" -eq 0 ] && break
+  sleep 0.5
+done
+stop_match_leftovers
+MATCH_FAILED=0
+for i in 0 1 2; do
+  wait "${PIDS[$i]}"
+  CODE=$?
+  if [ "$CODE" -ne 0 ]; then
+    echo "SMOKE: arena check: ${NAMES[$i]} exited $CODE"
+    MATCH_FAILED=1
+  fi
+done
+PIDS=()
+trap - EXIT
+if grep -nE "SCRIPT ERROR|Parse Error|ERROR:" "${LOGS[@]}"; then MATCH_FAILED=1; fi
+if grep -nE "\[(Move|Shot|Ability)\]" "${LOGS[@]}"; then MATCH_FAILED=1; fi
+if ! grep -q "\[TestWorld\] map arena built" "${LOGS[0]}"; then
+  echo "SMOKE: arena check: the server never built the arena"
+  MATCH_FAILED=1
+fi
+SPAWNED=$(grep -c "\[TestWorld\] hero spawned for peer" "${LOGS[0]}")
+ON_MARKERS=$(grep -cE "\[TestWorld\] hero spawned for peer [0-9]+ at Spawn[AB][0-9]+ \(" "${LOGS[0]}")
+if [ "$SPAWNED" -ne 2 ] || [ "$ON_MARKERS" -ne 2 ]; then
+  echo "SMOKE: arena check: $ON_MARKERS of $SPAWNED heroes spawned on a Spawn marker (want 2 of 2)"
+  MATCH_FAILED=1
+fi
+for n in 1 2; do
+  BUILT=$(grep -n "\[TestWorld\] map arena built" "${LOGS[$n]}" | head -n 1 | cut -d: -f1)
+  HELLO=$(grep -n "saying hello" "${LOGS[$n]}" | head -n 1 | cut -d: -f1)
+  if [ -z "$BUILT" ] || [ -z "$HELLO" ] || [ "$BUILT" -gt "$HELLO" ]; then
+    echo "SMOKE: arena check: arena-bot$n did not build the map before its hello"
+    MATCH_FAILED=1
+  fi
+done
+if [ "$MATCH_FAILED" -ne 0 ]; then
+  for i in 0 1 2; do
+    echo "--- ${NAMES[$i]} log, last 40 lines:"
+    tail -n 40 "${LOGS[$i]}"
+  done
+  echo "SMOKE: FAIL: arena check (logs: ${LOGS[0]} ${LOGS[1]} ${LOGS[2]})"
+  exit 1
+fi
+echo "SMOKE: arena check passed (server and 2 bots exited 0, both heroes on Spawn markers, map built before hello)"
 echo "SMOKE: PASS"
