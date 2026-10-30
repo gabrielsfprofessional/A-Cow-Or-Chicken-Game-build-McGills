@@ -3,8 +3,9 @@ extends SceneTree
 ## through allies, Health.absorb and bots ignoring allies. Owner: Gabe.
 ## Run: godot --headless --path . --script res://tests/match_rules_test.gd
 ## Exits 1 when any case fails. tools/smoke.ps1 and smoke.sh run it.
-## Autoloads don't load in --script runs, so NetHero, Shots and the test world
-## (which use Net and Events) are covered by the bot match instead; this file
+## A --script test compiles before the autoloads register, so this file can't
+## name NetHero, Shots or the test world (they use Net and Events); the bot match
+## covers them, and tests/respawn_test.gd loads heroes at run time. This file
 ## checks every rule they ask and the ShotSim they drive.
 
 const MatchRulesScript: GDScript = preload("res://game/core/match_rules.gd")

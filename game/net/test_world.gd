@@ -22,6 +22,9 @@ const MAP_FLAG: String = "--map="
 ## A map without bot_area(): its floor inside the outer wall (one 48 px cell), kept 32 px clear.
 const MAP_WALL_PX: float = 48.0
 const BOT_WALL_CLEARANCE_PX: float = 32.0
+## Debug builds, server: "-- --respawn-all-at=<sec>" calls respawn_all() once, that
+## many seconds after the world loads. Smoke's bot match tests a new match with it.
+const RESPAWN_ALL_FLAG: String = "--respawn-all-at="
 
 ## Server only: peers that said client_ready, so relays never reach a peer
 ## whose world is not loaded yet.
@@ -64,6 +67,7 @@ func _ready() -> void:
 		var stats := ServerStats.new()
 		stats.name = "ServerStats"
 		add_child(stats)
+		_start_respawn_all_timer()
 	# A client: Net loads this world before it joins, and hello waits for the
 	# server's load_map, so the map is built before this player's own hero spawns
 	# (T39). Other players' heroes can arrive a few packets earlier (the spawner
@@ -130,6 +134,35 @@ func set_rules(new_rules: MatchRules) -> void:
 ## default). Clients get the first spot in the spawn data, later ones with the respawn.
 func respawn_point(peer_id: int) -> Vector2:
 	return _rules.respawn_point(peer_id)
+
+
+## Server: a new match (T15). Drops every shot in flight, so none from the old
+## match lands, then brings every hero back at once, alive or eliminated
+## (NetHero.respawn_now()): a new life, full health, a point from rules(), the
+## rules' spawn protection, every ready peer told. Ability cooldowns carry over.
+## Logs "[Combat] respawn_all: <n> heroes, <m> shots cleared" and returns n; 0 on clients.
+func respawn_all() -> int:
+	if Net.state != Net.State.SERVER:
+		return 0
+	var cleared := _shots.clear_server_shots()
+	var count := 0
+	for child: Node in _heroes.get_children():
+		var hero := child as NetHero
+		if hero == null or hero.is_queued_for_deletion():
+			continue  # A hero whose player just left goes at the end of this frame.
+		if hero.respawn_now():
+			count += 1
+	print("[Combat] respawn_all: %d heroes, %d shots cleared" % [count, cleared])
+	return count
+
+
+## Debug builds, server: "--respawn-all-at=<sec>" (RESPAWN_ALL_FLAG).
+func _start_respawn_all_timer() -> void:
+	var value := Net.debug_flag(OS.is_debug_build(), OS.get_cmdline_user_args(), RESPAWN_ALL_FLAG)
+	if not value.is_valid_float() or value.to_float() <= 0.0:
+		return
+	print("[TestWorld] respawn-all-at=%s: respawn_all() in %s s" % [value, value])
+	get_tree().create_timer(value.to_float()).timeout.connect(respawn_all)
 
 
 ## Where test bots wander (T09): BotBrain walks to random points in it. Points
@@ -358,8 +391,11 @@ func _on_hero_eliminated(victim: int, attacker: int) -> void:
 	print("[Combat] hero_eliminated: Player %d by Player %d" % [victim, attacker])
 
 
+## With the life it starts, so a log shows which respawn each peer applied.
 func _on_hero_respawned(peer_id: int, at: Vector2) -> void:
-	print("[Combat] hero_respawned: Player %d at (%.0f, %.0f)" % [peer_id, at.x, at.y])
+	var hero := _heroes.get_node_or_null(NodePath(str(peer_id))) as NetHero
+	var life := str(hero.life) if hero != null else "?"
+	print("[Combat] hero_respawned: Player %d at (%.0f, %.0f), life %s" % [peer_id, at.x, at.y, life])
 
 
 func _on_ability_used(peer_id: int, ready_in_sec: float) -> void:

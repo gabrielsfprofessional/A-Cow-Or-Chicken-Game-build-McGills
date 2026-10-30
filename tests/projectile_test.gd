@@ -41,6 +41,8 @@ func _run() -> void:
 	await _starts_inside_wall()
 	await _shooter_never_hit()
 	await _disabled_collider_passes()
+	await _clear_drops_every_shot()
+	await _clear_inside_a_hit()
 	print("PROJECTILE TEST: %s (%d checks)" % ["PASS" if _failed == 0 else "FAIL, %d wrong" % _failed, _count])
 	quit(0 if _failed == 0 else 1)
 
@@ -217,6 +219,53 @@ func _disabled_collider_passes() -> void:
 	_start(sim, 1, Vector2.RIGHT, _weapon(900.0, 600.0))
 	await _run_out(sim)
 	_expect_true("a disabled collider lets the shot pass", _hits.is_empty() and sim.expired == 1)
+
+
+## A new match (world.respawn_all()): clear() drops every shot, counts them, and
+## leaves every slot free for the next ones.
+func _clear_drops_every_shot() -> void:
+	await _place(PARKED, PARKED + Vector2(500, 0))
+	var sim := _new_sim()
+	for shot_id: int in range(1, 4):
+		_start(sim, shot_id, Vector2.RIGHT, _weapon(300.0, 900.0))
+	await physics_frame
+	sim.step(_space(), TICK)
+	var dropped := sim.clear()
+	_expect_true("clear() drops every shot in flight (dropped %d, %d left)" % [dropped, sim.active_count()],
+		dropped == 3 and sim.active_count() == 0 and sim.cleared == 3 and sim.find(7, 1) == -1)
+	_expect_true("a cleared shot is not a hit, a stop or an expiry",
+		_hits.is_empty() and sim.hits == 0 and sim.stopped == 0 and sim.expired == 0)
+	_expect_true("clear() with nothing in flight drops nothing", sim.clear() == 0 and sim.cleared == 3)
+	var started := 0
+	for shot_id: int in range(10, 11 + ShotSim.CAPACITY):
+		if _start(sim, shot_id, Vector2.RIGHT, _weapon(300.0, 900.0)):
+			started += 1
+	_expect_true("every slot is free again after clear() (%d of %d started)" % [started, ShotSim.CAPACITY + 1],
+		started == ShotSim.CAPACITY and sim.active_count() == ShotSim.CAPACITY)
+	_expect_true("clear() empties a full sim", sim.clear() == ShotSim.CAPACITY and sim.active_count() == 0)
+
+
+## clear() from on_hit, inside step(): the shot right behind the one that hit,
+## due later in the same tick, never lands.
+func _clear_inside_a_hit() -> void:
+	await _place(PARKED, Vector2(350.0, 500.0))
+	var sim := _new_sim()
+	sim.on_hit = func(attacker: int, shot_id: int, damage: int, health: Health, at: Vector2) -> void:
+		_hits.append({"attacker": attacker, "shot": shot_id, "damage": damage, "health": health, "at": at})
+		sim.clear()
+	# Two shots on one path, 100 px a tick: both reach the hero in the same tick.
+	_start(sim, 1, Vector2.RIGHT, _weapon(6000.0, 900.0))
+	_start(sim, 2, Vector2.RIGHT, _weapon(6000.0, 900.0))
+	await _run_out(sim)
+	_expect_true("clear() inside a hit stops the shot behind it (hits %d, cleared %d)" % [_hits.size(), sim.cleared],
+		_hits.size() == 1 and _hits[0].shot == 1 and sim.cleared == 1 and sim.active_count() == 0)
+	var started := 0
+	for shot_id: int in range(10, 10 + ShotSim.CAPACITY):
+		if _start(sim, shot_id, Vector2.LEFT, _weapon(300.0, 900.0)):
+			started += 1
+	_expect_true("every slot is free after clear() inside step() (%d started)" % started, started == ShotSim.CAPACITY)
+	sim.on_hit = Callable()  # The callback holds sim: break the cycle so nothing leaks.
+	sim.clear()
 
 
 func _expect_true(case_name: String, ok: bool) -> void:

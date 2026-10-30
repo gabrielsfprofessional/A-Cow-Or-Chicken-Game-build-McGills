@@ -8,15 +8,17 @@ Hero scenes, abilities and hero data files (data/*.tres). Cards: T08, T13, T14, 
 (T07-T09, T13; moved here from `game/net` in T14). It moves, sends, checks and
 smooths, carries a Weapon and a Health, hides on elimination and respawns.
 `setup()` gives it its HeroData. Its messages are in `game/net/README.md`.
+`respawn_now()` (server) brings it back at once, alive or eliminated, for a
+mode's new match (`world.respawn_all()`, see game/net/README.md, "New match").
 
 T14 and T18, the Q abilities (messages in `game/net/README.md`):
 
 | File | What it is |
 | --- | --- |
 | `ability.gd` | `Ability` (T18): what every Q ability shares, as the hero's `Ability` child, built by `NetHero.setup()` with `HeroData.ability.make()`. Asks the server on Q, starts its effect when it says yes, keeps each charge's countdown. A press while a request is out or forced motion runs is held and sent after, if a charge is ready. On the server: checks, runs the effect's grants, tells everyone. Each ability extends it and adds only its effect. |
-| `dash.gd` | `Dash` (T14's ShieldCharge, renamed in T18): a dash toward the aim. On the server: grants, sweeps and knocks back (when `knockback_px` > 0). |
+| `dash.gd` | `Dash` (T14's ShieldCharge, renamed in T18): a dash toward the aim. On the server: grants, sweeps and knocks back (when `knockback_px` > 0); the dasher's respawn ends the sweep. |
 | `blink.gd` | `Blink` (T18): a jump toward the aim in one physics tick, stopped short by a wall. On the server: grants the distance. Everyone else's copy snaps. |
-| `heal_drone.gd` | `HealDrone` (T18): on the server, a heal tick every `tick_sec` through `duration_sec` for every alive hero within `radius_px` of the healer (the healer included), stopped by the healer's elimination. Every client draws the drone and its ring. |
+| `heal_drone.gd` | `HealDrone` (T18): on the server, a heal tick every `tick_sec` through `duration_sec` for every alive hero within `radius_px` of the healer (the healer included), stopped by the healer's elimination or respawn. Every client draws the drone and its ring. |
 | `ability_check.gd` | `AbilityCheck`: the server's pure check on each request (owner, life, alive, direction, a charge ready; T18: each charge comes back `cooldown_sec` after its own use). Tested by `tests/ability_check_test.gd`. |
 | `charge_sweep.gd` | `ChargeSweep`: which heroes a dash stretch passes through. Tested against real physics by `tests/charge_sweep_test.gd`. |
 | `spawn_protection.gd` | `SpawnProtection` (week-3 seams): the server's timer after a respawn, protected while now < its end. `NetHero.take_hit()` absorbs a shot and `knock_back()` does nothing while it runs; healing still works. Tested by `tests/match_rules_test.gd`. |

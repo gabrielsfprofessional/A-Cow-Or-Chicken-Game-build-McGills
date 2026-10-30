@@ -250,6 +250,7 @@ window). A release build ignores them. The status line lists the active ones.
 | `--bot=<seed>` | Makes this client a test bot (T09): a `BotBrain` drives its hero. Use with `--headless`, `--join=<address>` and `--quit-after-sec`. See "Test bots (card T09)". |
 | `--hero=<name>` | Plays the roster hero whose file is `<name>.tres`: `bruiser` (the default), `mage`, `scout` or `medic` (T18, until T16's hero select). An unknown name plays the first hero and prints a `[TestWorld]` line. Bots take it too. |
 | `--quit-after-sec=<n>` | Ends the run after n seconds with exit code 0 or 1 (T09, `game/core/game.gd`). Works for the server too. See "Test bots (card T09)". |
+| `--respawn-all-at=<sec>` | Server: calls `respawn_all()` once, `<sec>` seconds after the world loads, as a mode's new match would (see "New match"). Smoke's bot match uses 15. |
 
 The fake lag delays movement messages and outgoing fire (T08) only, not the
 handshake, spawns or incoming combat messages. `run_server.bat` and
@@ -298,6 +299,12 @@ budget, last sequence kept) and every client snaps the hero with
 so a death doesn't add an underrun, unless a resent elimination message lets
 playback run dry just before the hero vanishes.
 
+A new match (`respawn_all()`) also respawns heroes that are alive. Their owners
+keep moving and sending until the respawn reaches them; those messages carry the
+old life and are dropped, so the first move of the new life skips a few
+sequence numbers (about one per 50 ms of round trip). `MoveCheck.reset()` refills
+the 1 s budget, so a round trip under about 1 s is never refused.
+
 ### Combat messages
 
 Every combat message is `reliable` on channel 0. Server-to-client messages go
@@ -321,7 +328,9 @@ Damage, healing (T18), elimination and respawn share channel 0, so they always
 arrive in order and don't need a life number. Each one makes every peer emit
 `Events.hero_damaged`, `hero_healed`, `hero_eliminated` or `hero_respawned` (the server when it
 decides, clients when the message arrives); the test world prints one
-`[Combat]` line per signal.
+`[Combat]` line per signal. The respawn line ends with the life the hero starts,
+`[Combat] hero_respawned: Player <id> at (x, y), life <n>`, so each peer's log
+shows which respawn it applied.
 
 ### Shield Charge (card T14)
 
@@ -434,8 +443,9 @@ one place that knows bots exist. T14's Q ability adds its key to `HeroInput`.
   `range_px` that it can see (`intersect_ray` on layer 1, the world), people
   included. Each look rolls a new aim error of up to ±6°.
 - **With a target** it fires in 0.5-1.5 s bursts with 0.3-1 s pauses. With none
-  it aims where it walks and holds fire. While eliminated it idles; on respawn
-  it starts over.
+  it aims where it walks and holds fire. While eliminated it idles; on every
+  respawn (a new `life`: after an elimination or a new match) it starts over
+  with a new walk point and no target.
 - **Q** (T14, T18): with a target and a charge ready it presses Q, whatever its
   ability. The Heal Drone heals whoever is near; the target only gives the aim.
 - **BotRules** holds these decisions: pure, with the clock and a seeded
@@ -575,6 +585,29 @@ defaults back). On a map (T39) the defaults are `MapRules`, so a mode there exte
 - Tested by `tests/match_rules_test.gd` with a 2-team MatchRules.
 - ShotSim's `allies_of` returns an `Array[RID]`; an untyped Array is copied in.
 
+### New match (T15): `world.respawn_all()`
+
+The mode starts its next match on the server with `world.respawn_all()`, which
+returns how many heroes came back (0 on clients). It:
+
+1. Drops every server shot in flight (`Shots.clear_server_shots()`), so none
+   from the old match lands. Clients keep drawing those shots to a wall or their
+   range; only the server decides hits, so they hit nothing.
+2. Brings every hero back at once, alive or eliminated, the same way as the
+   respawn after a death (`NetHero.respawn_now()`): a new `life`, full health,
+   `rules().respawn_point()`, the rules' spawn protection, and `receive_respawn`
+   to every ready peer. Every peer emits `Events.hero_respawned`; a hero that was
+   alive gets no `hero_eliminated` first.
+3. Logs `[Combat] respawn_all: <n> heroes, <m> shots cleared`.
+
+Before calling it, the mode sets the new match's teams (`team_of()` picks each
+hero's spawn points) and resets its own scores and clock. Ability cooldowns
+carry over, as through a death; a Heal Drone in use and a dash's knockback sweep
+stop. No RPC changed, so NET_PROTOCOL stays 7. Tested by `tests/respawn_test.gd`
+(one hero's respawn and what it stops) and smoke's bot match, which runs
+`respawn_all()` 15 s in over the network (`--respawn-all-at=15`, see
+tests/README.md, "The bot match").
+
 ### Hero choice (T16)
 
 `Net.chosen_hero_index` (game/core/net.gd): T16's hero select sets the roster slot
@@ -651,6 +684,7 @@ mode, zoom 1) limited to `Rect2(Vector2.ZERO, map_size)`. The test world has non
 | `Events.peer_became_ready(peer_id)` | Server only, once per peer: its `client_ready` was accepted and its hero spawned |
 | `Events.peer_left(peer_id)` | Server only: a connected peer left (ready or not) |
 | `world.send_to_ready(node, method, args)` | Server: `node.rpc_id(peer, method, ...args)` to every ready, connected peer (`ReadyPeers`) |
+| `world.respawn_all() -> int` | Server: the mode starts a new match; every hero comes back at once and every shot in flight is dropped (see "New match (T15)") |
 
 ### Plans (no code yet)
 
@@ -678,8 +712,8 @@ mode, zoom 1) limited to `Rect2(Vector2.ZERO, map_size)`. The test world has non
 Plan only; no scene yet.
 1. The match scene replaces `test_world.tscn`: Net loads it before joining, as now.
 2. It keeps test_world's root script contract: `rules()`/`set_rules()`, `respawn_point()`,
-   `shots()`, `bot_area()`, `teams_seen()`, `is_peer_ready()` and `client_ready()`.
-   Fixed paths: `Shots` and `Heroes` are direct children of the root, heroes direct children of `Heroes`.
+   `shots()`, `bot_area()`, `teams_seen()`, `is_peer_ready()`, `client_ready()` and
+   `respawn_all()`. Fixed paths: `Shots` and `Heroes` are direct children of the root, heroes direct children of `Heroes`.
 3. Gabe's parts move over unchanged: `Heroes` + `HeroSpawner`, `Shots`,
    `ServerStats` and the combat log lines.
 4. Adam's map is an instanced child, built the T39 way ("Maps online"): walls on physics layer 1, two
