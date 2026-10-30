@@ -22,6 +22,12 @@ awaits frames should still fail itself sooner, with a reason, as
 `charge_sweep_test.gd` does after 10 s. On Windows each script's logs are
 `%TEMP%\acoc-smoke-<name>.log` and `.err.log`.
 
+A test script compiles before the autoloads (Net, Events) register, so it can't
+name a class that uses them (NetHero, its abilities, Shots, the test world):
+compiling fails. It can still load them at run time and call them by name, as
+`respawn_test.gd` does with `net_hero.tscn`. Offline, `multiplayer.is_server()`
+is true, so a hero built that way runs its server side and sends no RPC.
+
 | Test | What it covers |
 | --- | --- |
 | `move_check_test.gd` | The server's movement check (T07): wrong owner, old sequence, too far, time budget, huge sequence jump, NaN/INF, out of bounds, a player who lags as they join; `reset()` on respawn (T08); dash grants (T14): a dash step without a grant is too far, a 240 px grant lets a 4-send dash through and is drawn only for the excess over walking, walking never draws on it, a used-up or expired grant refuses the next step and never comes back, two grants add up and the later expiry wins, `reset()` clears it |
@@ -29,7 +35,8 @@ awaits frames should still fail itself sooner, with a reason, as
 | `delay_queue_test.gd` | The `--sim-lag` / `--sim-jitter` queue (T07): never reorders, delays stay in range; carries each message's life (T08) |
 | `shot_check_test.gd` | The server's fire check (T08): wrong owner, old shot id, dead shooter, earlier life, NaN/INF/zero direction, the rate schedule at both jitter boundaries, a late shot, a x2 stream, 60 s through 150 ms lag + 50 ms jitter |
 | `health_test.gd` | Health (T08): damage, floor at 0, eliminated exactly once, no damage while eliminated, respawn restores, client mirror, late-join sync; healing (T18): heals and returns the amount, only what fits under max, nothing at max, while eliminated or for 0 or less; `Health.heal()` emits once per heal and never for 0; a mirrored heal takes the server's health and does nothing while eliminated |
-| `projectile_test.gd` | Server shots in a real physics world (T08): a 100 px/tick shot never tunnels, walls block, range expires, a hero stepping onto a shot or overlapping the shooter is hit, a shot starting in a wall never starts, the shooter is never hit, a disabled collider lets shots pass |
+| `projectile_test.gd` | Server shots in a real physics world (T08): a 100 px/tick shot never tunnels, walls block, range expires, a hero stepping onto a shot or overlapping the shooter is hit, a shot starting in a wall never starts, the shooter is never hit, a disabled collider lets shots pass, `clear()` drops every shot and frees every slot, even from inside a hit |
+| `respawn_test.gd` | A new match's respawn (the T15 seam), on real heroes loaded at run time: `NetHero.respawn_now()` gives a live, hurt hero a new life, full health, the rules' point and protection, a reset MoveCheck (grant gone) and one `hero_respawned`; it brings an eliminated hero back shown and hittable; a hero not in the tree is refused; the Heal Drone heals until its healer respawns, then stops; a dash knocks back in its own life (twice for two dashes) and no one after the dasher respawns. Fails itself after 20 s |
 | `data_test.gd` | The hero and weapon data (T13): every `.tres` in `game/heroes/data` and `game/weapons/data` loads, is a known type, passes `validate()`, and the roster has no empty slot, the roster is bruiser, mage, scout, medic (the tools' order), `index_of()` gives -1 for an unknown name and `at()` null out of range (T18); `validate()` catches out-of-range numbers (at both ends, NaN, INF), empty texts, a missing weapon, a bad weapon passed on to its hero, an empty roster slot; `or_greater` / `or_less` are open-ended and other range flags don't change limits; a `.tres` with a wrong script path fails, naming the file; abilities (T14): `bruiser.tres` has `shield_charge.tres`, a charge at the defaults passes, a hero with no ability fails (T18), an empty name and each charge number out of range fail once each, `knockback_px` 0 passes, a dash or knockback over 4000 px/s fails (exactly 4000 passes), the speed cap stays within `RemoteTimeline.SNAP_DISTANCE`, a bad ability fails its hero; every ability file names a node script that exists (T18), and `make()` gives null for no script, a missing one or one that does not extend `Ability`; `scout.tres` has `jet_dash.tres` (2 charges, no knockback), `charges` 0 and 6 fail, 1 and 5 pass; `mage.tres` has `blink.tres`, a blink at the defaults passes, `distance_px` 47 and 481 fail, 48 and 480 pass; `medic.tres` has `heal_drone.tres`, a heal drone at the defaults passes (8 ticks, 40 HP), each of its numbers out of range fails once, `duration_sec` 4.2 with 0.5 s ticks fails, 4.5 passes |
 | `bot_rules_test.gd` | A test bot's decisions (T09): the nearest visible hero wins; itself, eliminated, blocked and out-of-range heroes are ignored; no target holds fire; aim error within ±6°; 0.5-1.5 s bursts and 0.3-1 s pauses; a look every 0.25 s; a stuck bot re-picks after 1 s, steady progress keeps the point, arrival and the 4-8 s wander time re-pick; points stay in the area; the same seed makes the same choices; Q (T14): pressed only with a target and the ability ready, released when the target drops |
 | `ability_check_test.gd` | The server's ability check (T14): wrong owner is dropped and books nothing; another life and eliminated are not logged refusals; zero/NaN/INF direction is refused; the direction is normalized; the cooldown refuses until exactly `cooldown_sec` and counts again from each use; the cooldown carries through death; an honest owner (countdown from the answer, 1-241 ms one way) is never refused over 20 uses; charges (T18): two at once then a refusal that books nothing, ready in 0 s while one is left, each charge back exactly `cooldown_sec` after its own use (refused 0.01 s before), `charge_ready_in` soonest first, charges kept through death, an honest owner with 2 charges never refused over 30 uses |
@@ -39,8 +46,8 @@ awaits frames should still fail itself sooner, with a reason, as
 
 After the tests, smoke plays a short match on the real network path, on UDP 7777:
 
-1. It starts a headless server with `--quit-after-sec=45` and waits for
-   `server up`. If the server can't host, smoke fails with
+1. It starts a headless server with `--quit-after-sec=45 --respawn-all-at=15`
+   and waits for `server up`. If the server can't host, smoke fails with
    `UDP 7777 is in use: stop the other server` and starts no bots, so they never
    join someone else's server.
 2. It starts test bots 1-4, one per hero (`--join=127.0.0.1 --bot=<n>
@@ -50,6 +57,12 @@ After the tests, smoke plays a short match on the real network path, on UDP 7777
    `ERROR:`, the server logged at least one `[Combat] hero_damaged` and an
    `[Combat] ability_used` for each of Shield Charge, Blink, Jet Dash and Heal
    Drone (T18), and no log has a `[Move]`, `[Shot]` or `[Ability]` line.
+4. The new match (the hook for T15): 15 s in, the server respawns every hero at
+   once. It must log `[Combat] respawn_all: 4 heroes, <n> shots cleared` exactly
+   once; its 4 `[Combat] hero_respawned: Player <id> at (x, y), life <n>` lines
+   (the last 4 in the 8 lines before it: rules with spawn protection add a
+   `protected` line after each) must name 4 players; every bot's log must have
+   each of those 4 lines' player and life; and the server must log a hit after it.
 
 Anything still running after 60 s is killed by PID. The match adds about 46 s.
 On Windows the logs are `%TEMP%\acoc-smoke-server.log`, `-bot1.log` to
