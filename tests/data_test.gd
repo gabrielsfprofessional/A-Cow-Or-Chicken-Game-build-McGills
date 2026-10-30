@@ -10,6 +10,8 @@ extends SceneTree
 ##    and range flags (or_greater, or_less, suffix, exp, degrees) read right.
 ## 3. A .tres with a wrong script path fails, naming the file.
 ## 4. The map list (T39): maps.tres passes, and each kind of broken entry is caught.
+## 5. Labels in the hero scene are 18 px or more (PROJECT_PLAN: no text under 18 px at 1080p).
+## 6. It leaves no scratch files behind: user://data_test is gone at the end (#78).
 
 const DATA_FOLDERS: PackedStringArray = ["res://game/heroes/data", "res://game/weapons/data"]
 const ROSTER_PATH: String = "res://game/heroes/data/roster.tres"
@@ -26,6 +28,8 @@ const HEAL_DRONE_PATH: String = "res://game/heroes/data/heal_drone.tres"
 const MAPS_PATH: String = "res://game/maps/data/maps.tres"
 const ARENA_SCENE: String = "res://game/maps/arena/arena_graybox.tscn"
 const PRACTICE_SCENE: String = "res://game/maps/practice/practice_range.tscn"
+const NET_HERO_SCENE: String = "res://game/heroes/net_hero.tscn"
+const MIN_FONT_PX: int = 18
 const UNKNOWN_TYPE: String = "is not a HeroData, HeroRoster, CombatData, AbilityData or WeaponData file; check its script path"
 const SCRATCH_FOLDER: String = "user://data_test"
 const WRONG_SCRIPT_TRES: String = """[gd_resource type="Resource" script_class="HeroData" format=3]
@@ -74,6 +78,9 @@ func _initialize() -> void:
 	_wrong_script_path()
 	_map_list_passes()
 	_broken_map_entries()
+	_one_sided_map_fails()
+	_hero_labels_big_enough()
+	_scratch_folder_removed()
 	print("DATA TEST: %s (%d checks)" % ["PASS" if _failed == 0 else "FAIL, %d wrong" % _failed, _count])
 	quit(0 if _failed == 0 else 1)
 
@@ -534,6 +541,8 @@ func _broken_map_entries() -> void:
 	# Adam's practice range: one PlayerSpawn with no team keeps the contract.
 	problems = MapList.entry_problems("practice", PRACTICE_SCENE)
 	_expect(problems.is_empty(), "the practice range (one PlayerSpawn) keeps the contract", "; ".join(problems))
+	_expect(MapList.team_of_spawn("SpawnA-1") == -1 and MapList.team_of_spawn("SpawnB+2") == -1 and MapList.team_of_spawn("SpawnA12") == 0,
+		"a team spawn number is digits only (#78)", "SpawnA-1/SpawnB+2/SpawnA12 -> %d/%d/%d" % [MapList.team_of_spawn("SpawnA-1"), MapList.team_of_spawn("SpawnB+2"), MapList.team_of_spawn("SpawnA12")])
 	_expect(MapList.team_of_spawn("SpawnA3") == 0 and MapList.team_of_spawn("SpawnB1") == 1 and MapList.team_of_spawn("Exit") == -1 and MapList.team_of_spawn("SpawnBridge") == -1,
 		"spawn names give their team", "A/B/Exit/SpawnBridge -> %d/%d/%d/%d" % [MapList.team_of_spawn("SpawnA3"), MapList.team_of_spawn("SpawnB1"), MapList.team_of_spawn("Exit"), MapList.team_of_spawn("SpawnBridge")])
 
@@ -554,3 +563,54 @@ func _has_problem(problems: PackedStringArray, start: String) -> bool:
 		if problem.begins_with(start):
 			return true
 	return false
+
+
+## The arena with its SpawnB points taken out: only team 0 has points of its own,
+## so both teams would spawn on the A side (#78).
+func _one_sided_map_fails() -> void:
+	var arena := (load(ARENA_SCENE) as PackedScene).instantiate()
+	var spawns := arena.get_node("Spawns")
+	for marker: Node in spawns.get_children():
+		if MapList.team_of_spawn(String(marker.name)) == 1:
+			spawns.remove_child(marker)
+			marker.free()
+	var problems := MapList.contract_problems(arena)
+	arena.free()
+	_expect(_has_problem(problems, "it has SpawnA points but no SpawnB points"),
+		"a map with team points for one team only fails (#78)", "; ".join(problems))
+
+
+## Every Label in the hero scene that sets its own font size uses 18 px or more.
+## Read from the scene's saved state, so no hero script runs.
+func _hero_labels_big_enough() -> void:
+	var state := (load(NET_HERO_SCENE) as PackedScene).get_state()
+	var small: PackedStringArray = []
+	var labels := 0
+	for node: int in state.get_node_count():
+		if state.get_node_type(node) != &"Label":
+			continue
+		labels += 1
+		for prop: int in state.get_node_property_count(node):
+			if state.get_node_property_name(node, prop) != &"theme_override_font_sizes/font_size":
+				continue
+			var size: Variant = state.get_node_property_value(node, prop)
+			if not size is int or (size as int) < MIN_FONT_PX:
+				small.append("%s: %s px" % [state.get_node_name(node), size])
+	_expect(labels > 0 and small.is_empty(), "hero scene labels are %d px or more (#78)" % MIN_FONT_PX,
+		"no labels found" if labels == 0 else ", ".join(small))
+
+
+## Runs last: removes user://data_test and checks it is gone (#78).
+func _scratch_folder_removed() -> void:
+	_remove_scratch_folder()
+	_expect(not DirAccess.dir_exists_absolute(SCRATCH_FOLDER), "the scratch folder %s is removed at the end (#78)" % SCRATCH_FOLDER,
+		"still there: %s" % ", ".join(DirAccess.get_files_at(SCRATCH_FOLDER)))
+
+
+## Only this test's own files: it never follows a subfolder.
+func _remove_scratch_folder() -> void:
+	if not DirAccess.dir_exists_absolute(SCRATCH_FOLDER):
+		return
+	for file: String in DirAccess.get_files_at(SCRATCH_FOLDER):
+		DirAccess.remove_absolute(SCRATCH_FOLDER.path_join(file))
+	DirAccess.remove_absolute(SCRATCH_FOLDER)

@@ -67,23 +67,35 @@ static func contract_problems(root: Node) -> PackedStringArray:
 		problems.append("there is no %s node" % SPAWNS_NODE)
 		return problems
 	var count := 0
+	var per_team: Array[int] = [0, 0]
 	for child: Node in spawns.get_children():
 		if child is Marker2D:
 			count += 1
+			var team := team_of_spawn(String(child.name))
+			if team >= 0:
+				per_team[team] += 1
 		else:
 			problems.append("%s/%s must be a Marker2D (a spawn point)" % [SPAWNS_NODE, child.name])
 	if count < MIN_SPAWNS:
 		problems.append("it has %d spawn points; it needs at least %d" % [count, MIN_SPAWNS])
+	# Points for one team only would put both teams on the same side (MapRules.pick()
+	# gives a team with none every point): name both teams' points, or neither.
+	for team: int in TEAM_PREFIXES.size():
+		var other: int = 1 - team
+		if per_team[team] > 0 and per_team[other] == 0:
+			problems.append("it has %s points but no %s points; add %s points or rename the %s ones" % [
+				TEAM_PREFIXES[team], TEAM_PREFIXES[other], TEAM_PREFIXES[other], TEAM_PREFIXES[team]])
 	return problems
 
 
 ## 0 for SpawnA or SpawnA<number>, 1 for SpawnB or SpawnB<number>, -1 for anything
-## else (so SpawnArea or SpawnBridge is a shared point, not a team one).
+## else (so SpawnArea or SpawnBridge is a shared point, not a team one). <number> is
+## digits only: SpawnA-1 and SpawnB+2 are shared points.
 static func team_of_spawn(spawn_name: String) -> int:
 	for team: int in TEAM_PREFIXES.size():
 		var prefix: String = TEAM_PREFIXES[team]
 		if spawn_name.begins_with(prefix):
 			var rest := spawn_name.substr(prefix.length())
-			if rest.is_empty() or rest.is_valid_int():
+			if rest.lstrip("0123456789").is_empty():
 				return team
 	return -1
