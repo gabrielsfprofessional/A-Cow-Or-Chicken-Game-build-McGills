@@ -277,6 +277,8 @@ function Invoke-BotTest([string]$serverExe, [string]$serverArgs, [string]$logDir
     if ($hits -eq 0) { $problems += "no [Combat] hero_damaged" }
     $errors = @(Select-String -Path @($server.Log, $server.ErrLog) -Pattern "SCRIPT ERROR|Parse Error|ERROR:")
     if ($errors.Count -gt 0) { $problems += "$($errors.Count) error line(s) in the server log" }
+    $botErrors = @(Select-String -Path (Join-Path $botLogDir "bot*.log") -Pattern "SCRIPT ERROR|Parse Error|ERROR:")
+    if ($botErrors.Count -gt 0) { $problems += "$($botErrors.Count) error line(s) in the bot logs" }
     $refusals = @(Select-String -Path $server.Log -Pattern "\[Move\]|\[Shot\]|\[Ability\]")
     if ($refusals.Count -gt 0) { $problems += "$($refusals.Count) [Move]/[Shot]/[Ability] line(s)" }
     $stats = Select-String -Path $server.Log -Pattern "^\[Stats\]" | Select-Object -Last 1
