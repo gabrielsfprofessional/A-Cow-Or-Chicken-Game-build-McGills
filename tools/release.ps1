@@ -234,9 +234,10 @@ function Test-JoinProof([string]$serverExe, [string]$serverArgs, [string]$client
     $client = $null
     try {
         $client = Start-Logged "client-join" $clientExe "$clientArgs --version-override=$OverrideVersion" $logDir
-        if (-not (Wait-ForLine $client "\[Net\] connected as peer" $JoinSec)) {
+        $null = Wait-ForLine $client "\[Net\] connected as peer|\[Net\] join failed" $JoinSec
+        if (-not (Select-String -Path $client.Log -Pattern "\[Net\] connected as peer" -Quiet -ErrorAction SilentlyContinue)) {
             Get-Content $client.Log -Tail 20 | ForEach-Object { Write-Host $_ -ForegroundColor Red }
-            Stop-Release "the exported game didn't join within $JoinSec s (log $($client.Log))"
+            Stop-Release "the exported game didn't join (log $($client.Log))"
         }
         if (-not (Wait-ForLine $server ([regex]::Escape("version $expectedVersion (")) 10)) {
             Stop-Release "the server's join line doesn't show version $expectedVersion (log $($server.Log))"
