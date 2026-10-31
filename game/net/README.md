@@ -102,11 +102,47 @@ ENet connect handshake, using `SceneMultiplayer`'s `auth_callback`, `send_auth`
 and `complete_auth`. Both sides send theirs, so either side can name both in the
 message. A mismatch is refused before the peer counts as connected: the client
 shows `Update the game from the Drive folder (server vX, you vY)` and the server
-logs `refused peer <id>: version mismatch`.
+logs `refused peer <id>: version mismatch`. A version string is logged or shown as
+sent only when it is at most 40 characters of digits, letters and `. + - _` (every
+real one is); anything else shows as `?`, so nothing a peer sends reaches a log
+unchecked (`Net.shown_version()`).
+
+### Who is joining (card T21 part 2)
+
+Only after the client accepts the server's version does it send a second auth
+message, one JSON object (`server/player_auth.gd`, `PlayerAuth`):
+`{"name": ..., "color": "#RRGGBB", "token": <device token>}` from its profile
+(`game/players/profile.gd`, T11), or `{"guest": "bot"}` / `{"guest": "no profile"}`.
+So the device token never leaves the PC for a server with another version. The
+server waits for it before completing the handshake, and reads it with
+`PlayerAuth.read_message()`: the name by T11's rules except "the game can't draw it"
+(`PlayerAuth.name_ok()`: a dedicated server export may strip fonts, and every client
+already refuses a name its font can't draw), the color as `#RRGGBB`, the token as
+exactly 32 lowercase hex characters (a sign or a capital makes a guest). Anything else makes the peer a **guest**, never a refusal:
+a family member still plays, only without a save. Anything a peer sends after its
+player message is ignored.
+
+When the peer connects, `PlayerRegistry` (`server/player_registry.gd`) loads or
+makes its save (`server/README.md`) and saves it, and saves it again when the
+peer leaves or the server closes. Guests get no save: test bots, a client with no
+profile, a message that breaks the rules, a token that is already connected (a
+second window on one PC with the same profile), and a player whose save is locked
+or from another version (left alone). The server logs one line per peer, naming a
+player by the first 8 characters of their id (the SHA-256 of the token), never the
+token:
+
+    [Server] player saves in user://saves_test/
+    [Server] peer 2012891639: player 1f29fcd4 "Smoke" (new)
+    [Server] peer 1709300266: guest (player 1f29fcd4 is already connected as peer 2012891639)
+    [Server] peer 1182231065: guest (bot)
+    [Server] peer 2012891639: player 1f29fcd4 left, saved
+
+`--profile=<path>` (debug builds) joins with that profile file instead of
+`user://profile.json`, so two windows on one PC can be two players.
 
 **NET_PROTOCOL** is 1 for T06 (which sent a bare version), 2 for T07, 3 for T08,
-4 from T14 (the ability and knockback RPCs), 5 from T18 (`client_ready`'s hero index, the spawn data, the ability answers' charge times and `receive_heal`) 6 from the week-3 seams (the spawn position in the spawn data) and 7 from T39 (the `load_map` message). Bump it in the same pull request as any change to an RPC, its arguments, its channel or
-the channel count. A build with a different wire format is then refused by name
+4 from T14 (the ability and knockback RPCs), 5 from T18 (`client_ready`'s hero index, the spawn data, the ability answers' charge times and `receive_heal`) 6 from the week-3 seams (the spawn position in the spawn data), 7 from T39 (the `load_map` message) and 8 from T21 part 2 (the second auth message). Bump it in the same pull request as any change to an RPC, its arguments, its channel,
+the channel count or the handshake. A build with a different wire format is then refused by name
 instead of failing later with channel or RPC errors.
 
 To test it without building two versions, a **debug build** accepts:
@@ -250,6 +286,7 @@ window). A release build ignores them. The status line lists the active ones.
 | `--bot=<seed>` | Makes this client a test bot (T09): a `BotBrain` drives its hero. Use with `--headless`, `--join=<address>` and `--quit-after-sec`. See "Test bots (card T09)". |
 | `--hero=<name>` | Plays the roster hero whose file is `<name>.tres`: `bruiser` (the default), `mage`, `scout` or `medic` (T18, until T16's hero select). An unknown name plays the first hero and prints a `[TestWorld]` line. Bots take it too. |
 | `--quit-after-sec=<n>` | Ends the run after n seconds with exit code 0 or 1 (T09, `game/core/game.gd`). Works for the server too. See "Test bots (card T09)". |
+| `--profile=<path>` | Joins with that profile file instead of `user://profile.json` (T21 part 2), so two windows on one PC can be two players. See "Who is joining". |
 | `--respawn-all-at=<sec>` | Server: calls `respawn_all()` once, `<sec>` seconds after the world loads, as a mode's new match would (see "New match"). Smoke's bot match uses 15. |
 
 The fake lag delays movement messages and outgoing fire (T08) only, not the

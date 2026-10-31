@@ -42,6 +42,8 @@ is true, so a hero built that way runs its server side and sends no RPC.
 | `ability_check_test.gd` | The server's ability check (T14): wrong owner is dropped and books nothing; another life and eliminated are not logged refusals; zero/NaN/INF direction is refused; the direction is normalized; the cooldown refuses until exactly `cooldown_sec` and counts again from each use; the cooldown carries through death; an honest owner (countdown from the answer, 1-241 ms one way) is never refused over 20 uses; charges (T18): two at once then a refusal that books nothing, ready in 0 s while one is left, each charge back exactly `cooldown_sec` after its own use (refused 0.01 s before), `charge_ready_in` soonest first, charges kept through death, an honest owner with 2 charges never refused over 30 uses |
 | `charge_sweep_test.gd` | The dash hit test in a real physics space (T14): a hero-sized circle swept 240 px finds a hero mid-path and one overlapping by 2 px, misses one 20 px beside or past the end, skips the excluded dasher and a hero with its collider off; a sweep that doesn't move checks only where it is. Fails itself after 10 s if an await hangs |
 | `profile_store_test.gd` | The server's player saves (T21 part 1): `--saves` and the debug/release folders; ids are the token's SHA-256 (64 lowercase hex, no sign); a round trip keeps ints and capitals and never stores the token; every validation rule refuses and writes nothing; unknown fields are dropped, numbers past 2^53 and a name that wouldn't load back are refused; a crash while writing the `.tmp` or between the two renames loses only the newest save; a cut-short file falls back to `.bak` and is moved aside unchanged; two unreadable files are both kept; a newer save (main or `.bak`) is never touched; a file holding another id is moved aside; quick saves keep the settled `.bak` as `.old`, which loads after a pulled plug; a locked save is LOCKED, never a new player (as a user who can't open it; skipped on Windows and as root); `list_ids()` reads `.json`, `.json.bak` and `.json.old` only. The 20-kill crash test is `tools/save_crash_test.*` (not in smoke; see server/README.md) |
+| `player_auth_test.gd` | The second auth message (T21 part 2): a player message reads back (name trimmed, color in capitals) and fields it doesn't know are ignored; a guest note wins and its reason is cut to plain words (a fake log line becomes "unknown"); the token is exactly 32 lowercase hex characters (31, 33, capitals, a sign, `0x`, a space, a letter past f and empty all make guests); a bad color, a name that breaks T11's rules (empty, spaces, 13 characters, a tab, a new line, two spaces, an invisible mark), a missing or wrongly typed field, an unreadable or over-1024-byte message all make guests; the server's name check agrees with T11's `Profile.name_problem()` on every name the menus' font can draw (a change to T11's rules fails here); `Net.shown_version()` repeats only a plain version under 41 characters, so a player message sent as a version never logs its token |
+| `player_registry_test.gd` | The server's players (T21 part 2): a new player is saved at once with name, color and time; the same token from a second window is a guest and changes nothing; leaving saves the last-seen time; a returning player keeps the created time and takes the new name and color; bots and broken messages are guests and write nothing; a save from a newer game is left alone and its player is a guest; the server closing saves everyone; no token in any file name or save |
 
 ## The bot match (cards T09, T18)
 
@@ -70,6 +72,19 @@ On Windows the logs are `%TEMP%\acoc-smoke-server.log`, `-bot1.log` to
 `-bot4.log`, each with an `.err.log` for stderr; `smoke.sh` prints its temp file
 paths when it fails. Running smoke while a server is up on this PC fails on
 purpose: stop that server first.
+
+## Player saves (card T21 part 2)
+
+After the arena check, smoke runs a server with a saves folder of its own
+(`--saves=<new temp folder>`), two game clients with one throwaway test profile
+(`--profile=<temp file>`, a random token) and a bot, 1 s apart. It passes when all
+four exit 0, no log has an error or a refusal, the server logged the player once as
+new, the second window and the bot once each as guests, and the player once as
+saved on leaving (before the server quit), the folder holds only that player's
+files, under the SHA-256 of the token, with the name, and no log or save holds the
+token. It adds about 22 s. On Windows the logs are `%TEMP%\acoc-smoke-saves-server.log`,
+`-saves-window1`, `-saves-window2` and `-saves-bot`; the folder is
+`%TEMP%\acoc-smoke-saves-<8 characters>`.
 
 ## Check tools (T18 follow-up)
 
