@@ -7,7 +7,10 @@ Hero scenes, abilities and hero data files (data/*.tres). Cards: T08, T13, T14, 
 `net_hero.tscn` / `net_hero.gd`: `NetHero`, the hero every player drives online
 (T07-T09, T13; moved here from `game/net` in T14). It moves, sends, checks and
 smooths, carries a Weapon and a Health, hides on elimination and respawns.
-`setup()` gives it its HeroData. Its messages are in `game/net/README.md`.
+`setup()` gives it its HeroData and its player's name. Its messages are in `game/net/README.md`.
+`player_name` is the player's profile name from the spawn data (`""` for a guest), and
+`shown_name()` is what players see for the hero: that name, or `Player <peer id>` for a
+guest. The label above the hero shows it today; T17's names above heroes read the same.
 `respawn_now()` (server) brings it back at once, alive or eliminated, for a
 mode's new match (`world.respawn_all()`, see game/net/README.md, "New match").
 

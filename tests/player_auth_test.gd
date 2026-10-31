@@ -20,6 +20,7 @@ func _initialize() -> void:
 	_broken_messages()
 	_versions_in_logs()
 	_names_agree_with_t11()
+	_names_from_the_network()
 	print("PLAYER AUTH TEST: %s (%d checks)" % ["PASS" if _failed == 0 else "FAIL, %d wrong" % _failed, _count])
 	quit(0 if _failed == 0 else 1)
 
@@ -129,6 +130,25 @@ func _names_agree_with_t11() -> void:
 			disagree.append(JSON.stringify(player_name))
 	_expect_true("the server's name check agrees with T11's on %d names the font can draw (disagree: %s)" % [compared, ", ".join(disagree)],
 		disagree.is_empty() and compared >= 18)
+
+
+## The hero's spawn data carries the player's name (the names seam, for T17). Every peer
+## reads it with clean_name(), so a bad one shows as "Player <id>" and never reaches a label.
+func _names_from_the_network() -> void:
+	_expect_true("clean_name(): a good name comes back as sent", PlayerAuth.clean_name("Gabe") == "Gabe")
+	_expect_true("clean_name(): it is trimmed", PlayerAuth.clean_name("  Zoë ") == "Zoë")
+	_expect_true("clean_name(): \"\" (a guest) stays \"\"", PlayerAuth.clean_name("") == "")
+	var bad := {
+		"a number": 42,
+		"null": null,
+		"a list": ["Gabe"],
+		"13 characters": "Abcdefghijklm",
+		"a new line": "Ga\nbe",
+		"two spaces in a row": "Ga  be",
+		"a direction mark": "Ga" + char(0x202E) + "be",
+	}
+	for case_name: String in bad:
+		_expect_true("clean_name() of %s: \"\"" % case_name, PlayerAuth.clean_name(bad[case_name]) == "")
 
 
 ## Net logs the version a peer sends. Only a plain, short one is repeated, so a player

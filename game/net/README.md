@@ -41,8 +41,10 @@ Built for the Join screen (T10). Call these on the `Net` autoload from anywhere.
 
 Also useful: `Net.last_reason` (see below), `Net.server_address()` (address from the git-ignored `server.cfg`,
 falling back to `127.0.0.1`), `Net.version()` (the version sent in the
-handshake), and `Net.state` (`Net.State.OFFLINE`, `CONNECTING`, `CLIENT` or
-`SERVER`) for deciding what a screen should show.
+handshake), `Net.state` (`Net.State.OFFLINE`, `CONNECTING`, `CLIENT` or
+`SERVER`) for deciding what a screen should show, and, on the server,
+`Net.player_name(peer_id)`: the name that peer's player joined with, `""` for a
+guest (the test world puts it in the spawn data; see "Who is joining").
 
 ### Signals
 
@@ -140,8 +142,13 @@ token:
 `--profile=<path>` (debug builds) joins with that profile file instead of
 `user://profile.json`, so two windows on one PC can be two players.
 
+Each player's name then reaches every peer in their hero's spawn data (the names
+seam, for T17; see "How the test world fills up"), and the hero shows it:
+`NetHero.player_name`, `NetHero.shown_name()`. A guest shows as `Player <id>`,
+the way the `[Combat]` lines name everyone.
+
 **NET_PROTOCOL** is 1 for T06 (which sent a bare version), 2 for T07, 3 for T08,
-4 from T14 (the ability and knockback RPCs), 5 from T18 (`client_ready`'s hero index, the spawn data, the ability answers' charge times and `receive_heal`) 6 from the week-3 seams (the spawn position in the spawn data), 7 from T39 (the `load_map` message) and 8 from T21 part 2 (the second auth message). Bump it in the same pull request as any change to an RPC, its arguments, its channel,
+4 from T14 (the ability and knockback RPCs), 5 from T18 (`client_ready`'s hero index, the spawn data, the ability answers' charge times and `receive_heal`) 6 from the week-3 seams (the spawn position in the spawn data), 7 from T39 (the `load_map` message), 8 from T21 part 2 (the second auth message) and 9 from the names seam (the player's name in the spawn data). Bump it in the same pull request as any change to an RPC, its arguments, its channel,
 the channel count or the handshake. A build with a different wire format is then refused by name
 instead of failing later with channel or RPC errors.
 
@@ -163,11 +170,15 @@ mismatched build into a family game.
    `[TestWorld] peer <id> asked for hero <n>; there is none, so it plays <first>`.
 3. Only then does the server spawn that client's hero through the
    `HeroSpawner` (`MultiplayerSpawner`) with spawn data `[peer_id, hero_index,
-   spawn_position]` (the position since the week-3 seams: the server's
+   spawn_position, player_name]` (the position since the week-3 seams: the server's
    `MatchRules` picks it, NET_PROTOCOL 6; spawn data without it falls back to the
-   T06 ring), so every peer, a late joiner included, builds the same hero: a `NetHero`
-   under `Heroes`, named with the peer id, labelled `Player <id>  <hero>  <hp>`,
-   with multiplayer authority set to that peer.
+   T06 ring. The name since the names seam, NET_PROTOCOL 9: `Net.player_name()`,
+   `""` for a guest), so every peer, a late joiner included, builds the same hero: a
+   `NetHero` under `Heroes`, named with the peer id, labelled `<name>  <hero>  <hp>`
+   (`Player <id>` for a guest), with multiplayer authority set to that peer. Every
+   peer reads the name with `PlayerAuth.clean_name()`, so one that breaks the
+   profile rules shows as a guest, and logs one line per hero:
+   `[TestWorld] built peer <id>: <hero file>, player "<name>"` or `..., a guest`.
 4. When a peer disconnects, the server frees its hero and the spawner takes the
    hero off every client.
 5. The server only relays movement to peers that have sent `client_ready`.
@@ -415,7 +426,8 @@ seconds to respawn.
 
 ### Status line and labels
 
-Until John's T17 HUD, each hero's label reads `Player <id>  <health>`, and the
+Until John's T17 HUD, each hero's label reads `<name>  <hero>  <health>` (`Player <id>`
+for a guest; see "How the test world fills up"), and the
 owner's status line adds `Eliminated, back in N s` while it is down, plus
 `fire-cheat=<x>` when that flag is on. A hero with an ability (T14) also shows
 `Q ready` or `Q <s> s`.
