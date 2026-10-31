@@ -197,9 +197,9 @@ function Export-Builds([string]$releaseDir, [string]$logDir) {
 
 # Step 3. The game started with no --join stays on the main menu: it only has to
 # say it found server.cfg. The address must be in no line it prints.
-function Test-ConfigProof([string]$clientConsole, [string]$logDir) {
+function Test-ConfigProof([string]$clientExe, [string]$clientArgs, [string]$logDir) {
     Write-Step "step 3: server.cfg is inside the game"
-    $entry = Start-Logged "client-config" $clientConsole "--headless" $logDir
+    $entry = Start-Logged "client-config" $clientExe $clientArgs $logDir
     try {
         if (-not (Wait-ForLine $entry "\[Net\] server\.cfg: found, Play joins its address" $ConfigLineSec)) {
             Get-Content $entry.Log -Tail 20 | ForEach-Object { Write-Host $_ -ForegroundColor Red }
@@ -338,7 +338,7 @@ function Invoke-Release {
         Invoke-Smoke
         $builds = Export-Builds $releaseDir $logDir
         $expected = "$($info.Version)+net$($info.Net)"
-        Test-ConfigProof $builds.Client $logDir
+        Test-ConfigProof $builds.Client "--headless" $logDir
         Test-JoinProof $builds.Server "--headless -- --server --map=$ServerMap" $builds.Client "--headless -- --join=127.0.0.1" $expected $logDir
         Invoke-BotTest $builds.Server "--headless -- --server --map=$ServerMap" $logDir
         $licenses = Write-Licenses $builds.ClientDir $logDir
