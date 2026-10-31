@@ -87,6 +87,8 @@ func _ready() -> void:
 	multiplayer.connected_to_server.connect(_on_connected_to_server)
 	multiplayer.connection_failed.connect(_on_connection_failed)
 	multiplayer.server_disconnected.connect(_on_server_disconnected)
+	if not Game.is_server():
+		_log_server_config()
 	_autostart()
 
 
@@ -96,6 +98,20 @@ func server_address() -> String:
 	if config.load(CONFIG_PATH) == OK:
 		return str(config.get_value("server", "address", "127.0.0.1")).strip_edges()
 	return "127.0.0.1"
+
+
+## One startup line saying whether this build has a server.cfg (T29: tools/release.ps1
+## checks it to prove the file is inside the exported game). It never prints the address.
+func _log_server_config() -> void:
+	var config := ConfigFile.new()
+	if config.load(CONFIG_PATH) != OK:
+		_log("server.cfg: none, Play joins this computer")
+		return
+	var address: String = str(config.get_value("server", "address", "")).strip_edges()
+	if address == "":
+		_log("server.cfg: found but has no [server] address, Play joins this computer")
+		return
+	_log("server.cfg: found, Play joins its address")
 
 
 ## The version this build reports in the handshake: "<version>+net<NET_PROTOCOL>".
