@@ -7,7 +7,8 @@ Weapon logic lives here; weapon numbers live in data/. Cards: T08, T13, T19, A08
 T08: `weapon_data.gd` (WeaponData), `weapon.tscn` (aim, fire, the fire messages),
 `shots.tscn` (server shots and client visuals), `shot_sim.gd` (server shot
 stepping) and `shot_check.gd` (the server's fire check). See game/net/README.md,
-"Combat (card T08)".
+"Combat (card T08)". A new match drops every server shot in flight
+(`Shots.clear_server_shots()`, from `world.respawn_all()`).
 
 T13: `WeaponData.validate()` checks every number against its own
 `@export_range` (see game/heroes/README.md, "Hero data"). A hero gets its

@@ -36,7 +36,7 @@ theme_override_constants/separation = 20
 
 [node name="Title" type="Label" parent="Center/Rows"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 72
+theme_type_variation = &"HeadingLabel"
 text = "Settings"
 horizontal_alignment = 1
 
@@ -48,7 +48,6 @@ columns = 3
 
 [node name="MasterLabel" type="Label" parent="Center/Rows/Grid"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 32
 text = "Master volume"
 
 [node name="MasterSlider" type="HSlider" parent="Center/Rows/Grid"]
@@ -61,13 +60,11 @@ value = 100.0
 [node name="MasterValue" type="Label" parent="Center/Rows/Grid"]
 custom_minimum_size = Vector2(110, 0)
 layout_mode = 2
-theme_override_font_sizes/font_size = 32
 text = "100%"
 horizontal_alignment = 2
 
 [node name="MusicLabel" type="Label" parent="Center/Rows/Grid"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 32
 text = "Music volume"
 
 [node name="MusicSlider" type="HSlider" parent="Center/Rows/Grid"]
@@ -80,13 +77,11 @@ value = 100.0
 [node name="MusicValue" type="Label" parent="Center/Rows/Grid"]
 custom_minimum_size = Vector2(110, 0)
 layout_mode = 2
-theme_override_font_sizes/font_size = 32
 text = "100%"
 horizontal_alignment = 2
 
 [node name="SfxLabel" type="Label" parent="Center/Rows/Grid"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 32
 text = "SFX volume"
 
 [node name="SfxSlider" type="HSlider" parent="Center/Rows/Grid"]
@@ -99,51 +94,48 @@ value = 100.0
 [node name="SfxValue" type="Label" parent="Center/Rows/Grid"]
 custom_minimum_size = Vector2(110, 0)
 layout_mode = 2
-theme_override_font_sizes/font_size = 32
 text = "100%"
 horizontal_alignment = 2
 
 [node name="ScaleLabel" type="Label" parent="Center/Rows/Grid"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 32
 text = "UI scale"
 
 [node name="ScaleOption" type="OptionButton" parent="Center/Rows/Grid"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 32
 
 [node name="ScaleSpacer" type="Control" parent="Center/Rows/Grid"]
 layout_mode = 2
 
 [node name="WindowLabel" type="Label" parent="Center/Rows/Grid"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 32
 text = "Window mode"
 
 [node name="WindowOption" type="OptionButton" parent="Center/Rows/Grid"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 32
 
 [node name="WindowSpacer" type="Control" parent="Center/Rows/Grid"]
 layout_mode = 2
 
 [node name="TestButton" type="Button" parent="Center/Rows"]
-custom_minimum_size = Vector2(520, 64)
+custom_minimum_size = Vector2(520, 72)
 layout_mode = 2
 size_flags_horizontal = 4
-theme_override_font_sizes/font_size = 32
 text = "Test sound"
 
 [node name="BackButton" type="Button" parent="Center/Rows"]
-custom_minimum_size = Vector2(520, 64)
+custom_minimum_size = Vector2(520, 72)
 layout_mode = 2
 size_flags_horizontal = 4
-theme_override_font_sizes/font_size = 32
 text = "Back"
 
 [node name="TestPlayer" type="AudioStreamPlayer" parent="."]
 stream = ExtResource("3_click")
 bus = &"SFX"
+
+[node name="SaveTimer" type="Timer" parent="."]
+wait_time = 0.3
+one_shot = true
 
 [node name="UiScaler" type="Node" parent="."]
 script = ExtResource("2_scaler")

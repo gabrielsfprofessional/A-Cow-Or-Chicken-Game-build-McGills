@@ -7,16 +7,19 @@ extends Ability
 ##   anyone; the owner runs it as forced motion when the yes arrives.
 ## - While the dash lasts and knockback_px > 0, the server sweeps each accepted
 ##   move that drew on the grant (ChargeSweep) and knocks back each enemy it
-##   finds that is not spawn-protected, once per dash.
+##   finds that is not spawn-protected, once per dash. A respawn of the dasher
+##   ends the sweep (world.respawn_all() respawns heroes that are alive).
 
 ## Sweeping stops once this much more than the dash distance has been swept,
 ## so a knockback that hits the dasher right after doesn't carry the charge.
 const SWEEP_SLACK_PX: float = 24.0
 
-## Server: what is left of the current dash's sweep, when it ends, and who it already hit.
+## Server: what is left of the current dash's sweep, when it ends, who it already
+## hit, and the dasher's life it belongs to (a respawn ends it).
 var _sweep_left_px: float = 0.0
 var _sweep_until_sec: float = -INF
 var _hit_peers: Dictionary[int, bool] = {}
+var _sweep_life: int = -1
 
 
 func _dash() -> DashData:
@@ -24,7 +27,7 @@ func _dash() -> DashData:
 
 
 func on_server_moved(from: Vector2, to: Vector2) -> void:
-	if _sweep_left_px <= 0.0 or _now_sec() > _sweep_until_sec:
+	if _sweep_left_px <= 0.0 or _now_sec() > _sweep_until_sec or _hero.life != _sweep_life:
 		return
 	_sweep_left_px -= from.distance_to(to)
 	var dash := _dash()
@@ -51,6 +54,7 @@ func _use_on_server(now: float) -> void:
 	_sweep_left_px = dash.dash_distance_px + SWEEP_SLACK_PX
 	_sweep_until_sec = now + dash.dash_duration_sec + NetHero.FORCED_MOTION_GRACE_SEC
 	_hit_peers.clear()
+	_sweep_life = _hero.life
 
 
 func _use_on_owner(direction: Vector2) -> void:

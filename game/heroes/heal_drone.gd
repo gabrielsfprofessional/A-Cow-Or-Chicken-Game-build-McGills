@@ -7,7 +7,8 @@ extends Ability
 ##   duration_sec, real time, each giving heal_per_tick_hp to every alive hero
 ##   within radius_px of the healer (the healer included) that MatchRules.can_heal
 ##   allows: everyone with no teams, teammates once T15 installs teams. It stops at once if
-##   the healer is eliminated. A new use starts the ticks over.
+##   the healer is eliminated or respawned (world.respawn_all() respawns heroes
+##   that are alive). A new use starts the ticks over.
 ## - Every client draws the drone, with a ring at radius_px, from the moment
 ##   the yes arrives until duration_sec later or the healer's elimination (it
 ##   stays hidden after a respawn). A
@@ -21,9 +22,11 @@ const RING_COLOR: Color = Color(0.45, 1.0, 0.55, 0.35)
 const RING_WIDTH_PX: float = 2.0
 const RING_POINTS: int = 64
 
-## Server: heal ticks still to come and when the next falls (_now_sec() clock).
+## Server: heal ticks still to come, when the next falls (_now_sec() clock), and
+## the healer's life they belong to.
 var _ticks_left: int = 0
 var _next_tick_sec: float = INF
+var _ticks_life: int = -1
 ## Clients: the drone's drawing, a child of the hero, and when it hides.
 var _view: Node2D = null
 var _show_until_sec: float = -INF
@@ -50,6 +53,7 @@ func _ready() -> void:
 func _use_on_server(now: float) -> void:
 	_ticks_left = _drone().tick_count()
 	_next_tick_sec = now + _drone().tick_sec
+	_ticks_life = _hero.life
 
 
 func _use_on_client(_direction: Vector2) -> void:
@@ -62,8 +66,8 @@ func _effect_physics(_delta: float) -> void:
 		_view.visible = _hero.is_alive() and _hero.life == _shown_life and _now_sec() < _show_until_sec
 	if _ticks_left <= 0:
 		return
-	if not _hero.is_alive():
-		_ticks_left = 0  # The healer was eliminated: the drone stops.
+	if not _hero.is_alive() or _hero.life != _ticks_life:
+		_ticks_left = 0  # The healer was eliminated or respawned: the drone stops.
 		return
 	var now := _now_sec()
 	while _ticks_left > 0 and now >= _next_tick_sec:

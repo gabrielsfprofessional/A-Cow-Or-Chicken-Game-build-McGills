@@ -39,6 +39,7 @@ var _allies_cache: Dictionary[int, Array] = {}
 var hits: int = 0
 var stopped: int = 0
 var expired: int = 0
+var cleared: int = 0
 
 var _active: PackedByteArray = PackedByteArray()
 var _attacker: PackedInt64Array = PackedInt64Array()
@@ -114,6 +115,19 @@ func step(space: PhysicsDirectSpaceState2D, delta: float) -> void:
 
 func active_count() -> int:
 	return CAPACITY - _free_count
+
+
+## Drops every shot in flight without a hit and returns how many (a new match:
+## world.respawn_all()). Safe from an on_hit callback inside step(): the shots
+## that tick had not reached yet are simply gone.
+func clear() -> int:
+	var dropped := 0
+	for slot: int in range(CAPACITY):
+		if _active[slot] == 1:
+			_free_slot(slot)
+			dropped += 1
+	cleared += dropped
+	return dropped
 
 
 ## The slot of a live shot, or -1.
