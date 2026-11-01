@@ -17,7 +17,8 @@ extends CharacterBody2D
 ##   emits signals; this script hides the hero, turns its collider off, stops
 ##   its input and brings it back.
 ## - Every respawn raises `life`. Moves and fire carry the life they were sent
-##   in, and another life's are dropped silently.
+##   in, and another life's are dropped silently. A mode's new match brings
+##   every hero back at once, alive or not: respawn_now(), from world.respawn_all().
 ## - T14: the "Ability" child (built by HeroData.ability's make(), T18) and
 ##   forced motion: a dash or a knockback runs a whole number of physics ticks
 ##   with an equal step each, ignores move input, stops at a wall, and ends on
@@ -234,6 +235,20 @@ func take_hit(attacker: int, shot_id: int, amount: int, at: Vector2) -> int:
 		_health.absorb(attacker, shot_id, at)
 		return 0
 	return _health.take_damage(amount, attacker, shot_id, at)
+
+
+## Server only: brings this hero back now, alive or eliminated, the same way as
+## the respawn after an elimination: a new life, full health, the rules'
+## respawn point and spawn protection, and every ready peer told. Moves, fire,
+## ability uses and ability effects (a dash's sweep, a Heal Drone) from the old
+## life end; ability cooldowns carry over. For a mode's new match, through
+## world.respawn_all(). False (and nothing done) off the server, or for a hero
+## not in the tree or not past its _ready().
+func respawn_now() -> bool:
+	if not is_inside_tree() or not multiplayer.is_server() or _check == null:
+		return false
+	_respawn_on_server()
+	return true
 
 
 ## Server only: true while this hero's spawn protection lasts.
