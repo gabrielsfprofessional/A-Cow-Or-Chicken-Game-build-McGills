@@ -12,8 +12,8 @@ Run one:
 
 The smoke test (`tools/smoke.ps1`, `tools/smoke.sh`) runs every `tests/*_test.gd`
 and fails on a non-zero exit, so GitHub runs them on every pull request. It also
-runs Adam's `game/maps/tools/check_arena.gd` and `test_arena_check.gd` when they
-exist.
+runs Adam's `game/maps/tools/check_arena.gd` and every `test_*.gd` in
+`game/maps/tools` and `game/modes/tools` (sorted by name) when they exist.
 
 Each script gets 60 s. One still running then is killed (by PID in `smoke.ps1`,
 by `timeout --kill-after=5s 60s` in `smoke.sh`), and smoke fails with

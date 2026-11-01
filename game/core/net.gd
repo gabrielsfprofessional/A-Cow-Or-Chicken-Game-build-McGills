@@ -20,9 +20,9 @@ signal join_failed(reason: String)
 signal left(reason: String)
 
 const DEFAULT_PORT: int = 7777
-## Wire format version (T06 = 1, T07 = 2, T08 = 3, T14 = 4, T18 = 5, week-3 seams = 6). Bump it on every change to RPCs,
+## Wire format version (T06 = 1, T07 = 2, T08 = 3, T14 = 4, T18 = 5, week-3 seams = 6, T39 = 7). Bump it on every change to RPCs,
 ## channels or payloads: builds with a different number refuse each other.
-const NET_PROTOCOL: int = 6
+const NET_PROTOCOL: int = 7
 ## ENet channels on top of the default one (channel 0). Only create_client takes it (see host()).
 const CHANNEL_COUNT: int = 1
 ## Movement messages (T07). See game/net/README.md.
@@ -94,7 +94,7 @@ func _ready() -> void:
 func server_address() -> String:
 	var config := ConfigFile.new()
 	if config.load(CONFIG_PATH) == OK:
-		return str(config.get_value("server", "address", "127.0.0.1"))
+		return str(config.get_value("server", "address", "127.0.0.1")).strip_edges()
 	return "127.0.0.1"
 
 
@@ -189,7 +189,11 @@ func host() -> Error:
 	multiplayer.multiplayer_peer = peer
 	state = State.SERVER
 	_log("server up on UDP %d, version %s, room for %d players" % [DEFAULT_PORT, version(), MAX_PLAYERS])
-	_load_world()
+	var loaded := await _load_world()
+	if not loaded and Game.is_server():
+		_log("the server has no world, quitting")
+		get_tree().quit(1)
+		return ERR_CANT_CREATE
 	return OK
 
 
@@ -249,7 +253,7 @@ func _autostart() -> void:
 	# Let the main scene finish loading before swapping it out.
 	await get_tree().process_frame
 	if Game.is_server():
-		host()
+		await host()
 		return
 	var address := join_argument()
 	if address == "":
@@ -375,6 +379,7 @@ func _on_connected_to_server() -> void:
 	if state != State.CONNECTING:
 		return  # Already given up on this attempt. Do not resurrect it.
 	state = State.CLIENT
+	last_reason = ""
 	_stop_throttle(1)
 	_log("connected as peer %d after %s (server version %s)" % [
 		multiplayer.get_unique_id(), _since_join(), _server_version,
@@ -398,10 +403,17 @@ func _on_server_disconnected() -> void:
 
 
 func _lose_server() -> void:
+	drop_out("Lost connection to the server. It may have been closed.")
+
+
+## Out of a game the player was in, for a reason that isn't theirs (a lost server,
+## a map this build doesn't have). Emits left(reason), so a test bot exits 1, and puts
+## the player back on the Join screen, which shows the reason. Call it deferred from
+## an RPC: closing the peer inside its poll crashes Godot.
+func drop_out(reason: String) -> void:
 	if state != State.CLIENT:
 		return
 	_close_peer()
-	var reason := "Lost connection to the server. It may have been closed."
 	_log(reason)
 	left.emit(reason)
 	_return_to_join_screen(reason)
@@ -424,8 +436,8 @@ func _fail_join(reason: String) -> void:
 		return
 	_close_peer()
 	_log("join failed after %s: %s" % [_since_join(), reason])
-	join_failed.emit(reason)
 	_return_to_join_screen(reason)
+	join_failed.emit(reason)
 
 
 func _close_peer() -> void:

@@ -17,7 +17,7 @@ Every task is a card. Gabe turns each row below into a GitHub Issue titled `TNN:
 
 Weeks: 1 = Oct 4-10 · 2 = Oct 11-17 · 3 = Oct 18-24 · 4 = Oct 25-31 · 5 = Nov 1-7 · 6 = Nov 8-14 · 7 = Nov 15-21 · 8 = Nov 22-25
 
-## To Thanksgiving: Arena mode (T01-T38)
+## To Thanksgiving: Arena mode (T01-T40)
 
 | # | Card | Owner | Week | Label | Depends on | Done when |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -32,18 +32,18 @@ Weeks: 1 = Oct 4-10 · 2 = Oct 11-17 · 3 = Oct 18-24 · 4 = Oct 25-31 · 5 = No
 | T09 | Test bots: headless clients that join, wander and shoot; smoke test starts server + 2 bots | Gabe | 4 | tests | T08 | One PC runs 8 bots for 10 minutes, no disconnects |
 | T10 | Main menu Play button and Join screen | John | 2 | ui | T06 | A second PC joins with Play then Join, no typing (address prefilled) |
 | T11 | Profile (name, color, device token) and the shared UI theme | John | 2 | players | T38, T10 | First launch opens the profile screen; after Save and a restart the menu shows "Playing as <name>"; a blank or 13-character name can't be saved; a --server or --join launch never shows the profile screen; everything fits at 150% in a 1280x720 window |
-| T12 | Team spawns and 2 s spawn protection | Adam | 3 | modes | T05, T08 | No spawn eliminations across 20 respawns with 2 players; the 10-minute bot test runs in T30 |
+| T12 | Team spawns and 2 s spawn protection | Adam | 3 | modes | T05, T08, T39 | No spawn eliminations across 20 respawns with 2 players; the 10-minute bot test runs in T30 |
 | T13 | HeroData and WeaponData resources; all numbers in .tres files | Gabe | 3 | heroes | T08 | Changing a number in the Inspector changes the game |
 | T14 | Hero 1 (Fantasy Bruiser) with Shield Charge | Gabe | 3 | heroes | T13 | Ability works online with its cooldown |
-| T15 | Arena rules: 2 teams, auto-balance, score limit, 20-minute cap | Adam | 3 | modes | T12 | A full match ends and declares a winner |
-| T16 | Lobby and hero select | John | 3 | ui | T11, T13 | 4 players pick heroes and start a match |
+| T15 | Arena rules: 2 teams, auto-balance, score limit, 20-minute cap | Adam | 3 | modes | T12, T39 | A full match ends and declares a winner |
+| T16 | Lobby and hero select | John | 3 | ui | T11, T13, T39, T40 | 4 players pick heroes and start a match |
 | T17 | HUD: health, Q cooldown, team scores, timer | John | 3 | ui | T13 | All values update live online; names show above heroes |
 | T18 | Heroes 2-4 with their Q abilities | Gabe | 4 | heroes | T14 | All 4 heroes playable online |
-| T19 | Six base weapons as data files | Adam | 4 | weapons | T13 | All 6 usable in the practice range |
-| T20 | Practice range with target dummies | Adam | 4 | maps | T08 | Dummies show damage numbers |
+| T19 | Six base weapons as data files | Adam | 4 | weapons | T13, T40 | All 6 usable in the practice range |
+| T20 | Practice range with target dummies | Adam | 4 | maps | T08, T39 | Dummies show damage numbers |
 | T21 | Server profile store: JSON saves, schema version, safe writes, nightly backup | Gabe | 4 | server | T11 | Pulling the plug mid-match loses no saved profile |
 | T22 | Stats recording: matches, wins, eliminations, damage, hero | Gabe | 4 | server | T15, T21 | Stats correct after 3 test matches |
-| T23 | Arena map v1, sized for 8-16 players | Adam | 5 | maps | T04, T15, T09 | 16 bots play without traffic jams |
+| T23 | Arena map v1, sized for 8-16 players | Adam | 5 | maps | T04, T15, T09, T39 | 16 bots play without traffic jams |
 | T24 | Results screen | John | 5 | ui | T22 | Shows every player's match stats |
 | T25 | Hit feedback: flash, damage numbers, hit and elimination sounds | John | 5 | art | T08 | Every hit is visible and audible |
 | T26 | Thanksgiving logistics: location, Wi-Fi, laptop list | John | 5 | docs | none | At least 10 Windows laptops named by Nov 1 (Risk 4's trigger). Works is checked with the T29 installer. |
@@ -59,6 +59,8 @@ Weeks: 1 = Oct 4-10 · 2 = Oct 11-17 · 3 = Oct 18-24 · 4 = Oct 25-31 · 5 = No
 | T36 | Rehearsal fixes; build freeze Tue Nov 24; copies on Drive and 2 USB sticks | Gabe | 8 | core | T35 | Final build installed on every laptop |
 | T37 | Printed quick-start card: install, controls, joining | John | 8 | docs | T29 | A first-timer joins without help |
 | T38 | Settings screen: volume, UI scale, window mode, test sound | John | 3 | ui | none (shipped before T11) | Every setting survives a restart; the test sound follows the SFX and Master sliders; no text is cut off at 150% in a 1280x720 window |
+| T39 | Maps online: the server runs Adam's maps by name; every player builds the map and spawns on its points | Gabe | 3 | net | T05, T18 | 4 bots play 120 s on the arena with zero refusal or error lines; a late joiner gets the same map |
+| T40 | Weapon choice: any roster weapon, the same on every peer | Gabe | 4 | weapons | T39 | A player plays any roster weapon (by --weapon until T16's picker); every peer, late joiners too, sees the same weapon |
 
 ## Gates
 
