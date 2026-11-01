@@ -32,7 +32,9 @@ func _starting_address() -> String:
 	if Settings.last_tried != "":
 		return Settings.last_tried
 	var shipped: String = Net.server_address()
-	if Settings.last_address != "" and Settings.last_shipped == shipped:
+	# No server.cfg (127.0.0.1) has nothing newer to prefer, so the saved address stays.
+	var no_config: bool = shipped == "127.0.0.1"
+	if Settings.last_address != "" and (no_config or Settings.last_shipped == shipped):
 		return Settings.last_address
 	return shipped
 
