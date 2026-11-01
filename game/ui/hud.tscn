@@ -1,0 +1,87 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://game/ui/hud.gd" id="1_hud"]
+[ext_resource type="Script" path="res://game/ui/ui_scaler.gd" id="2_scaler"]
+
+[node name="Hud" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("1_hud")
+
+[node name="UiScaler" type="Node" parent="."]
+script = ExtResource("2_scaler")
+
+[node name="Corner" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 32.0
+offset_top = -32.0
+offset_right = 32.0
+offset_bottom = -32.0
+grow_vertical = 0
+mouse_filter = 2
+
+[node name="Stack" type="VBoxContainer" parent="Corner"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 12
+
+[node name="QBox" type="PanelContainer" parent="Corner/Stack"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="Row" type="HBoxContainer" parent="Corner/Stack/QBox"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 16
+
+[node name="Key" type="Label" parent="Corner/Stack/QBox/Row"]
+layout_mode = 2
+mouse_filter = 2
+text = "Q"
+
+[node name="Name" type="Label" parent="Corner/Stack/QBox/Row"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="State" type="Label" parent="Corner/Stack/QBox/Row"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="HealthRow" type="HBoxContainer" parent="Corner/Stack"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 16
+
+[node name="HealthBar" type="ProgressBar" parent="Corner/Stack/HealthRow"]
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+show_percentage = false
+
+[node name="HealthText" type="Label" parent="Corner/Stack/HealthRow"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="BackIn" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -200.0
+offset_top = -160.0
+offset_right = 200.0
+offset_bottom = -110.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+horizontal_alignment = 1
