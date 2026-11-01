@@ -620,7 +620,9 @@ A scene listed in `maps.tres` keeps all of these (data_test checks the first two
 - The root is a Node2D with `map_size: Vector2` (px). The map's top-left corner is (0, 0).
 - Spawn points: Marker2D children of `Spawns`, 1 or more, and nothing else under `Spawns`.
   `SpawnA` or `SpawnA<number>` is team 0 (Blue), `SpawnB` or `SpawnB<number>` team 1
-  (Orange); any other name (the practice range's `PlayerSpawn`, or `SpawnBridge`) serves every team. How many a map needs is its
+  (Orange); <number> is digits only, and any other name (the practice range's `PlayerSpawn`, `SpawnBridge`
+  or `SpawnA-1`) serves every team. A map with team points names both teams' points, or neither
+  (data_test checks it). How many a map needs is its
   own rule: the arena checks its 8 team spawns itself (arena_graybox.gd, smoke runs it).
 - `bot_area() -> Rect2` on the root is optional. Without it, bots wander the map
   inside a 48 px outer wall, kept 32 px clear of it.
