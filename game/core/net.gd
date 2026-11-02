@@ -5,6 +5,8 @@ extends Node
 ## - Each client moves its own hero; the server decides hits, damage and score.
 ## - The server address comes from res://server.cfg, which git ignores.
 ##   T29 adds server.cfg to the export filter so it ships inside the .exe.
+## - The handshake: both sides send their version; then the client sends who is joining
+##   (T21 part 2: PlayerAuth), and the server saves players (PlayerRegistry).
 ##
 ## Run a server: Godot_v4.7.2-stable_win64_console.exe --headless --path . -- --server
 ## Join one:     Godot_v4.7.2-stable_win64.exe --path . -- --join=<address>
@@ -20,9 +22,10 @@ signal join_failed(reason: String)
 signal left(reason: String)
 
 const DEFAULT_PORT: int = 7777
-## Wire format version (T06 = 1, T07 = 2, T08 = 3, T14 = 4, T18 = 5, week-3 seams = 6, T39 = 7). Bump it on every change to RPCs,
-## channels or payloads: builds with a different number refuse each other.
-const NET_PROTOCOL: int = 7
+## Wire format version (T06 = 1, T07 = 2, T08 = 3, T14 = 4, T18 = 5, week-3 seams = 6, T39 = 7,
+## T21 part 2 = 8). Bump it on every change to RPCs, channels, payloads or the handshake:
+## builds with a different number refuse each other.
+const NET_PROTOCOL: int = 8
 ## ENet channels on top of the default one (channel 0). Only create_client takes it (see host()).
 const CHANNEL_COUNT: int = 1
 ## Movement messages (T07). See game/net/README.md.
@@ -39,6 +42,14 @@ const CONFIG_PATH: String = "res://server.cfg"
 const JOIN_TIMEOUT: float = 5.0
 ## How long the server waits before dropping a version-mismatched peer.
 const REFUSE_DELAY: float = 1.0
+## Debug builds: "-- --profile=<path>" joins with that profile file instead of
+## user://profile.json (T21 part 2), so two windows on one PC can be two players.
+const PROFILE_FLAG: String = "--profile="
+## Handshake stages on the server (T21 part 2), in _auth_stage.
+const AUTH_PLAYER_NEXT: int = 1
+const AUTH_DONE: int = 2
+## The longest version string a log line repeats as sent.
+const VERSION_SHOWN_MAX: int = 40
 const TEST_WORLD: String = "res://game/net/test_world.tscn"
 const JOIN_SCREEN: String = "res://game/ui/join_screen.tscn"
 ## Frames the auto-join waits for the world to load before it gives up.
@@ -65,6 +76,13 @@ var last_reason: String = ""
 
 var _peer_versions: Dictionary[int, String] = {}
 var _server_version: String = ""
+## Server (T21 part 2): how far each peer has got in the handshake. No entry: its version
+## comes next; AUTH_PLAYER_NEXT: its player message; AUTH_DONE: nothing more is read.
+var _auth_stage: Dictionary[int, int] = {}
+## Server: each authenticated peer's reading of its player message, until it connects.
+var _player_readings: Dictionary[int, Dictionary] = {}
+## Server: who each connected peer is (player saves). Null on clients.
+var _players: PlayerRegistry = null
 var _join_target: String = ""
 var _join_started_msec: int = 0
 ## Bumped on every join and leave so a stale timeout cannot fail a later attempt.
@@ -189,6 +207,8 @@ func host() -> Error:
 	multiplayer.multiplayer_peer = peer
 	state = State.SERVER
 	_log("server up on UDP %d, version %s, room for %d players" % [DEFAULT_PORT, version(), MAX_PLAYERS])
+	_players = PlayerRegistry.new(ProfileStore.open_default())
+	_server_log(_players.open())
 	var loaded := await _load_world()
 	if not loaded and Game.is_server():
 		_log("the server has no world, quitting")
@@ -306,19 +326,30 @@ func _on_auth(id: int, data: PackedByteArray) -> void:
 	var api := multiplayer as SceneMultiplayer
 	if api == null:
 		return
-	var peer_version := data.get_string_from_utf8().strip_edges()
 	var mine := version()
 	if multiplayer.is_server():
-		_peer_versions[id] = peer_version
-		if peer_version != mine:
-			_log("refused peer %d: version mismatch (server %s, peer %s)" % [id, mine, peer_version])
+		var stage: int = _auth_stage.get(id, 0)
+		if stage == AUTH_DONE:
+			return  # Anything after the player message, or after a refusal: never read or logged.
+		if stage == AUTH_PLAYER_NEXT:
+			# The second message (T21 part 2): who is joining. Read now, used on connect.
+			_auth_stage[id] = AUTH_DONE
+			_player_readings[id] = PlayerAuth.read_message(data)
+			api.complete_auth(id)
+			return
+		var sent := shown_version(data.get_string_from_utf8().strip_edges())
+		_peer_versions[id] = sent
+		if sent != mine:
+			_log("refused peer %d: version mismatch (server %s, peer %s)" % [id, mine, sent])
 			_peer_versions.erase(id)
+			_auth_stage[id] = AUTH_DONE
 			# Disconnecting now would clear the outgoing queue and drop the
 			# version we just sent, so the client could not name it.
 			_refuse_later(id)
 			return
-		api.complete_auth(id)
+		_auth_stage[id] = AUTH_PLAYER_NEXT  # The player message comes next.
 		return
+	var peer_version := shown_version(data.get_string_from_utf8().strip_edges())
 	# On a client the only peer that authenticates is the server, peer 1.
 	if state != State.CONNECTING:
 		return
@@ -326,7 +357,25 @@ func _on_auth(id: int, data: PackedByteArray) -> void:
 	if peer_version != mine:
 		_fail_join.call_deferred(_mismatch_reason(peer_version, mine))
 		return
+	# Only now, with the version accepted both ways, does the token leave this PC.
+	api.send_auth(id, _player_message())
 	api.complete_auth(id)
+
+
+## The second auth message (T21 part 2): the profile's name, color and device token,
+## or a guest note for a test bot or a player with no profile. "--profile=<path>" (debug
+## builds) reads that profile file instead. The token is never printed.
+func _player_message() -> PackedByteArray:
+	var args := OS.get_cmdline_user_args()
+	if debug_flag(OS.is_debug_build(), args, "--bot=") != "":
+		return PlayerAuth.guest_message("bot")
+	var path := debug_flag(OS.is_debug_build(), args, PROFILE_FLAG)
+	if path == "":
+		path = Profile.PATH
+	if not Profile.exists(path):
+		return PlayerAuth.guest_message("no profile")
+	var profile := Profile.load_or_default(path)
+	return PlayerAuth.player_message(profile["name"], profile["color"], profile["device_token"])
 
 
 ## Disconnects a refused peer after REFUSE_DELAY, if it hasn't already left.
@@ -339,8 +388,10 @@ func _refuse_later(id: int) -> void:
 
 func _on_peer_authentication_failed(id: int) -> void:
 	if multiplayer.is_server():
-		_log("peer %d failed the version handshake" % id)
+		_log("peer %d failed the handshake (its version or player message)" % id)
 		_peer_versions.erase(id)
+		_auth_stage.erase(id)
+		_player_readings.erase(id)
 		return
 	if state != State.CONNECTING:
 		return
@@ -348,6 +399,19 @@ func _on_peer_authentication_failed(id: int) -> void:
 		_fail_join.call_deferred(_mismatch_reason(_server_version, version()))
 		return
 	_fail_join.call_deferred("The server refused the connection. It may be full, or running a different version.")
+
+
+## A version string fit for a log line or the Join screen: as sent when it's at most
+## VERSION_SHOWN_MAX characters of digits, letters and . + - _ (every real one is), else
+## "?". Nothing a peer sends goes into a log unchecked (T21 part 2).
+static func shown_version(text: String) -> String:
+	const ALLOWED: String = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.+-_"
+	if text == "" or text.length() > VERSION_SHOWN_MAX:
+		return "?"
+	for i: int in text.length():
+		if not ALLOWED.contains(text[i]):
+			return "?"
+	return text
 
 
 func _mismatch_reason(server_version: String, my_version: String) -> String:
@@ -363,6 +427,10 @@ func _on_peer_connected(id: int) -> void:
 	_log("join: peer %d version %s (%d connected)" % [
 		id, _peer_versions.get(id, "unknown"), multiplayer.get_peers().size(),
 	])
+	var reading: Dictionary = _player_readings.get(id, PlayerAuth.guest("no player message"))
+	_player_readings.erase(id)
+	if _players != null:
+		_server_log(_players.join(id, reading, _now_unix()))
 
 
 func _on_peer_disconnected(id: int) -> void:
@@ -373,6 +441,11 @@ func _on_peer_disconnected(id: int) -> void:
 		id, _peer_versions.get(id, "unknown"), multiplayer.get_peers().size(),
 	])
 	_peer_versions.erase(id)
+	_auth_stage.erase(id)
+	if _players != null:
+		var line := _players.leave(id, _now_unix())
+		if line != "":
+			_server_log(line)
 
 
 func _on_connected_to_server() -> void:
@@ -441,9 +514,16 @@ func _fail_join(reason: String) -> void:
 
 
 func _close_peer() -> void:
+	if _players != null:
+		# The server is closing: save when each player was last seen, then forget them.
+		for line: String in _players.leave_all(_now_unix()):
+			_server_log(line)
+		_players = null
 	state = State.OFFLINE
 	_join_attempt += 1
 	_peer_versions.clear()
+	_auth_stage.clear()
+	_player_readings.clear()
 	var peer := multiplayer.multiplayer_peer
 	if peer != null and not peer is OfflineMultiplayerPeer:
 		peer.close()
@@ -498,3 +578,12 @@ func _since_join() -> String:
 
 func _log(message: String) -> void:
 	print("[Net] ", message)
+
+
+## Player saves and guests (T21 part 2). Never the token.
+func _server_log(message: String) -> void:
+	print("[Server] ", message)
+
+
+func _now_unix() -> int:
+	return int(Time.get_unix_time_from_system())
