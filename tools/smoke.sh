@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Smoke test: import the project, run the game headless for 300 frames and fail
-# if Godot prints any script or engine error. Then run every tests/*_test.gd and
-# Adam's arena checks (when they exist) and fail if any exits non-zero or runs
+# if Godot prints any script or engine error. Then run every tests/*_test.gd,
+# Adam's check_arena.gd and every test_*.gd in game/maps/tools and
+# game/modes/tools (when they exist), and fail if any exits non-zero or runs
 # longer than 60 s (it is then killed). Then play a bot match (cards T09, T18): a headless server and 4 test bots, one per hero, on UDP 7777.
 # Usage (Linux, CI, or Git Bash):  GODOT=/path/to/godot bash tools/smoke.sh
 set -uo pipefail
@@ -25,8 +26,8 @@ SCRIPTS=()
 for f in "$ROOT"/tests/*_test.gd; do
   [ -e "$f" ] && SCRIPTS+=("res://tests/$(basename "$f")")
 done
-for f in game/maps/tools/check_arena.gd game/maps/tools/test_arena_check.gd; do
-  [ -e "$ROOT/$f" ] && SCRIPTS+=("res://$f")
+for f in "$ROOT"/game/maps/tools/check_arena.gd "$ROOT"/game/maps/tools/test_*.gd "$ROOT"/game/modes/tools/test_*.gd; do
+  [ -e "$f" ] && SCRIPTS+=("res://${f#"$ROOT"/}")
 done
 FAILED=0
 for s in "${SCRIPTS[@]}"; do
@@ -56,8 +57,11 @@ fi
 # each, 1 s apart), one per hero, play on UDP 7777, the real network path.
 # Passes when all five exit 0, no log has an error, the server logged at least
 # one hit and an ability_used for each of the four abilities (T18), and nothing
-# was refused ([Move], [Shot] or [Ability]). Anything still running after 60 s
-# is killed by PID.
+# was refused ([Move], [Shot] or [Ability]). At 15 s the server starts a new
+# match (--respawn-all-at, the hook for T15): it must log respawn_all for all 4
+# heroes once, every bot must apply each of those 4 respawns (same player and
+# life), and the server must log a hit after it. Anything still running after
+# 60 s is killed by PID.
 # Bot n plays hero n; each must use its ability (the roster's file names and ability names).
 MATCH_HEROES=(bruiser mage scout medic)
 MATCH_ABILITIES=("Shield Charge" "Blink" "Jet Dash" "Heal Drone")
@@ -76,7 +80,7 @@ stop_match_leftovers() {
 }
 trap stop_match_leftovers EXIT
 MATCH_START=$SECONDS
-"$GODOT" --headless --path "$ROOT" -- --server --quit-after-sec=45 >"${LOGS[0]}" 2>&1 &
+"$GODOT" --headless --path "$ROOT" -- --server --quit-after-sec=45 --respawn-all-at=15 >"${LOGS[0]}" 2>&1 &
 PIDS+=("$!")
 STATE="timeout"
 while [ $((SECONDS - MATCH_START)) -lt 30 ]; do
@@ -136,6 +140,38 @@ for ability in "${MATCH_ABILITIES[@]}"; do
     MATCH_FAILED=1
   fi
 done
+# The new match: respawn_all prints each hero's hero_respawned line (and its
+# protected line, if the rules protect), then its own line. So its 4 respawns are
+# the last 4 hero_respawned lines among the 8 lines before it.
+NEW_MATCH=$(grep -c "\[Combat\] respawn_all:" "${LOGS[0]}")
+NEW_MATCH_4=$(grep -cE "\[Combat\] respawn_all: 4 heroes, [0-9]+ shots cleared" "${LOGS[0]}")
+if [ "$NEW_MATCH" -ne 1 ] || [ "$NEW_MATCH_4" -ne 1 ]; then
+  echo "SMOKE: bot match: $NEW_MATCH respawn_all line(s), $NEW_MATCH_4 for 4 heroes (want 1 and 1)"
+  MATCH_FAILED=1
+else
+  AT=$(grep -n "\[Combat\] respawn_all:" "${LOGS[0]}" | cut -d: -f1)
+  FROM=$((AT > 8 ? AT - 8 : 1))
+  RESPAWNS=$(sed -n "${FROM},$((AT - 1))p" "${LOGS[0]}" |
+    sed -nE 's/.*\[Combat\] hero_respawned: Player ([0-9]+) at \([^)]*\), life ([0-9]+).*/\1 \2/p' | tail -n 4)
+  PLAYERS=$(printf '%s\n' "$RESPAWNS" | cut -d' ' -f1 | sort -u | grep -c .)
+  if [ "$PLAYERS" -ne 4 ]; then
+    echo "SMOKE: bot match: respawn_all's 4 hero_respawned lines don't name 4 players"
+    MATCH_FAILED=1
+  else
+    while read -r PEER LIFE; do
+      for n in 1 2 3 4; do
+        if ! grep -qE "\[Combat\] hero_respawned: Player $PEER at \([^)]*\), life $LIFE([^0-9]|$)" "${LOGS[$n]}"; then
+          echo "SMOKE: bot match: ${NAMES[$n]} never moved Player $PEER to life $LIFE (respawn_all)"
+          MATCH_FAILED=1
+        fi
+      done
+    done <<< "$RESPAWNS"
+  fi
+  if ! tail -n "+$((AT + 1))" "${LOGS[0]}" | grep -q "\[Combat\] hero_damaged"; then
+    echo "SMOKE: bot match: the server logged no hit after respawn_all"
+    MATCH_FAILED=1
+  fi
+fi
 if [ "$MATCH_FAILED" -ne 0 ]; then
   # On GitHub nobody can open the temp files, so show the end of each log here.
   for i in 0 1 2 3 4; do
@@ -145,5 +181,83 @@ if [ "$MATCH_FAILED" -ne 0 ]; then
   echo "SMOKE: FAIL: bot match (logs: server ${LOGS[0]}, bot1-4 ${LOGS[1]} ${LOGS[2]} ${LOGS[3]} ${LOGS[4]})"
   exit 1
 fi
-echo "SMOKE: bot match passed (server and 4 bots exited 0, all four abilities used, $HITS hits, $ABILITIES abilities, $((SECONDS - MATCH_START)) s)"
+echo "SMOKE: bot match passed (server and 4 bots exited 0, all four abilities used, every bot applied the new match's 4 respawns, $HITS hits, $ABILITIES abilities, $((SECONDS - MATCH_START)) s)"
+
+# Arena check (card T39): a server on Adam's arena (--map=arena) and bots 1-2
+# (20 s, 1 s apart). Passes when all three exit 0, the server built the arena and
+# spawned both heroes on its Spawn markers, each bot built the map before saying
+# hello, and no log has an error or a refusal. Anything left after 45 s is killed by PID.
+NAMES=(arena-server arena-bot1 arena-bot2)
+LOGS=("$(mktemp)" "$(mktemp)" "$(mktemp)")
+PIDS=()
+trap stop_match_leftovers EXIT
+MATCH_START=$SECONDS
+"$GODOT" --headless --path "$ROOT" -- --server --map=arena --quit-after-sec=32 >"${LOGS[0]}" 2>&1 &
+PIDS+=("$!")
+STATE="timeout"
+while [ $((SECONDS - MATCH_START)) -lt 30 ]; do
+  if grep -q "could not host" "${LOGS[0]}"; then STATE="in use"; break; fi
+  if grep -q "server up" "${LOGS[0]}"; then STATE="up"; break; fi
+  if ! kill -0 "${PIDS[0]}" 2>/dev/null; then STATE="exited"; break; fi
+  sleep 0.2
+done
+if [ "$STATE" != "up" ]; then
+  cat "${LOGS[0]}"
+  echo "SMOKE: FAIL: the arena check server did not start ($STATE, log: ${LOGS[0]})"
+  exit 1
+fi
+for n in 1 2; do
+  if [ "$n" -gt 1 ]; then sleep 1; fi
+  "$GODOT" --headless --path "$ROOT" -- --join=127.0.0.1 --bot=$n --hero=${MATCH_HEROES[$((n - 1))]} --quit-after-sec=20 >"${LOGS[$n]}" 2>&1 &
+  PIDS+=("$!")
+done
+while [ $((SECONDS - MATCH_START)) -lt 45 ]; do
+  RUNNING=0
+  for pid in "${PIDS[@]}"; do
+    if kill -0 "$pid" 2>/dev/null; then RUNNING=$((RUNNING + 1)); fi
+  done
+  [ "$RUNNING" -eq 0 ] && break
+  sleep 0.5
+done
+stop_match_leftovers
+MATCH_FAILED=0
+for i in 0 1 2; do
+  wait "${PIDS[$i]}"
+  CODE=$?
+  if [ "$CODE" -ne 0 ]; then
+    echo "SMOKE: arena check: ${NAMES[$i]} exited $CODE"
+    MATCH_FAILED=1
+  fi
+done
+PIDS=()
+trap - EXIT
+if grep -nE "SCRIPT ERROR|Parse Error|ERROR:" "${LOGS[@]}"; then MATCH_FAILED=1; fi
+if grep -nE "\[(Move|Shot|Ability)\]" "${LOGS[@]}"; then MATCH_FAILED=1; fi
+if ! grep -q "\[TestWorld\] map arena built" "${LOGS[0]}"; then
+  echo "SMOKE: arena check: the server never built the arena"
+  MATCH_FAILED=1
+fi
+SPAWNED=$(grep -c "\[TestWorld\] hero spawned for peer" "${LOGS[0]}")
+ON_MARKERS=$(grep -cE "\[TestWorld\] hero spawned for peer [0-9]+ at Spawn[AB][0-9]+ \(" "${LOGS[0]}")
+if [ "$SPAWNED" -ne 2 ] || [ "$ON_MARKERS" -ne 2 ]; then
+  echo "SMOKE: arena check: $ON_MARKERS of $SPAWNED heroes spawned on a Spawn marker (want 2 of 2)"
+  MATCH_FAILED=1
+fi
+for n in 1 2; do
+  BUILT=$(grep -n "\[TestWorld\] map arena built" "${LOGS[$n]}" | head -n 1 | cut -d: -f1)
+  HELLO=$(grep -n "saying hello" "${LOGS[$n]}" | head -n 1 | cut -d: -f1)
+  if [ -z "$BUILT" ] || [ -z "$HELLO" ] || [ "$BUILT" -gt "$HELLO" ]; then
+    echo "SMOKE: arena check: arena-bot$n did not build the map before its hello"
+    MATCH_FAILED=1
+  fi
+done
+if [ "$MATCH_FAILED" -ne 0 ]; then
+  for i in 0 1 2; do
+    echo "--- ${NAMES[$i]} log, last 40 lines:"
+    tail -n 40 "${LOGS[$i]}"
+  done
+  echo "SMOKE: FAIL: arena check (logs: ${LOGS[0]} ${LOGS[1]} ${LOGS[2]})"
+  exit 1
+fi
+echo "SMOKE: arena check passed (server and 2 bots exited 0, both heroes on Spawn markers, map built before hello)"
 echo "SMOKE: PASS"

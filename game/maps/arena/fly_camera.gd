@@ -17,7 +17,7 @@ extends Camera2D
 
 
 func _ready() -> void:
-	if not ArenaMap.is_f6_run(owner):
+	if not GrayboxMap.is_f6_run(owner):
 		set_process(false)
 		set_process_unhandled_input(false)
 		queue_free()

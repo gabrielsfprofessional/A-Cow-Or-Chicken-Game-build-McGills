@@ -1,0 +1,78 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://game/maps/practice/practice_range.gd" id="1_practice"]
+[ext_resource type="PackedScene" path="res://game/maps/arena/block.tscn" id="2_block"]
+[ext_resource type="PackedScene" path="res://game/maps/arena/fly_camera.tscn" id="3_camera"]
+
+[node name="PracticeRange" type="Node2D"]
+script = ExtResource("1_practice")
+map_size = Vector2(2880, 1632)
+
+[node name="Floor" type="ColorRect" parent="."]
+offset_right = 2880.0
+offset_bottom = 1632.0
+mouse_filter = 2
+color = Color(0.16, 0.17, 0.19, 1)
+
+[node name="Walls" type="Node2D" parent="."]
+
+[node name="WallTop" parent="Walls" instance=ExtResource("2_block")]
+size = Vector2(2880, 48)
+
+[node name="WallBottom" parent="Walls" instance=ExtResource("2_block")]
+position = Vector2(0, 1584)
+size = Vector2(2880, 48)
+
+[node name="WallLeft" parent="Walls" instance=ExtResource("2_block")]
+position = Vector2(0, 48)
+size = Vector2(48, 1536)
+
+[node name="WallRight" parent="Walls" instance=ExtResource("2_block")]
+position = Vector2(2832, 48)
+size = Vector2(48, 1536)
+
+[node name="Cover" type="Node2D" parent="."]
+
+[node name="Cover01" parent="Cover" instance=ExtResource("2_block")]
+position = Vector2(960, 336)
+
+[node name="Cover02" parent="Cover" instance=ExtResource("2_block")]
+position = Vector2(960, 1104)
+
+[node name="Cover03" parent="Cover" instance=ExtResource("2_block")]
+position = Vector2(1680, 528)
+size = Vector2(192, 96)
+
+[node name="LowWall" parent="Cover" instance=ExtResource("2_block")]
+position = Vector2(1584, 1248)
+size = Vector2(48, 192)
+
+[node name="Spawns" type="Node2D" parent="."]
+
+[node name="PlayerSpawn" type="Marker2D" parent="Spawns"]
+position = Vector2(264, 816)
+gizmo_extents = 48.0
+
+[node name="Dummies" type="Node2D" parent="."]
+
+[node name="Dummy1" type="Marker2D" parent="Dummies"]
+position = Vector2(456, 672)
+gizmo_extents = 48.0
+
+[node name="Dummy2" type="Marker2D" parent="Dummies"]
+position = Vector2(648, 528)
+gizmo_extents = 48.0
+
+[node name="Dummy3" type="Marker2D" parent="Dummies"]
+position = Vector2(1032, 1392)
+gizmo_extents = 48.0
+
+[node name="Dummy4" type="Marker2D" parent="Dummies"]
+position = Vector2(2184, 816)
+gizmo_extents = 48.0
+
+[node name="DummyBehindWall" type="Marker2D" parent="Dummies"]
+position = Vector2(1704, 1344)
+gizmo_extents = 48.0
+
+[node name="FlyCamera" parent="." instance=ExtResource("3_camera")]

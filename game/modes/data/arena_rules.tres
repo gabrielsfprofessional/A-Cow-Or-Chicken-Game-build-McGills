@@ -1,0 +1,7 @@
+[gd_resource type="Resource" script_class="ArenaRulesData" format=3]
+
+[ext_resource type="Script" path="res://game/modes/arena_rules_data.gd" id="1_arena"]
+
+[resource]
+script = ExtResource("1_arena")
+spawn_protection_sec = 2.0

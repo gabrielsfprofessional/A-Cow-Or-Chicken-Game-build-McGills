@@ -69,6 +69,13 @@ func start_server_shot(shooter: CollisionObject2D, attacker_id: int, shot_id: in
 		origin, direction, data)
 
 
+## Server: drops every shot in flight without a hit (world.respawn_all(), a new
+## match) and returns how many; 0 on clients. Clients keep drawing those shots
+## until a wall or their range: only the server decides hits, so they hit nothing.
+func clear_server_shots() -> int:
+	return _sim.clear() if _sim != null else 0
+
+
 ## Client: draws a shot from now on. The shooter's own shot comes from its
 ## weapon at once; everyone else's from the server's message.
 func add_visual(attacker_id: int, shot_id: int, origin: Vector2, direction: Vector2, data: WeaponData) -> void:

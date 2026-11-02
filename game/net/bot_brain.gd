@@ -27,7 +27,9 @@ var _move: Vector2 = Vector2.ZERO
 var _aim: Vector2 = Vector2.RIGHT
 var _fire: bool = false
 var _ability: bool = false
-var _was_alive: bool = true
+## The hero's life at the last BotRules.restart(). Another life means a respawn,
+## after an elimination or a mode's new match (world.respawn_all()): start over.
+var _life_seen: int = 0
 var _stats_at_sec: float = 0.0
 var _shots: int = 0
 var _hits: int = 0
@@ -50,6 +52,7 @@ func _ready() -> void:
 	Events.team_assigned.connect(_on_team_assigned)
 	var now := _now_sec()
 	_rules.restart(now, hero.global_position)
+	_life_seen = hero.life
 	_stats_at_sec = now + STATS_INTERVAL_SEC
 	print("[Bot] seed %d is peer %d" % [bot_seed, hero.owner_peer])
 
@@ -92,8 +95,8 @@ func _physics_process(_delta: float) -> void:
 		_idle()
 		return
 	var at := hero.global_position
-	if not _was_alive:
-		_was_alive = true
+	if hero.life != _life_seen:
+		_life_seen = hero.life
 		_rules.restart(now, at)
 	_move = _rules.walk(now, at)
 	if _rules.is_look_due(now):
@@ -114,7 +117,6 @@ func _physics_process(_delta: float) -> void:
 
 ## Eliminated: stand still and hold fire until the hero comes back.
 func _idle() -> void:
-	_was_alive = false
 	_move = Vector2.ZERO
 	_fire = false
 	_ability = false

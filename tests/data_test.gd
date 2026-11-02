@@ -9,6 +9,9 @@ extends SceneTree
 ## 2. validate() itself, on resources built here: each kind of problem is caught,
 ##    and range flags (or_greater, or_less, suffix, exp, degrees) read right.
 ## 3. A .tres with a wrong script path fails, naming the file.
+## 4. The map list (T39): maps.tres passes, and each kind of broken entry is caught.
+## 5. Labels in the hero scene are 18 px or more (PROJECT_PLAN: no text under 18 px at 1080p).
+## 6. It leaves no scratch files behind: user://data_test is gone at the end (#78).
 
 const DATA_FOLDERS: PackedStringArray = ["res://game/heroes/data", "res://game/weapons/data"]
 const ROSTER_PATH: String = "res://game/heroes/data/roster.tres"
@@ -21,6 +24,12 @@ const MAGE_PATH: String = "res://game/heroes/data/mage.tres"
 const BLINK_PATH: String = "res://game/heroes/data/blink.tres"
 const MEDIC_PATH: String = "res://game/heroes/data/medic.tres"
 const HEAL_DRONE_PATH: String = "res://game/heroes/data/heal_drone.tres"
+## Checked by path, not by folder, so Adam's other files in game/maps/data never trip it.
+const MAPS_PATH: String = "res://game/maps/data/maps.tres"
+const ARENA_SCENE: String = "res://game/maps/arena/arena_graybox.tscn"
+const PRACTICE_SCENE: String = "res://game/maps/practice/practice_range.tscn"
+const NET_HERO_SCENE: String = "res://game/heroes/net_hero.tscn"
+const MIN_FONT_PX: int = 18
 const UNKNOWN_TYPE: String = "is not a HeroData, HeroRoster, CombatData, AbilityData or WeaponData file; check its script path"
 const SCRATCH_FOLDER: String = "user://data_test"
 const WRONG_SCRIPT_TRES: String = """[gd_resource type="Resource" script_class="HeroData" format=3]
@@ -67,6 +76,11 @@ func _initialize() -> void:
 	_heal_drone_whole_ticks()
 	_ability_problems_passed_on()
 	_wrong_script_path()
+	_map_list_passes()
+	_broken_map_entries()
+	_one_sided_map_fails()
+	_hero_labels_big_enough()
+	_scratch_folder_removed()
 	print("DATA TEST: %s (%d checks)" % ["PASS" if _failed == 0 else "FAIL, %d wrong" % _failed, _count])
 	quit(0 if _failed == 0 else 1)
 
@@ -476,3 +490,127 @@ func _expect(ok: bool, what: String, problem: String) -> void:
 	else:
 		_failed += 1
 		print("  FAIL  %s: %s" % [what, problem])
+
+
+# --- the map list (T39) -------------------------------------------------------------
+
+func _map_list_passes() -> void:
+	var list := ResourceLoader.load(MAPS_PATH, "", ResourceLoader.CACHE_MODE_IGNORE) as MapList
+	_expect(list != null, "maps.tres is a MapList", "won't load as a MapList; check its script path")
+	if list == null:
+		return
+	var problems := list.validate()
+	_expect(problems.is_empty(), "maps.tres passes", "; ".join(problems))
+	_expect(list.scene_path("arena") == ARENA_SCENE, "maps.tres lists the arena", "arena -> %s" % list.scene_path("arena"))
+	_expect(list.scene_path(MapList.TEST) == "", "\"test\" is no map", "test -> %s" % list.scene_path(MapList.TEST))
+
+
+func _broken_map_entries() -> void:
+	var list := MapList.new()
+	list.maps = {"test": ARENA_SCENE}
+	_expect(_has_problem(list.validate(), "test: \"test\" is reserved"), "the name \"test\" fails", "; ".join(list.validate()))
+	list.maps = {"Big Arena": ARENA_SCENE}
+	_expect(_has_problem(list.validate(), "Big Arena: the name must be lowercase"), "an uppercase name with a space fails", "; ".join(list.validate()))
+	list.maps = {"gone": "res://game/maps/nope.tscn"}
+	_expect(_has_problem(list.validate(), "gone: there is no scene at res://game/maps/nope.tscn"), "a missing scene fails", "; ".join(list.validate()))
+	list.maps = {}
+	_expect(_has_problem(list.validate(), "the list has no maps"), "an empty list fails", "; ".join(list.validate()))
+	# The arena with every spawn point taken out: 0 left, 1 needed. Its 8 team spawns
+	# are the arena's own rule (Adam's check_arena.gd), not the map contract.
+	var arena := (load(ARENA_SCENE) as PackedScene).instantiate()
+	var spawns := arena.get_node("Spawns")
+	for marker: Node in spawns.get_children():
+		spawns.remove_child(marker)
+		marker.free()
+	var empty_path := _save_scratch(arena, "no_spawns.tscn")
+	list.maps = {"empty": empty_path}
+	var problems := list.validate()
+	_expect(_has_problem(problems, "empty: it has 0 spawn points; it needs at least 1"), "a map with no spawn points fails, naming the entry", "; ".join(problems))
+	DirAccess.remove_absolute(empty_path)
+	# A Spawns child that isn't a Marker2D.
+	arena = (load(ARENA_SCENE) as PackedScene).instantiate()
+	var not_marker := Node2D.new()
+	not_marker.name = "Sign"
+	arena.get_node("Spawns").add_child(not_marker)
+	not_marker.owner = arena
+	var sign_path := _save_scratch(arena, "sign_spawn.tscn")
+	list.maps = {"signs": sign_path}
+	problems = list.validate()
+	_expect(_has_problem(problems, "signs: Spawns/Sign must be a Marker2D"), "a Spawns child that isn't a Marker2D fails", "; ".join(problems))
+	DirAccess.remove_absolute(sign_path)
+	# Adam's practice range: one PlayerSpawn with no team keeps the contract.
+	problems = MapList.entry_problems("practice", PRACTICE_SCENE)
+	_expect(problems.is_empty(), "the practice range (one PlayerSpawn) keeps the contract", "; ".join(problems))
+	_expect(MapList.team_of_spawn("SpawnA-1") == -1 and MapList.team_of_spawn("SpawnB+2") == -1 and MapList.team_of_spawn("SpawnA12") == 0,
+		"a team spawn number is digits only (#78)", "SpawnA-1/SpawnB+2/SpawnA12 -> %d/%d/%d" % [MapList.team_of_spawn("SpawnA-1"), MapList.team_of_spawn("SpawnB+2"), MapList.team_of_spawn("SpawnA12")])
+	_expect(MapList.team_of_spawn("SpawnA3") == 0 and MapList.team_of_spawn("SpawnB1") == 1 and MapList.team_of_spawn("Exit") == -1 and MapList.team_of_spawn("SpawnBridge") == -1,
+		"spawn names give their team", "A/B/Exit/SpawnBridge -> %d/%d/%d/%d" % [MapList.team_of_spawn("SpawnA3"), MapList.team_of_spawn("SpawnB1"), MapList.team_of_spawn("Exit"), MapList.team_of_spawn("SpawnBridge")])
+
+
+## Packs the scene root into a scratch .tscn, frees the root and returns the path.
+func _save_scratch(scene_root: Node, file_name: String) -> String:
+	var packed := PackedScene.new()
+	packed.pack(scene_root)
+	scene_root.free()
+	DirAccess.make_dir_recursive_absolute(SCRATCH_FOLDER)
+	var path := SCRATCH_FOLDER.path_join(file_name)
+	ResourceSaver.save(packed, path)
+	return path
+
+
+func _has_problem(problems: PackedStringArray, start: String) -> bool:
+	for problem: String in problems:
+		if problem.begins_with(start):
+			return true
+	return false
+
+
+## The arena with its SpawnB points taken out: only team 0 has points of its own,
+## so both teams would spawn on the A side (#78).
+func _one_sided_map_fails() -> void:
+	var arena := (load(ARENA_SCENE) as PackedScene).instantiate()
+	var spawns := arena.get_node("Spawns")
+	for marker: Node in spawns.get_children():
+		if MapList.team_of_spawn(String(marker.name)) == 1:
+			spawns.remove_child(marker)
+			marker.free()
+	var problems := MapList.contract_problems(arena)
+	arena.free()
+	_expect(_has_problem(problems, "it has SpawnA points but no SpawnB points"),
+		"a map with team points for one team only fails (#78)", "; ".join(problems))
+
+
+## Every Label in the hero scene that sets its own font size uses 18 px or more.
+## Read from the scene's saved state, so no hero script runs.
+func _hero_labels_big_enough() -> void:
+	var state := (load(NET_HERO_SCENE) as PackedScene).get_state()
+	var small: PackedStringArray = []
+	var labels := 0
+	for node: int in state.get_node_count():
+		if state.get_node_type(node) != &"Label":
+			continue
+		labels += 1
+		for prop: int in state.get_node_property_count(node):
+			if state.get_node_property_name(node, prop) != &"theme_override_font_sizes/font_size":
+				continue
+			var size: Variant = state.get_node_property_value(node, prop)
+			if not size is int or (size as int) < MIN_FONT_PX:
+				small.append("%s: %s px" % [state.get_node_name(node), size])
+	_expect(labels > 0 and small.is_empty(), "hero scene labels are %d px or more (#78)" % MIN_FONT_PX,
+		"no labels found" if labels == 0 else ", ".join(small))
+
+
+## Runs last: removes user://data_test and checks it is gone (#78).
+func _scratch_folder_removed() -> void:
+	_remove_scratch_folder()
+	_expect(not DirAccess.dir_exists_absolute(SCRATCH_FOLDER), "the scratch folder %s is removed at the end (#78)" % SCRATCH_FOLDER,
+		"still there: %s" % ", ".join(DirAccess.get_files_at(SCRATCH_FOLDER)))
+
+
+## Only this test's own files: it never follows a subfolder.
+func _remove_scratch_folder() -> void:
+	if not DirAccess.dir_exists_absolute(SCRATCH_FOLDER):
+		return
+	for file: String in DirAccess.get_files_at(SCRATCH_FOLDER):
+		DirAccess.remove_absolute(SCRATCH_FOLDER.path_join(file))
+	DirAccess.remove_absolute(SCRATCH_FOLDER)

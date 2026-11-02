@@ -1,6 +1,6 @@
 extends Control
 ## Settings screen: volume sliders, UI scale, window mode, test sound. Owner: John (game/ui).
-## Every change applies at once and is saved by the Settings autoload.
+## Every change applies at once. Sliders save 0.3 s after the last tick; the rest save at once.
 
 const MENU_SCENE: String = "res://game/ui/main_menu.tscn"
 
@@ -13,6 +13,7 @@ const MENU_SCENE: String = "res://game/ui/main_menu.tscn"
 @onready var _scale: OptionButton = $Center/Rows/Grid/ScaleOption
 @onready var _window: OptionButton = $Center/Rows/Grid/WindowOption
 @onready var _test_player: AudioStreamPlayer = $TestPlayer
+@onready var _save_timer: Timer = $SaveTimer
 
 
 func _ready() -> void:
@@ -31,13 +32,19 @@ func _ready() -> void:
 	_sfx.value_changed.connect(_on_volume_changed.bind(&"SFX"))
 	_scale.item_selected.connect(_on_scale_selected)
 	_window.item_selected.connect(_on_window_selected)
+	_save_timer.timeout.connect(Settings.save_settings)
 	$Center/Rows/TestButton.pressed.connect(_on_test_pressed)
 	$Center/Rows/BackButton.pressed.connect(_on_back_pressed)
 
 
+func _exit_tree() -> void:
+	if not _save_timer.is_stopped():
+		Settings.save_settings()  # left some other way than Back
+
+
 func _on_volume_changed(value: float, bus: StringName) -> void:
 	Settings.set_volume(bus, roundi(value))
-	Settings.save_settings()
+	_save_timer.start()  # restarts while a slider is still moving
 	_update_labels()
 
 
@@ -56,6 +63,9 @@ func _on_test_pressed() -> void:
 
 
 func _on_back_pressed() -> void:
+	if not _save_timer.is_stopped():
+		_save_timer.stop()
+		Settings.save_settings()
 	get_tree().change_scene_to_file(MENU_SCENE)
 
 
