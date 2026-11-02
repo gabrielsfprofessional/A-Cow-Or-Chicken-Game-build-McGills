@@ -19,7 +19,7 @@ var active: bool = false
 var own_peer_id: int = -1
 
 @export_group("Damage numbers")
-## Text size at 1080p; the UI scaler grows it.
+## Text size at UI scale 100%; multiplied by Settings.ui_scale.
 @export_range(18, 64, 1, "suffix:px") var number_font_size: int = 26
 @export var number_color: Color = Color(1.0, 1.0, 1.0)
 @export var number_outline_color: Color = Color(0.05, 0.05, 0.08)
@@ -79,6 +79,7 @@ func _ready() -> void:
 		_voices.append(voice)
 	Events.hero_damaged.connect(_on_hero_damaged)
 	Events.hero_eliminated.connect(_on_hero_eliminated)
+	Settings.ui_scale_changed.connect(_on_ui_scale_changed)
 
 
 func _process(delta: float) -> void:
@@ -97,6 +98,16 @@ func _process(delta: float) -> void:
 		_flash_left = maxf(0.0, _flash_left - delta)
 		_flash.modulate.a = flash_max_opacity * (_flash_left / flash_sec)
 		_flash.visible = _flash_left > 0.0
+
+
+func _on_ui_scale_changed(_scale: float) -> void:
+	for label: Label in _numbers:
+		label.add_theme_font_size_override(&"font_size", _scaled_font_size())
+		label.reset_size()
+
+
+func _scaled_font_size() -> int:
+	return roundi(number_font_size * Settings.ui_scale)
 
 
 func _on_hero_damaged(victim_peer_id: int, _attacker_peer_id: int, amount: int, hit_position: Vector2) -> void:
@@ -160,6 +171,10 @@ func _show_puff(world_position: Vector2) -> void:
 
 
 func _play(stream: AudioStream, volume_db: float, world_position: Vector2) -> void:
+	# Headless runs (test bots) have no listener, and a sound still playing when one
+	# quits leaks its playback at exit, which fails the smoke test.
+	if DisplayServer.get_name() == "headless":
+		return
 	var reach: float = get_viewport_rect().size.x * silent_beyond_screens
 	var distance: float = world_position.distance_to(_screen_middle_in_world())
 	if distance >= reach:
@@ -195,7 +210,7 @@ func _make_number() -> Label:
 	var label := Label.new()
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	label.visible = false
-	label.add_theme_font_size_override(&"font_size", number_font_size)
+	label.add_theme_font_size_override(&"font_size", _scaled_font_size())
 	label.add_theme_color_override(&"font_color", number_color)
 	label.add_theme_color_override(&"font_outline_color", number_outline_color)
 	label.add_theme_constant_override(&"outline_size", number_outline_size)
