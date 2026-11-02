@@ -44,6 +44,7 @@ func _new_player(registry: PlayerRegistry) -> void:
 		save.get("name") == "Gabe" and save.get("color") == "#3B82F6"
 		and int(save.get("created_unix", -1)) == NOW and int(save.get("last_seen_unix", -1)) == NOW)
 	_expect_true("player_id() names them", registry.player_id(2) == id and registry.player_count() == 1)
+	_expect_true("player_name() is the name they joined with", registry.player_name(2) == "Gabe")
 
 
 ## Two windows on one PC share one profile: the second plays as a guest.
@@ -54,6 +55,7 @@ func _second_window(registry: PlayerRegistry) -> void:
 		line == "peer 3: guest (player %s is already connected as peer 2)" % id.substr(0, 8))
 	_expect_true("the guest has no player id and changed no save",
 		registry.player_id(3) == "" and int(_parse(TEST_FOLDER + id + ".json").get("last_seen_unix", -1)) == NOW)
+	_expect_true("the guest has no name, so its hero shows \"Player 3\"", registry.player_name(3) == "")
 	_expect_true("a guest leaving says nothing", registry.leave(3, NOW + 6) == "")
 
 
@@ -63,6 +65,7 @@ func _leave_saves(registry: PlayerRegistry) -> void:
 	_expect_true("leaving saves when they were last seen (%s)" % line, line == "peer 2: player %s left, saved" % id.substr(0, 8)
 		and int(_parse(TEST_FOLDER + id + ".json").get("last_seen_unix", -1)) == NOW + 60)
 	_expect_true("after leaving they are no one", registry.player_id(2) == "" and registry.player_count() == 0)
+	_expect_true("after leaving they have no name", registry.player_name(2) == "")
 
 
 ## They come back with a new name and color: same save, created time kept.
@@ -74,6 +77,7 @@ func _returning_player(registry: PlayerRegistry) -> void:
 	_expect_true("their save takes the new name and color, keeps the created time",
 		save.get("name") == "Gabriel" and save.get("color") == "#F25559"
 		and int(save.get("created_unix", -1)) == NOW and int(save.get("last_seen_unix", -1)) == NOW + 120)
+	_expect_true("their name is the new one", registry.player_name(4) == "Gabriel")
 	registry.leave(4, NOW + 130)
 
 
@@ -83,6 +87,8 @@ func _guests(registry: PlayerRegistry) -> void:
 	_expect_true("a broken message is a guest with its reason",
 		registry.join(6, PlayerAuth.read_message("nope".to_utf8_buffer()), NOW) == "peer 6: guest (player message unreadable)")
 	_expect_true("guests write nothing", _files().size() == before and registry.player_count() == 0)
+	_expect_true("a bot has no name, and nor has a peer that never joined",
+		registry.player_name(5) == "" and registry.player_name(999) == "")
 
 
 ## A save from a newer game is left alone, and that player plays as a guest.

@@ -82,7 +82,8 @@ Until then an older save reads as OLDER and is left alone.
   is locked or from another version (left alone).
 - The server logs `[Server] player saves in <folder>` at start and one `[Server]` line per
   peer, naming a player by the first 8 characters of their id, never the token.
-- `player_id(peer)` gives T22 the save to count stats into.
+- `player_id(peer)` gives T22 the save to count stats into, and `player_name(peer)` the name
+  the test world sends to every peer in the hero's spawn data (names above heroes, T17).
 
 Two players on one PC: start the second window with `-- --profile=<another profile.json>`
 (debug builds). With the same profile, the second window plays as a guest.

@@ -87,6 +87,15 @@ static func name_ok(raw: String) -> bool:
 	return true
 
 
+## A name from the network (the hero's spawn data), trimmed, when it passes name_ok();
+## "" for anything else, so the game shows "Player <id>" instead (NetHero.shown_name()).
+static func clean_name(value: Variant) -> String:
+	if not value is String:
+		return ""
+	var text: String = (value as String).strip_edges()
+	return text if name_ok(text) else ""
+
+
 ## Exactly 32 lowercase hex characters: no sign, prefix, space or capital.
 static func is_token(text: String) -> bool:
 	return text.length() == TOKEN_LENGTH and _only_chars(text, HEX_LOWER)

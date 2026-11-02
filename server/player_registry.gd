@@ -88,6 +88,15 @@ func player_id(peer_id: int) -> String:
 	return _players[peer_id]["id"] if _players.has(peer_id) else ""
 
 
+## The name a connected player joined with, or "" for a guest. The test world sends it
+## to every peer in the hero's spawn data, so names show above heroes (T17).
+func player_name(peer_id: int) -> String:
+	if not _players.has(peer_id):
+		return ""
+	var joined_name: Variant = _players[peer_id].get("name")
+	return joined_name if joined_name is String else ""
+
+
 ## How many connected peers are players (not guests).
 func player_count() -> int:
 	return _players.size()

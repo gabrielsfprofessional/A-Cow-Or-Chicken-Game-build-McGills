@@ -267,7 +267,9 @@ echo "SMOKE: arena check passed (server and 2 bots exited 0, both heroes on Spaw
 # apart). Passes when all four exit 0, no log has an error or a refusal, the server saved
 # the player under the SHA-256 of the token (new, then again on leaving), made the second
 # window and the bot guests, the folder holds only that player's files, and no log or
-# save holds the token. Anything left after 40 s is killed by PID.
+# save holds the token. Names (the names seam, for T17): every peer built window 1's hero
+# named "Smoke" and no other hero with a name, and window 1 built the second window's
+# hero as a guest. Anything left after 40 s is killed by PID.
 NAMES=(saves-server saves-window1 saves-window2 saves-bot)
 LOGS=("$(mktemp)" "$(mktemp)" "$(mktemp)" "$(mktemp)")
 SAVES_DIR="$(mktemp -d)"
@@ -358,6 +360,26 @@ if grep -rqF "$TOKEN" "${LOGS[@]}" "$SAVES_DIR"; then
   echo "SMOKE: player saves: the device token is in a log or a save"
   MATCH_FAILED=1
 fi
+# Names: each window's peer id from its "connected as peer" line.
+W1_PEER=$(grep -oE "\[Net\] connected as peer [0-9]+" "${LOGS[1]}" | head -n 1 | grep -oE "[0-9]+$")
+W2_PEER=$(grep -oE "\[Net\] connected as peer [0-9]+" "${LOGS[2]}" | head -n 1 | grep -oE "[0-9]+$")
+if [ -z "$W1_PEER" ] || [ -z "$W2_PEER" ]; then
+  echo "SMOKE: player saves: a window's log has no \"connected as peer\" line"
+  MATCH_FAILED=1
+else
+  for i in 0 1 2 3; do
+    GOT=$(grep -cE "\[TestWorld\] built peer $W1_PEER: [a-z_]+, player \"Smoke\"" "${LOGS[$i]}")
+    NAMED=$(grep -cE "\[TestWorld\] built peer [0-9]+: [a-z_]+, player " "${LOGS[$i]}")
+    if [ "$GOT" -ne 1 ] || [ "$NAMED" -ne 1 ]; then
+      echo "SMOKE: player saves: ${NAMES[$i]} built window 1's hero (peer $W1_PEER) named Smoke $GOT time(s), and $NAMED named hero(es) in all (want 1 and 1)"
+      MATCH_FAILED=1
+    fi
+  done
+  if ! grep -qE "\[TestWorld\] built peer $W2_PEER: [a-z_]+, a guest" "${LOGS[1]}"; then
+    echo "SMOKE: player saves: window 1 didn't build the second window's hero (peer $W2_PEER) as a guest"
+    MATCH_FAILED=1
+  fi
+fi
 if [ "$MATCH_FAILED" -ne 0 ]; then
   for i in 0 1 2 3; do
     echo "--- ${NAMES[$i]} log, last 40 lines:"
@@ -366,5 +388,5 @@ if [ "$MATCH_FAILED" -ne 0 ]; then
   echo "SMOKE: FAIL: player saves (logs: ${LOGS[0]} ${LOGS[1]} ${LOGS[2]} ${LOGS[3]}, saves: $SAVES_DIR)"
   exit 1
 fi
-echo "SMOKE: player saves passed (4 exited 0, the player saved new and on leaving, second window and bot guests, no token in any log or save)"
+echo "SMOKE: player saves passed (4 exited 0, the player saved new and on leaving, second window and bot guests, every peer showed the player's name, no token in any log or save)"
 echo "SMOKE: PASS"

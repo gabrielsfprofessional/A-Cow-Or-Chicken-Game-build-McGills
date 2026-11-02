@@ -276,7 +276,9 @@ Write-Host "SMOKE: arena check passed (server and 2 bots exited 0, both heroes o
 # apart). Passes when all four exit 0, no log has an error or a refusal, the server saved
 # the player under the SHA-256 of the token (new, then again on leaving), made the second
 # window and the bot guests, the folder holds only that player's files, and no log or
-# save holds the token. Anything left after 40 s is killed by PID.
+# save holds the token. Names (the names seam, for T17): every peer built window 1's hero
+# named "Smoke" and no other hero with a name, and window 1 built the second window's
+# hero as a guest. Anything left after 40 s is killed by PID.
 $match = [ordered]@{}
 $savesDir = Join-Path $env:TEMP ("acoc-smoke-saves-" + [guid]::NewGuid().ToString("N").Substring(0, 8))
 New-Item -ItemType Directory -Path $savesDir | Out-Null
@@ -351,11 +353,36 @@ $others = @(Get-ChildItem -Path $savesDir -File | Where-Object { -not $_.Name.St
 if ($others.Count -gt 0) { $problems += "$($others.Count) other file(s) in the saves folder: $(($others | ForEach-Object { $_.Name }) -join ', ')" }
 $tokenFiles = @($matchLogs) + @(Get-ChildItem -Path $savesDir -File | ForEach-Object { $_.FullName })
 if (Select-String -Path $tokenFiles -Pattern $token -SimpleMatch -Quiet) { $problems += "the device token is in a log or a save" }
+# Names: each window's peer id from its "connected as peer" line.
+$peerOf = @{}
+foreach ($name in @("saves-window1", "saves-window2")) {
+    $windowLog = $match[$name].Logs[0]
+    $connected = Select-String -Path $windowLog -Pattern "\[Net\] connected as peer (\d+)" | Select-Object -First 1
+    $peerOf[$name] = if ($connected) { $connected.Matches[0].Groups[1].Value } else { "" }
+}
+$w1 = $peerOf["saves-window1"]
+$w2 = $peerOf["saves-window2"]
+if ($w1 -eq "" -or $w2 -eq "") {
+    $problems += "a window's log has no `"connected as peer`" line"
+} else {
+    foreach ($name in $match.Keys) {
+        $peerLog = $match[$name].Logs[0]
+        $got = @(Select-String -Path $peerLog -Pattern "\[TestWorld\] built peer ${w1}: [a-z_]+, player `"Smoke`"" -CaseSensitive).Count
+        $named = @(Select-String -Path $peerLog -Pattern "\[TestWorld\] built peer \d+: [a-z_]+, player " -CaseSensitive).Count
+        if ($got -ne 1 -or $named -ne 1) {
+            $problems += "$name built window 1's hero (peer $w1) named Smoke $got time(s), and $named named hero(es) in all (want 1 and 1)"
+        }
+    }
+    $window1Log = $match["saves-window1"].Logs[0]
+    if (-not (Select-String -Path $window1Log -Pattern "\[TestWorld\] built peer ${w2}: [a-z_]+, a guest" -CaseSensitive -Quiet)) {
+        $problems += "window 1 didn't build the second window's hero (peer $w2) as a guest"
+    }
+}
 if ($problems.Count -gt 0) {
     ($matchErrors + $refusals) | ForEach-Object { Write-Host "$($_.Filename):$($_.LineNumber): $($_.Line)" -ForegroundColor Red }
     Write-Host ("SMOKE: FAIL: player saves: {0} (logs: {1}\acoc-smoke-saves-server.log, -saves-window1, -saves-window2, -saves-bot; saves: {2})" -f ($problems -join "; "), $env:TEMP, $savesDir) -ForegroundColor Red
     exit 1
 }
-Write-Host "SMOKE: player saves passed (4 exited 0, the player saved new and on leaving, second window and bot guests, no token in any log or save)"
+Write-Host "SMOKE: player saves passed (4 exited 0, the player saved new and on leaving, second window and bot guests, every peer showed the player's name, no token in any log or save)"
 Write-Host "SMOKE: PASS" -ForegroundColor Green
 exit 0

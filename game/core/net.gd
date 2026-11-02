@@ -23,9 +23,9 @@ signal left(reason: String)
 
 const DEFAULT_PORT: int = 7777
 ## Wire format version (T06 = 1, T07 = 2, T08 = 3, T14 = 4, T18 = 5, week-3 seams = 6, T39 = 7,
-## T21 part 2 = 8). Bump it on every change to RPCs, channels, payloads or the handshake:
+## T21 part 2 = 8, the names seam = 9). Bump it on every change to RPCs, channels, payloads or the handshake:
 ## builds with a different number refuse each other.
-const NET_PROTOCOL: int = 8
+const NET_PROTOCOL: int = 9
 ## ENet channels on top of the default one (channel 0). Only create_client takes it (see host()).
 const CHANNEL_COUNT: int = 1
 ## Movement messages (T07). See game/net/README.md.
@@ -490,6 +490,13 @@ func drop_out(reason: String) -> void:
 	_log(reason)
 	left.emit(reason)
 	_return_to_join_screen(reason)
+
+
+## Server: the name the player on peer `id` joined with (T21 part 2), or "" for a guest,
+## a peer that isn't connected, and on a client. The test world puts it in the hero's
+## spawn data, so every peer can show it above the hero (NetHero.player_name, T17).
+func player_name(id: int) -> String:
+	return _players.player_name(id) if _players != null else ""
 
 
 # --- plumbing ----------------------------------------------------------------
