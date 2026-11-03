@@ -2,15 +2,14 @@
 
 Owner: Gabe
 
-Server-only code: player saves (T21), stats (T22), nightly backup, server boot.
+Server-only code: player saves (T21), who is joining (T21 part 2), stats (T22), nightly backup.
 
 Only the owner's cards change this folder. See CLAUDE.md, "Folders and owners".
 
 ## Player saves: `profile_store.gd` (T21)
 
-Part 1 is the store and its tools. Nothing in the game calls it yet. Part 2 (after #71)
-sends the device token in a second auth message, checks name and color with T11's rules,
-and saves each player.
+Part 1 is the store and its tools. Part 2 (below) sends the device token in a second auth
+message, checks name and color with T11's rules, and saves each player.
 
 - **One file per player:** `<id>.json`. The id is the SHA-256 of the player's device token,
   as 64 lowercase hex characters. The token itself is never stored, printed or logged.
@@ -59,11 +58,35 @@ Until then an older save reads as OLDER and is left alone.
   player's id, unknown fields, numbers JSON would change, a name that wouldn't load back,
   the `.old` copy and a pulled plug after quick saves, locked files (Linux and macOS as a
   user that can't open them; skipped on Windows and as root), listing.
+- `tests/player_auth_test.gd` and `tests/player_registry_test.gd` (run in smoke): the second
+  auth message's rules, and the registry's saves and guests (part 2).
+- Smoke's "player saves" stage: a server with its own folder, two windows with one test
+  profile and a bot, over the network (tests/README.md, "Player saves").
 - Crash test (not in smoke; about 1 minute): hard-kills a process that saves 8 players in
   a loop, 20 times at random moments. After each kill, no player that loaded before may be
   gone or go backwards, every save on disk must load, and no file may need moving aside.
   - Windows: `powershell -NoProfile -ExecutionPolicy Bypass -File tools\save_crash_test.ps1`
   - Linux, CI, Git Bash: `GODOT=<godot> bash tools/save_crash_test.sh`
+
+## Who is joining: `player_auth.gd` and `player_registry.gd` (T21 part 2)
+
+- `PlayerAuth` writes and reads the second auth message: `{"name", "color", "token"}` from the
+  player's profile, or `{"guest": <reason>}` for a test bot or a PC with no profile. Pure
+  functions; the server reads with `read_message()` and anything that breaks T11's rules
+  makes a guest. The name check is T11's without the font (`name_ok()`), since a dedicated
+  server export may strip fonts. Details: game/net/README.md, "Who is joining".
+- `PlayerRegistry` is the server's list of connected players. On connect it loads or makes
+  the save and saves it with the name, color and time; on leaving, and when the server
+  closes, it saves the last-seen time. Guests get no save: bots, no profile, a broken
+  message, a token already connected (a second window with the same profile), a save that
+  is locked or from another version (left alone).
+- The server logs `[Server] player saves in <folder>` at start and one `[Server]` line per
+  peer, naming a player by the first 8 characters of their id, never the token.
+- `player_id(peer)` gives T22 the save to count stats into, and `player_name(peer)` the name
+  the test world sends to every peer in the hero's spawn data (names above heroes, T17).
+
+Two players on one PC: start the second window with `-- --profile=<another profile.json>`
+(debug builds). With the same profile, the second window plays as a guest.
 
 ## Nightly backup
 

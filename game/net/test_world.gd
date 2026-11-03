@@ -308,7 +308,7 @@ func client_ready(hero_index: int) -> void:
 			peer_id, hero_index, ROSTER.first().display_name])
 		hero_index = 0
 	var spot := respawn_point(peer_id)
-	_spawner.spawn([peer_id, hero_index, spot])
+	_spawner.spawn([peer_id, hero_index, spot, Net.player_name(peer_id)])
 	print("[TestWorld] hero spawned for peer %d%s" % [peer_id, _spot_text(spot)])
 	for child: Node in _heroes.get_children():
 		var hero := child as NetHero
@@ -350,10 +350,13 @@ func _remove_hero(peer_id: int) -> void:
 
 
 ## Runs on every peer, server included, through the spawner. The spawn data is
-## [peer_id, hero_index, spawn_position] (T18, week-3 seams); every peer picks the
-## same HeroData from the same roster, so a late joiner gets each hero right too.
-## The server decides the spot (its MatchRules); without one, the T06 ring.
-## A late joiner gets the first spot, then the hero's current position with its relays.
+## [peer_id, hero_index, spawn_position, player_name] (T18, week-3 seams, the names
+## seam); every peer picks the same HeroData from the same roster, so a late joiner
+## gets each hero right too. The server decides the spot (its MatchRules); without one,
+## the T06 ring. A late joiner gets the first spot, then the hero's current position
+## with its relays. The name is "" for a guest; anything PlayerAuth.clean_name() turns
+## down shows as a guest too. One line per hero on every peer:
+##   [TestWorld] built peer <id>: <hero file>, player "<name>"   (or ", a guest")
 func _make_hero(data: Variant) -> Node:
 	var spawn: Array = data
 	var peer_id := int(spawn[0])
@@ -363,9 +366,12 @@ func _make_hero(data: Variant) -> Node:
 	var spot := MatchRules.new().respawn_point(peer_id)
 	if spawn.size() > 2 and spawn[2] is Vector2:
 		spot = spawn[2]
+	var joined_name: String = PlayerAuth.clean_name(spawn[3]) if spawn.size() > 3 else ""
 	var hero := HERO_SCENE.instantiate() as NetHero
 	# The owning client drives this hero; setup() makes it the authority.
-	hero.setup(peer_id, spot, _hero_color(peer_id), hero_data)
+	hero.setup(peer_id, spot, _hero_color(peer_id), hero_data, joined_name)
+	print("[TestWorld] built peer %d: %s, %s" % [peer_id, hero_data.resource_path.get_file().get_basename(),
+		"player %s" % JSON.stringify(joined_name) if joined_name != "" else "a guest"])
 	return hero
 
 

@@ -3,7 +3,8 @@
 # Adam's check_arena.gd and every test_*.gd in game/maps/tools and
 # game/modes/tools (when they exist), and fail if any exits non-zero or runs
 # longer than 60 s (it is then killed by PID). Then play
-# a bot match (cards T09, T18): a headless server and 4 test bots, one per hero, on UDP 7777.
+# a bot match (cards T09, T18): a headless server and 4 test bots, one per hero, on UDP 7777,
+# then the arena check (T39) and the player saves check (T21 part 2).
 # Run from the repo folder:
 #   powershell -NoProfile -ExecutionPolicy Bypass -File tools/smoke.ps1
 # Godot path: $env:GODOT if set, else C:\Godot\Godot_v4.7.2-stable_win64_console.exe
@@ -269,5 +270,119 @@ if ($problems.Count -gt 0) {
     exit 1
 }
 Write-Host "SMOKE: arena check passed (server and 2 bots exited 0, both heroes on Spawn markers, map built before hello)"
+
+# Player saves (card T21 part 2): a server with a saves folder of its own, two game
+# clients with one throwaway test profile (--profile), then a bot (14, 12 and 10 s, 1 s
+# apart). Passes when all four exit 0, no log has an error or a refusal, the server saved
+# the player under the SHA-256 of the token (new, then again on leaving), made the second
+# window and the bot guests, the folder holds only that player's files, and no log or
+# save holds the token. Names (the names seam, for T17): every peer built window 1's hero
+# named "Smoke" and no other hero with a name, and window 1 built the second window's
+# hero as a guest. Anything left after 40 s is killed by PID.
+$match = [ordered]@{}
+$savesDir = Join-Path $env:TEMP ("acoc-smoke-saves-" + [guid]::NewGuid().ToString("N").Substring(0, 8))
+New-Item -ItemType Directory -Path $savesDir | Out-Null
+$profileFile = Join-Path $env:TEMP "acoc-smoke-profile.json"
+$tokenBytes = New-Object byte[] 16
+$rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+$rng.GetBytes($tokenBytes)
+$rng.Dispose()
+$token = -join ($tokenBytes | ForEach-Object { $_.ToString("x2") })
+$sha = [System.Security.Cryptography.SHA256]::Create()
+$playerId = -join ($sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($token)) | ForEach-Object { $_.ToString("x2") })
+$sha.Dispose()
+# WriteAllText writes UTF-8 without a byte order mark.
+[System.IO.File]::WriteAllText($profileFile, ('{"version": 1, "name": "Smoke", "color": "#F25559", "device_token": "' + $token + '"}'))
+$started = Get-Date
+$state = "timeout"
+try {
+    Start-MatchProcess "saves-server" "--server --saves=`"$savesDir`" --quit-after-sec=22"
+    $serverLog = $match["saves-server"].Logs[0]
+    while (((Get-Date) - $started).TotalSeconds -lt 30) {
+        $text = [string](Get-Content $serverLog -Raw -ErrorAction SilentlyContinue)
+        if ($text -match "could not host") { $state = "in use"; break }
+        if ($text -match "server up") { $state = "up"; break }
+        if ($match["saves-server"].Process.HasExited) { $state = "exited"; break }
+        Start-Sleep -Milliseconds 200
+    }
+    if ($state -eq "up") {
+        Start-MatchProcess "saves-window1" "--join=127.0.0.1 --profile=`"$profileFile`" --quit-after-sec=14"
+        Start-Sleep -Seconds 1
+        Start-MatchProcess "saves-window2" "--join=127.0.0.1 --profile=`"$profileFile`" --quit-after-sec=12"
+        Start-Sleep -Seconds 1
+        Start-MatchProcess "saves-bot" "--join=127.0.0.1 --bot=1 --hero=bruiser --quit-after-sec=10"
+        while (((Get-Date) - $started).TotalSeconds -lt 40) {
+            if (-not ($match.Values | Where-Object { -not $_.Process.HasExited })) { break }
+            Start-Sleep -Milliseconds 250
+        }
+    }
+} finally {
+    Stop-MatchLeftovers
+}
+if ($state -ne "up") {
+    Get-Content $serverLog | ForEach-Object { Write-Host $_ -ForegroundColor Red }
+    Write-Host "SMOKE: FAIL: the player saves server did not start ($state, log: $serverLog)" -ForegroundColor Red
+    exit 1
+}
+$problems = @()
+foreach ($name in $match.Keys) {
+    $code = $match[$name].Process.ExitCode
+    if ($code -ne 0) { $problems += "$name exited $code" }
+}
+$matchLogs = @($match.Values | ForEach-Object { $_.Logs })
+$matchErrors = @(Select-String -Path $matchLogs -Pattern "SCRIPT ERROR|Parse Error|ERROR:")
+$refusals = @(Select-String -Path $matchLogs -Pattern "\[Move\]|\[Shot\]|\[Ability\]")
+if ($matchErrors.Count -gt 0) { $problems += "$($matchErrors.Count) error line(s)" }
+if ($refusals.Count -gt 0) { $problems += "$($refusals.Count) [Move]/[Shot]/[Ability] line(s)" }
+$short = $playerId.Substring(0, 8)
+foreach ($want in @("player $short `"Smoke`" (new)", "guest (player $short is already connected as peer ", "guest (bot)", "player $short left, saved")) {
+    $got = @(Select-String -Path $serverLog -Pattern $want -SimpleMatch).Count
+    if ($got -ne 1) { $problems += "the server logged `"$want`" $got time(s) (want 1)" }
+}
+# Saved when they left, not only when the server closed: that line comes before the quit.
+$leftAt = Select-String -Path $serverLog -Pattern "player $short left, saved" -SimpleMatch | Select-Object -First 1
+$quitAt = Select-String -Path $serverLog -Pattern "[Game] quit-after-sec" -SimpleMatch | Select-Object -First 1
+if ($null -eq $leftAt -or $null -eq $quitAt -or $leftAt.LineNumber -gt $quitAt.LineNumber) {
+    $problems += "the player wasn't saved when they left"
+}
+$saveFile = Join-Path $savesDir "$playerId.json"
+if (-not (Test-Path $saveFile) -or -not (Select-String -Path $saveFile -Pattern '"name": "Smoke"' -SimpleMatch -Quiet)) {
+    $problems += "no save named by the token's SHA-256 holds the name Smoke"
+}
+$others = @(Get-ChildItem -Path $savesDir -File | Where-Object { -not $_.Name.StartsWith("$playerId.json") })
+if ($others.Count -gt 0) { $problems += "$($others.Count) other file(s) in the saves folder: $(($others | ForEach-Object { $_.Name }) -join ', ')" }
+$tokenFiles = @($matchLogs) + @(Get-ChildItem -Path $savesDir -File | ForEach-Object { $_.FullName })
+if (Select-String -Path $tokenFiles -Pattern $token -SimpleMatch -Quiet) { $problems += "the device token is in a log or a save" }
+# Names: each window's peer id from its "connected as peer" line.
+$peerOf = @{}
+foreach ($name in @("saves-window1", "saves-window2")) {
+    $windowLog = $match[$name].Logs[0]
+    $connected = Select-String -Path $windowLog -Pattern "\[Net\] connected as peer (\d+)" | Select-Object -First 1
+    $peerOf[$name] = if ($connected) { $connected.Matches[0].Groups[1].Value } else { "" }
+}
+$w1 = $peerOf["saves-window1"]
+$w2 = $peerOf["saves-window2"]
+if ($w1 -eq "" -or $w2 -eq "") {
+    $problems += "a window's log has no `"connected as peer`" line"
+} else {
+    foreach ($name in $match.Keys) {
+        $peerLog = $match[$name].Logs[0]
+        $got = @(Select-String -Path $peerLog -Pattern "\[TestWorld\] built peer ${w1}: [a-z_]+, player `"Smoke`"" -CaseSensitive).Count
+        $named = @(Select-String -Path $peerLog -Pattern "\[TestWorld\] built peer \d+: [a-z_]+, player " -CaseSensitive).Count
+        if ($got -ne 1 -or $named -ne 1) {
+            $problems += "$name built window 1's hero (peer $w1) named Smoke $got time(s), and $named named hero(es) in all (want 1 and 1)"
+        }
+    }
+    $window1Log = $match["saves-window1"].Logs[0]
+    if (-not (Select-String -Path $window1Log -Pattern "\[TestWorld\] built peer ${w2}: [a-z_]+, a guest" -CaseSensitive -Quiet)) {
+        $problems += "window 1 didn't build the second window's hero (peer $w2) as a guest"
+    }
+}
+if ($problems.Count -gt 0) {
+    ($matchErrors + $refusals) | ForEach-Object { Write-Host "$($_.Filename):$($_.LineNumber): $($_.Line)" -ForegroundColor Red }
+    Write-Host ("SMOKE: FAIL: player saves: {0} (logs: {1}\acoc-smoke-saves-server.log, -saves-window1, -saves-window2, -saves-bot; saves: {2})" -f ($problems -join "; "), $env:TEMP, $savesDir) -ForegroundColor Red
+    exit 1
+}
+Write-Host "SMOKE: player saves passed (4 exited 0, the player saved new and on leaving, second window and bot guests, every peer showed the player's name, no token in any log or save)"
 Write-Host "SMOKE: PASS" -ForegroundColor Green
 exit 0
