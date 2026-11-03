@@ -52,14 +52,14 @@ static func save(data: Dictionary, path: String = PATH) -> bool:
 		return false
 	var player_name: String = str(data.get("name", "")).strip_edges()
 	var color: String = str(data.get("color", "")).to_upper()
-	if name_problem(player_name) != "" or not _is_color(color):
+	if name_problem(player_name) != "" or not is_color(color):
 		return false
 	var token: String
 	if existing["read"] == Read.OK:
 		token = existing["data"]["device_token"]
 	else:
 		var offered: String = str(data.get("device_token", ""))
-		token = offered if _is_token(offered) else _new_token()
+		token = offered if is_token(offered) else _new_token()
 	var text: String = JSON.stringify({
 		"version": VERSION,
 		"name": player_name,
@@ -124,12 +124,15 @@ static func _font() -> Font:
 	return ThemeDB.fallback_font
 
 
-static func _is_color(text: String) -> bool:
+## True for "#" and 6 hex digits, like "#E63946".
+static func is_color(text: String) -> bool:
 	return text.length() == 7 and text.begins_with("#") and text.substr(1).is_valid_hex_number(false)
 
 
-static func _is_token(text: String) -> bool:
-	return text.length() == 32 and text == text.to_lower() and text.is_valid_hex_number(false)
+## True for the 32 lowercase hex characters of a device token.
+static func is_token(text: String) -> bool:
+	# is_valid_hex_number() lets a leading minus sign through, so refuse it here.
+	return text.length() == 32 and text == text.to_lower() and not text.contains("-") and text.is_valid_hex_number(false)
 
 
 static func _new_token() -> String:
@@ -171,7 +174,10 @@ static func _read(path: String) -> Dictionary:
 	for key: String in ["name", "color", "device_token"]:
 		if typeof(data.get(key)) != TYPE_STRING:
 			return {"read": Read.BAD}
-	if not _is_color(str(data["color"]).to_upper()):
+	if not is_color(str(data["color"]).to_upper()):
+		return {"read": Read.BAD}
+	# Same rules the Save button uses. A token or name that fails them is a bad file.
+	if not is_token(str(data["device_token"])) or name_problem(str(data["name"])) != "":
 		return {"read": Read.BAD}
 	return {"read": Read.OK, "data": {
 		"version": VERSION,

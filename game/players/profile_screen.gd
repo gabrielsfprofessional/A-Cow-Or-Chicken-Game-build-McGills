@@ -5,7 +5,14 @@ extends Control
 const MENU_SCENE: String = "res://game/ui/main_menu.tscn"
 const SWATCH_SIZE: Vector2 = Vector2(72, 72)
 const EXAMPLE_NAME: String = "Your name"
+## How round a swatch's corners are, in pixels.
+const SWATCH_CORNER_RADIUS: int = 8
+## Width of the white frame on the chosen swatch, in pixels.
+const SWATCH_FRAME_WIDTH: int = 6
+## How much lighter a swatch gets under the mouse (0 = same, 1 = white).
+const SWATCH_HOVER_LIGHTEN: float = 0.15
 
+@onready var _background: ColorRect = $Background
 @onready var _name: LineEdit = $Center/Rows/NameEdit
 @onready var _problem: Label = $Center/Rows/Problem
 @onready var _swatches: HBoxContainer = $Center/Rows/Swatches
@@ -18,6 +25,8 @@ var _group: ButtonGroup = ButtonGroup.new()
 
 
 func _ready() -> void:
+	# The color the swatches were checked against (data/profile_colors.tres), not a copy of it.
+	_background.color = Profile.COLORS.ui_background
 	var data: Dictionary = Profile.load_or_default()
 	_name.text = str(data["name"])
 	_build_swatches(Color(str(data["color"])))
@@ -45,7 +54,7 @@ func _build_swatches(current: Color) -> void:
 		swatch.button_group = _group
 		swatch.tooltip_text = "#" + colors[i].to_html(false).to_upper()
 		swatch.add_theme_stylebox_override("normal", _swatch_style(colors[i], false))
-		swatch.add_theme_stylebox_override("hover", _swatch_style(colors[i].lightened(0.15), false))
+		swatch.add_theme_stylebox_override("hover", _swatch_style(colors[i].lightened(SWATCH_HOVER_LIGHTEN), false))
 		swatch.add_theme_stylebox_override("pressed", _swatch_style(colors[i], true))
 		swatch.add_theme_stylebox_override("hover_pressed", _swatch_style(colors[i], true))
 		swatch.toggled.connect(_on_swatch_toggled.bind(colors[i]))
@@ -59,8 +68,8 @@ func _build_swatches(current: Color) -> void:
 func _swatch_style(color: Color, chosen: bool) -> StyleBoxFlat:
 	var style: StyleBoxFlat = StyleBoxFlat.new()
 	style.bg_color = color
-	style.set_corner_radius_all(8)
-	style.set_border_width_all(6 if chosen else 0)
+	style.set_corner_radius_all(SWATCH_CORNER_RADIUS)
+	style.set_border_width_all(SWATCH_FRAME_WIDTH if chosen else 0)
 	style.border_color = Color.WHITE
 	return style
 

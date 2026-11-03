@@ -16,6 +16,11 @@ const UPDATE_TEXT: String = "Update the game from the Drive folder"
 
 func _ready() -> void:
 	_version.text = "Version %s" % Game.version()
+	# Servers and bots never read or write profile.json (their menu skips it all).
+	if _skips_profile():
+		_profile.disabled = true
+		_play.grab_focus()
+		return
 	if _needs_profile():
 		_open_profile_screen.call_deferred()
 		return
@@ -24,9 +29,14 @@ func _ready() -> void:
 	_play.grab_focus()
 
 
-## True on a normal launch with no readable profile. Servers and --join launches go straight on.
+## True for --server and --bot launches: no profile load, no bad-file rename.
+func _skips_profile() -> bool:
+	return Game.is_server() or Net.debug_flag(OS.is_debug_build(), OS.get_cmdline_user_args(), "--bot=") != ""
+
+
+## True on a normal launch with no readable profile. Servers, bots and --join launches go straight on.
 func _needs_profile() -> bool:
-	if Game.is_server() or Net.join_argument() != "":
+	if _skips_profile() or Net.join_argument() != "":
 		return false
 	return not Profile.exists() and not Profile.newer_version_found()
 
