@@ -24,6 +24,8 @@ extends CharacterBody2D
 ##   with an equal step each, ignores move input, stops at a wall, and ends on
 ##   a snap-back, elimination or respawn. A new one replaces the one running.
 ##   The server grants its distance to MoveCheck before it tells anyone.
+## - The names seam (for T17): `player_name` is the player's profile name from the
+##   spawn data, "" for a guest; shown_name() is what the label above the hero shows.
 
 ## Sends per second. physics_ticks_per_second must be a multiple of it.
 const SEND_RATE: int = 20
@@ -41,6 +43,9 @@ const FORCED_MOTION_GRACE_SEC: float = 1.0
 const MAX_RESPAWN_SYNC_SEC: float = 60.0
 
 var owner_peer: int = 0
+## The player's profile name (T21 part 2) from the spawn data, set by setup(); "" for
+## a guest (a test bot, a PC with no profile, a second window with the same profile).
+var player_name: String = ""
 ## This hero's numbers (T13), set by setup(). The same file on every peer.
 var hero_data: HeroData = null
 var color: Color = Color.WHITE
@@ -84,9 +89,11 @@ static var _default_rules: MatchRules = MatchRules.new()
 
 ## Called by the spawn function before the hero enters the tree, so the
 ## Weapon and Health children get their numbers before their own _ready.
-func setup(peer_id: int, spawn_position: Vector2, hero_color: Color, hero: HeroData) -> void:
+## `joined_name` is a name PlayerAuth.clean_name() passed, or "" for a guest.
+func setup(peer_id: int, spawn_position: Vector2, hero_color: Color, hero: HeroData, joined_name: String = "") -> void:
 	assert(hero != null, "NetHero.setup() needs a HeroData; check game/heroes/data/roster.tres")
 	owner_peer = peer_id
+	player_name = joined_name
 	name = str(peer_id)
 	position = spawn_position
 	color = hero_color
@@ -153,6 +160,12 @@ func _make_input() -> HeroInput:
 ## True on the client that drives this hero.
 func is_owned() -> bool:
 	return not multiplayer.is_server() and multiplayer.get_unique_id() == owner_peer
+
+
+## What players see for this hero (T17 shows it above the hero): the player's profile
+## name, or "Player <peer id>" for a guest, the way the [Combat] log lines name everyone.
+func shown_name() -> String:
+	return player_name if player_name != "" else "Player %d" % owner_peer
 
 
 func is_alive() -> bool:
@@ -587,7 +600,7 @@ func _end_forced_motion() -> void:
 
 
 func _update_label() -> void:
-	_name_label.text = "Player %d  %s  %d" % [owner_peer, hero_data.display_name, _health.health()]
+	_name_label.text = "%s  %s  %d" % [shown_name(), hero_data.display_name, _health.health()]
 
 
 func _world() -> Node:

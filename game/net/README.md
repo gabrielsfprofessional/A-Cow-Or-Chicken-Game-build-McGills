@@ -41,8 +41,10 @@ Built for the Join screen (T10). Call these on the `Net` autoload from anywhere.
 
 Also useful: `Net.last_reason` (see below), `Net.server_address()` (address from the git-ignored `server.cfg`,
 falling back to `127.0.0.1`), `Net.version()` (the version sent in the
-handshake), and `Net.state` (`Net.State.OFFLINE`, `CONNECTING`, `CLIENT` or
-`SERVER`) for deciding what a screen should show.
+handshake), `Net.state` (`Net.State.OFFLINE`, `CONNECTING`, `CLIENT` or
+`SERVER`) for deciding what a screen should show, and, on the server,
+`Net.player_name(peer_id)`: the name that peer's player joined with, `""` for a
+guest (the test world puts it in the spawn data; see "Who is joining").
 
 ### Signals
 
@@ -102,11 +104,61 @@ ENet connect handshake, using `SceneMultiplayer`'s `auth_callback`, `send_auth`
 and `complete_auth`. Both sides send theirs, so either side can name both in the
 message. A mismatch is refused before the peer counts as connected: the client
 shows `Update the game from the Drive folder (server vX, you vY)` and the server
-logs `refused peer <id>: version mismatch`.
+logs `refused peer <id>: version mismatch`. A version string is logged or shown as
+sent only when it is at most 40 characters of digits, letters and `. + - _` (every
+real one is); anything else shows as `?`, so nothing a peer sends reaches a log
+unchecked (`Net.shown_version()`).
+
+### Who is joining (card T21 part 2)
+
+Only after the client accepts the server's version does it send a second auth
+message, one JSON object (`server/player_auth.gd`, `PlayerAuth`):
+`{"name": ..., "color": "#RRGGBB", "token": <device token>}` from its profile
+(`game/players/profile.gd`, T11), or `{"guest": "bot"}` / `{"guest": "no profile"}`.
+So the device token never leaves the PC for a server with another version. The
+server waits for it before completing the handshake, and reads it with
+`PlayerAuth.read_message()`: the name by T11's rules except "the game can't draw it"
+(`PlayerAuth.name_ok()`: a dedicated server export may strip fonts, and every client
+already refuses a name its font can't draw), the color as `#RRGGBB`, the token as
+exactly 32 lowercase hex characters (a sign or a capital makes a guest). Anything else makes the peer a **guest**, never a refusal:
+a family member still plays, only without a save. Anything a peer sends after its
+player message is ignored.
+
+When the peer connects, `PlayerRegistry` (`server/player_registry.gd`) loads or
+makes its save (`server/README.md`) and saves it, and saves it again when the
+peer leaves or the server closes. Guests get no save: test bots, a client with no
+profile, a message that breaks the rules, a token that is already connected (a
+second window on one PC with the same profile), and a player whose save is locked
+or from another version (left alone). The server logs one line per peer, naming a
+player by the first 8 characters of their id (the SHA-256 of the token), never the
+token:
+
+    [Server] player saves in user://saves_test/
+    [Server] peer 2012891639: player 1f29fcd4 "Smoke" (new)
+    [Server] peer 1709300266: guest (player 1f29fcd4 is already connected as peer 2012891639)
+    [Server] peer 1182231065: guest (bot)
+    [Server] peer 2012891639: player 1f29fcd4 left, saved
+
+`--profile=<path>` (debug builds) joins with that profile file instead of
+`user://profile.json`, so two windows on one PC can be two players.
+
+Each player's name then reaches every peer in their hero's spawn data (the names
+seam, for T17; see "How the test world fills up"), and the hero shows it:
+`NetHero.player_name`, `NetHero.shown_name()`. A guest shows as `Player <id>`,
+the way the `[Combat]` lines name everyone.
+
+**For T17 part 2 (John's names above heroes).** Every hero is a child of the world's
+`Heroes` node, named by its peer id (the way game/ui/overlay.gd finds yours:
+`Heroes/<peer id>`). Read `hero.shown_name()` for each one. The name is set before the
+hero enters the tree and never changes while it lives (a respawn keeps it), so read it
+once per hero. Heroes come and go with `Heroes`' `child_entered_tree` and
+`child_exiting_tree` (or `Events.peer_left` for a player who left). There is no new
+signal and no new RPC to listen to. The profile color never colors a hero or a name in
+a match; the team ring and the own-hero outline carry team identity.
 
 **NET_PROTOCOL** is 1 for T06 (which sent a bare version), 2 for T07, 3 for T08,
-4 from T14 (the ability and knockback RPCs), 5 from T18 (`client_ready`'s hero index, the spawn data, the ability answers' charge times and `receive_heal`) 6 from the week-3 seams (the spawn position in the spawn data) and 7 from T39 (the `load_map` message). Bump it in the same pull request as any change to an RPC, its arguments, its channel or
-the channel count. A build with a different wire format is then refused by name
+4 from T14 (the ability and knockback RPCs), 5 from T18 (`client_ready`'s hero index, the spawn data, the ability answers' charge times and `receive_heal`) 6 from the week-3 seams (the spawn position in the spawn data), 7 from T39 (the `load_map` message), 8 from T21 part 2 (the second auth message) and 9 from the names seam (the player's name in the spawn data). Bump it in the same pull request as any change to an RPC, its arguments, its channel,
+the channel count or the handshake. A build with a different wire format is then refused by name
 instead of failing later with channel or RPC errors.
 
 To test it without building two versions, a **debug build** accepts:
@@ -127,11 +179,15 @@ mismatched build into a family game.
    `[TestWorld] peer <id> asked for hero <n>; there is none, so it plays <first>`.
 3. Only then does the server spawn that client's hero through the
    `HeroSpawner` (`MultiplayerSpawner`) with spawn data `[peer_id, hero_index,
-   spawn_position]` (the position since the week-3 seams: the server's
+   spawn_position, player_name]` (the position since the week-3 seams: the server's
    `MatchRules` picks it, NET_PROTOCOL 6; spawn data without it falls back to the
-   T06 ring), so every peer, a late joiner included, builds the same hero: a `NetHero`
-   under `Heroes`, named with the peer id, labelled `Player <id>  <hero>  <hp>`,
-   with multiplayer authority set to that peer.
+   T06 ring. The name since the names seam, NET_PROTOCOL 9: `Net.player_name()`,
+   `""` for a guest), so every peer, a late joiner included, builds the same hero: a
+   `NetHero` under `Heroes`, named with the peer id, labelled `<name>  <hero>  <hp>`
+   (`Player <id>` for a guest), with multiplayer authority set to that peer. Every
+   peer reads the name with `PlayerAuth.clean_name()`, so one that breaks the
+   profile rules shows as a guest, and logs one line per hero:
+   `[TestWorld] built peer <id>: <hero file>, player "<name>"` or `..., a guest`.
 4. When a peer disconnects, the server frees its hero and the spawner takes the
    hero off every client.
 5. The server only relays movement to peers that have sent `client_ready`.
@@ -250,6 +306,7 @@ window). A release build ignores them. The status line lists the active ones.
 | `--bot=<seed>` | Makes this client a test bot (T09): a `BotBrain` drives its hero. Use with `--headless`, `--join=<address>` and `--quit-after-sec`. See "Test bots (card T09)". |
 | `--hero=<name>` | Plays the roster hero whose file is `<name>.tres`: `bruiser` (the default), `mage`, `scout` or `medic` (T18, until T16's hero select). An unknown name plays the first hero and prints a `[TestWorld]` line. Bots take it too. |
 | `--quit-after-sec=<n>` | Ends the run after n seconds with exit code 0 or 1 (T09, `game/core/game.gd`). Works for the server too. See "Test bots (card T09)". |
+| `--profile=<path>` | Joins with that profile file instead of `user://profile.json` (T21 part 2), so two windows on one PC can be two players. See "Who is joining". |
 | `--respawn-all-at=<sec>` | Server: calls `respawn_all()` once, `<sec>` seconds after the world loads, as a mode's new match would (see "New match"). Smoke's bot match uses 15. |
 
 The fake lag delays movement messages and outgoing fire (T08) only, not the
@@ -378,7 +435,8 @@ seconds to respawn.
 
 ### Status line and labels
 
-Until John's T17 HUD, each hero's label reads `Player <id>  <health>`, and the
+Until John's T17 HUD, each hero's label reads `<name>  <hero>  <health>` (`Player <id>`
+for a guest; see "How the test world fills up"), and the
 owner's status line adds `Eliminated, back in N s` while it is down, plus
 `fire-cheat=<x>` when that flag is on. A hero with an ability (T14) also shows
 `Q ready` or `Q <s> s`.
@@ -705,13 +763,18 @@ mode, zoom 1) limited to `Rect2(Vector2.ZERO, map_size)`. The test world has non
   server, `--server --map=practice`, waits for "server up" in its output, then
   `Net.play("127.0.0.1")`. It stops that process by PID when the player leaves.
   T29 checks that a release build can do this.
-- **T16's lobby.** The server starts on the map the host names. The host picks
-  the next map and starts the match; a map change sends `load_map` to every ready
-  peer and spawns heroes again. Until then: one map per server run.
+- **T16's lobby: dropped for Thanksgiving (decided Oct 31, decision 3).** T16 is
+  hero select before joining: it sets `Net.chosen_hero_index`, then calls `Net.play()`,
+  and Play joins the running match. There is no lobby and no map pick: one map per
+  server run, and T15 starts each new match with `respawn_all()`. The old plan (the
+  host picks the next map; a map change sends `load_map` to every ready peer and
+  spawns heroes again) waits for Alpha.
 
 ## Match scene (T16)
 
-Plan only; no scene yet.
+Dropped for Thanksgiving with the lobby (decision 3): `test_world.tscn` stays the
+world, and T15's Mode node lives in the arena map (game/maps/arena/arena_graybox.tscn).
+The plan below waits for Alpha. Plan only; no scene yet.
 1. The match scene replaces `test_world.tscn`: Net loads it before joining, as now.
 2. It keeps test_world's root script contract: `rules()`/`set_rules()`, `respawn_point()`,
    `shots()`, `bot_area()`, `teams_seen()`, `is_peer_ready()`, `client_ready()` and

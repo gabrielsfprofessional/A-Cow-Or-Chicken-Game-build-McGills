@@ -3,7 +3,8 @@
 # if Godot prints any script or engine error. Then run every tests/*_test.gd,
 # Adam's check_arena.gd and every test_*.gd in game/maps/tools and
 # game/modes/tools (when they exist), and fail if any exits non-zero or runs
-# longer than 60 s (it is then killed). Then play a bot match (cards T09, T18): a headless server and 4 test bots, one per hero, on UDP 7777.
+# longer than 60 s (it is then killed). Then play a bot match (cards T09, T18): a headless server and 4 test bots, one per hero, on UDP 7777,
+# then the arena check (T39) and the player saves check (T21 part 2).
 # Usage (Linux, CI, or Git Bash):  GODOT=/path/to/godot bash tools/smoke.sh
 set -uo pipefail
 GODOT="${GODOT:-godot}"
@@ -260,4 +261,132 @@ if [ "$MATCH_FAILED" -ne 0 ]; then
   exit 1
 fi
 echo "SMOKE: arena check passed (server and 2 bots exited 0, both heroes on Spawn markers, map built before hello)"
+
+# Player saves (card T21 part 2): a server with a saves folder of its own, two game
+# clients with one throwaway test profile (--profile), then a bot (14, 12 and 10 s, 1 s
+# apart). Passes when all four exit 0, no log has an error or a refusal, the server saved
+# the player under the SHA-256 of the token (new, then again on leaving), made the second
+# window and the bot guests, the folder holds only that player's files, and no log or
+# save holds the token. Names (the names seam, for T17): every peer built window 1's hero
+# named "Smoke" and no other hero with a name, and window 1 built the second window's
+# hero as a guest. Anything left after 40 s is killed by PID.
+NAMES=(saves-server saves-window1 saves-window2 saves-bot)
+LOGS=("$(mktemp)" "$(mktemp)" "$(mktemp)" "$(mktemp)")
+SAVES_DIR="$(mktemp -d)"
+PROFILE_FILE="$(mktemp)"
+TOKEN="$(od -An -tx1 -N16 /dev/urandom | tr -d ' \n')"
+PLAYER_ID="$(printf '%s' "$TOKEN" | sha256sum | cut -c1-64)"
+printf '{"version": 1, "name": "Smoke", "color": "#F25559", "device_token": "%s"}' "$TOKEN" >"$PROFILE_FILE"
+# Git Bash: the Windows build needs Windows paths.
+SAVES_ARG="$SAVES_DIR"
+PROFILE_ARG="$PROFILE_FILE"
+if command -v cygpath >/dev/null 2>&1; then
+  SAVES_ARG="$(cygpath -w "$SAVES_DIR")"
+  PROFILE_ARG="$(cygpath -w "$PROFILE_FILE")"
+fi
+PIDS=()
+trap stop_match_leftovers EXIT
+MATCH_START=$SECONDS
+"$GODOT" --headless --path "$ROOT" -- --server --saves="$SAVES_ARG" --quit-after-sec=22 >"${LOGS[0]}" 2>&1 &
+PIDS+=("$!")
+STATE="timeout"
+while [ $((SECONDS - MATCH_START)) -lt 30 ]; do
+  if grep -q "could not host" "${LOGS[0]}"; then STATE="in use"; break; fi
+  if grep -q "server up" "${LOGS[0]}"; then STATE="up"; break; fi
+  if ! kill -0 "${PIDS[0]}" 2>/dev/null; then STATE="exited"; break; fi
+  sleep 0.2
+done
+if [ "$STATE" != "up" ]; then
+  cat "${LOGS[0]}"
+  echo "SMOKE: FAIL: the player saves server did not start ($STATE, log: ${LOGS[0]})"
+  exit 1
+fi
+"$GODOT" --headless --path "$ROOT" -- --join=127.0.0.1 --profile="$PROFILE_ARG" --quit-after-sec=14 >"${LOGS[1]}" 2>&1 &
+PIDS+=("$!")
+sleep 1
+"$GODOT" --headless --path "$ROOT" -- --join=127.0.0.1 --profile="$PROFILE_ARG" --quit-after-sec=12 >"${LOGS[2]}" 2>&1 &
+PIDS+=("$!")
+sleep 1
+"$GODOT" --headless --path "$ROOT" -- --join=127.0.0.1 --bot=1 --hero=bruiser --quit-after-sec=10 >"${LOGS[3]}" 2>&1 &
+PIDS+=("$!")
+while [ $((SECONDS - MATCH_START)) -lt 40 ]; do
+  RUNNING=0
+  for pid in "${PIDS[@]}"; do
+    if kill -0 "$pid" 2>/dev/null; then RUNNING=$((RUNNING + 1)); fi
+  done
+  [ "$RUNNING" -eq 0 ] && break
+  sleep 0.5
+done
+stop_match_leftovers
+MATCH_FAILED=0
+for i in 0 1 2 3; do
+  wait "${PIDS[$i]}"
+  CODE=$?
+  if [ "$CODE" -ne 0 ]; then
+    echo "SMOKE: player saves: ${NAMES[$i]} exited $CODE"
+    MATCH_FAILED=1
+  fi
+done
+PIDS=()
+trap - EXIT
+if grep -nE "SCRIPT ERROR|Parse Error|ERROR:" "${LOGS[@]}"; then MATCH_FAILED=1; fi
+if grep -nE "\[(Move|Shot|Ability)\]" "${LOGS[@]}"; then MATCH_FAILED=1; fi
+SHORT="${PLAYER_ID:0:8}"
+for want in "player $SHORT \"Smoke\" (new)" "guest (player $SHORT is already connected as peer " "guest (bot)" "player $SHORT left, saved"; do
+  GOT=$(grep -cF "$want" "${LOGS[0]}")
+  if [ "$GOT" -ne 1 ]; then
+    echo "SMOKE: player saves: the server logged \"$want\" $GOT time(s) (want 1)"
+    MATCH_FAILED=1
+  fi
+done
+# Saved when they left, not only when the server closed: that line comes before the quit.
+LEFT_AT=$(grep -nF "player $SHORT left, saved" "${LOGS[0]}" | head -n 1 | cut -d: -f1)
+QUIT_AT=$(grep -n "\[Game\] quit-after-sec" "${LOGS[0]}" | head -n 1 | cut -d: -f1)
+if [ -z "$LEFT_AT" ] || [ -z "$QUIT_AT" ] || [ "$LEFT_AT" -gt "$QUIT_AT" ]; then
+  echo "SMOKE: player saves: the player wasn't saved when they left (line ${LEFT_AT:-none}, server quit at line ${QUIT_AT:-none})"
+  MATCH_FAILED=1
+fi
+if ! grep -qF '"name": "Smoke"' "$SAVES_DIR/$PLAYER_ID.json" 2>/dev/null; then
+  echo "SMOKE: player saves: no save named by the token's SHA-256 holds the name Smoke"
+  MATCH_FAILED=1
+fi
+OTHERS=$(ls -A "$SAVES_DIR" | grep -cv "^$PLAYER_ID\.json")
+if [ "$OTHERS" -ne 0 ]; then
+  echo "SMOKE: player saves: $OTHERS other file(s) in the saves folder:"
+  ls -A "$SAVES_DIR"
+  MATCH_FAILED=1
+fi
+if grep -rqF "$TOKEN" "${LOGS[@]}" "$SAVES_DIR"; then
+  echo "SMOKE: player saves: the device token is in a log or a save"
+  MATCH_FAILED=1
+fi
+# Names: each window's peer id from its "connected as peer" line.
+W1_PEER=$(grep -oE "\[Net\] connected as peer [0-9]+" "${LOGS[1]}" | head -n 1 | grep -oE "[0-9]+$")
+W2_PEER=$(grep -oE "\[Net\] connected as peer [0-9]+" "${LOGS[2]}" | head -n 1 | grep -oE "[0-9]+$")
+if [ -z "$W1_PEER" ] || [ -z "$W2_PEER" ]; then
+  echo "SMOKE: player saves: a window's log has no \"connected as peer\" line"
+  MATCH_FAILED=1
+else
+  for i in 0 1 2 3; do
+    GOT=$(grep -cE "\[TestWorld\] built peer $W1_PEER: [a-z_]+, player \"Smoke\"" "${LOGS[$i]}")
+    NAMED=$(grep -cE "\[TestWorld\] built peer [0-9]+: [a-z_]+, player " "${LOGS[$i]}")
+    if [ "$GOT" -ne 1 ] || [ "$NAMED" -ne 1 ]; then
+      echo "SMOKE: player saves: ${NAMES[$i]} built window 1's hero (peer $W1_PEER) named Smoke $GOT time(s), and $NAMED named hero(es) in all (want 1 and 1)"
+      MATCH_FAILED=1
+    fi
+  done
+  if ! grep -qE "\[TestWorld\] built peer $W2_PEER: [a-z_]+, a guest" "${LOGS[1]}"; then
+    echo "SMOKE: player saves: window 1 didn't build the second window's hero (peer $W2_PEER) as a guest"
+    MATCH_FAILED=1
+  fi
+fi
+if [ "$MATCH_FAILED" -ne 0 ]; then
+  for i in 0 1 2 3; do
+    echo "--- ${NAMES[$i]} log, last 40 lines:"
+    tail -n 40 "${LOGS[$i]}"
+  done
+  echo "SMOKE: FAIL: player saves (logs: ${LOGS[0]} ${LOGS[1]} ${LOGS[2]} ${LOGS[3]}, saves: $SAVES_DIR)"
+  exit 1
+fi
+echo "SMOKE: player saves passed (4 exited 0, the player saved new and on leaving, second window and bot guests, every peer showed the player's name, no token in any log or save)"
 echo "SMOKE: PASS"
