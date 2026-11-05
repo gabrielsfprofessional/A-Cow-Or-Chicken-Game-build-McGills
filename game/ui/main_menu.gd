@@ -1,10 +1,10 @@
 extends Control
 ## Placeholder main menu. Owner: John (game/ui).
-## Play opens the Join screen (T10); Practice Range is wired in T20.
+## Play opens hero select (T16), which opens the Join screen (T10); Practice Range is wired in T20.
 ## Profile and "Playing as <name>" come from T11. With no profile yet, the profile
 ## screen opens first, except for servers and --join launches.
 
-const JOIN_SCENE: String = "res://game/ui/join_screen.tscn"
+const HERO_SELECT_SCENE: String = "res://game/ui/hero_select.tscn"
 const PROFILE_SCENE: String = "res://game/players/profile_screen.tscn"
 const UPDATE_TEXT: String = "Update the game from the Drive folder"
 
@@ -51,7 +51,7 @@ func _open_profile_screen() -> void:
 
 
 func _on_play_pressed() -> void:
-	get_tree().change_scene_to_file(JOIN_SCENE)
+	get_tree().change_scene_to_file(HERO_SELECT_SCENE)
 
 
 func _on_profile_pressed() -> void:

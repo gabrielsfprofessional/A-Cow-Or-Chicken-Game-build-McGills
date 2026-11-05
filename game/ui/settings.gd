@@ -23,6 +23,9 @@ var last_shipped: String = ""
 ## The address of the join in progress or the last one tried this session. Memory
 ## only, so a typo can be fixed but is never saved.
 var last_tried: String = ""
+## The hero file name (for example "mage") last picked in hero select. Saved. "" until the
+## first pick; an unknown name falls back to the first hero. An optional key, so VERSION stays 1.
+var last_hero: String = ""
 
 
 func _ready() -> void:
@@ -51,6 +54,7 @@ func load_settings() -> void:
 	fullscreen = bool(data.get("fullscreen", fullscreen))
 	last_address = str(data.get("last_address", "")).strip_edges()
 	last_shipped = str(data.get("last_shipped", "")).strip_edges()
+	last_hero = str(data.get("last_hero", "")).strip_edges()
 
 
 ## Writes to a temp file first, then renames, so a crash never leaves a half-written file.
@@ -64,6 +68,7 @@ func save_settings() -> void:
 		"fullscreen": fullscreen,
 		"last_address": last_address,
 		"last_shipped": last_shipped,
+		"last_hero": last_hero,
 	}
 	var tmp: String = PATH + ".tmp"
 	var file: FileAccess = FileAccess.open(tmp, FileAccess.WRITE)
