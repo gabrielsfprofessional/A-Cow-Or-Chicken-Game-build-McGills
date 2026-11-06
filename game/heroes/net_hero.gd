@@ -297,6 +297,16 @@ func shots() -> Shots:
 	return world.call(&"shots") as Shots
 
 
+## Server: how long a message read now may have waited in the socket (the
+## world's frame_gap_sec, J18), or 0 outside a world that has one.
+func server_frame_gap_sec() -> float:
+	var world := _world()
+	if world == null or not world.has_method(&"frame_gap_sec"):
+		return 0.0
+	var gap: Variant = world.call(&"frame_gap_sec")
+	return gap if gap is float else 0.0
+
+
 ## Server only: true when `peer` may get messages (its world is loaded).
 func can_receive(peer: int) -> bool:
 	var world := _world()
