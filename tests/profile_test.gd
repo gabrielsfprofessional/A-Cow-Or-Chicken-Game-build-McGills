@@ -70,7 +70,7 @@ func _load_checks() -> void:
 		"upper-case token": {"name": "Ann", "device_token": good_token.to_upper()},
 		"empty name": {"name": "", "device_token": good_token},
 		"13-character name": {"name": "1234567890123", "device_token": good_token},
-		"control character in name": {"name": "AB", "device_token": good_token},
+		"control character in name": {"name": "A" + char(1) + "B", "device_token": good_token},
 	}
 	for label: String in cases:
 		_clean()
@@ -87,7 +87,7 @@ func _load_checks() -> void:
 ## is_token() and is_color() are public so the server can reuse them (follow-up #87).
 func _public_checks() -> void:
 	_expect_true("is_token takes 32 lowercase hex", ProfileScript.is_token("ab".repeat(16)))
-	_expect_true("is_token refuses upper case, a minus sign and a short one", 		not ProfileScript.is_token("AB".repeat(16)) and not ProfileScript.is_token("-" + "a".repeat(31)) and not ProfileScript.is_token("ab"))
+	_expect_true("is_token refuses upper case, a minus sign and a short one", not ProfileScript.is_token("AB".repeat(16)) and not ProfileScript.is_token("-" + "a".repeat(31)) and not ProfileScript.is_token("ab"))
 	_expect_true("is_color takes #RRGGBB", ProfileScript.is_color("#F2555A") and ProfileScript.is_color("#f2555a"))
 	_expect_true("is_color refuses a missing # and a wrong length", not ProfileScript.is_color("F2555A") and not ProfileScript.is_color("#F2555"))
 
