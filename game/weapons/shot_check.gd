@@ -8,6 +8,12 @@ extends RefCounted
 ## arrive up to JITTER_SEC before its slot. One late shot then never makes the
 ## next on-time one look early, the sustained rate stays within 1 / RATE_SLACK of
 ## the weapon's, and a pause buys at most JITTER_SEC of extra fire.
+##
+## J18: a server frame that stalls reads every shot that came in during it at
+## once. The caller passes how long a shot read now may have waited in the
+## socket (stall_sec: the world's frame_gap_sec()), and a slot is
+## booked from the earliest the shot could have arrived, so an honest burst after
+## a stall passes. A pause plus a stall buys at most MAX_STALL_SEC more.
 
 enum Result {
 	ACCEPTED,
@@ -23,6 +29,8 @@ enum Result {
 const JITTER_SEC: float = 0.25
 ## Shots are booked this fraction of the fire interval apart.
 const RATE_SLACK: float = 0.9
+## The longest server stall a burst of shots read at once is excused for (J18).
+const MAX_STALL_SEC: float = 1.0
 
 var owner_id: int
 var fire_interval_sec: float
@@ -41,9 +49,10 @@ func _init(owner_peer: int, interval_sec: float) -> void:
 
 
 ## Checks one fire message. shot_life is the life it was fired in; current_life
-## and alive are the shooter's now. On ACCEPTED, direction holds the normalized aim.
+## and alive are the shooter's now. stall_sec is how long it may have waited in the
+## socket (0 in tests that don't model it). On ACCEPTED, direction holds the normalized aim.
 func check(sender_id: int, shot_id: int, shot_life: int, current_life: int, alive: bool,
-		new_direction: Vector2, now_sec: float) -> Result:
+		new_direction: Vector2, now_sec: float, stall_sec: float = 0.0) -> Result:
 	if sender_id != owner_id:
 		return Result.WRONG_OWNER
 	if shot_id <= last_shot_id:
@@ -59,7 +68,10 @@ func check(sender_id: int, shot_id: int, shot_life: int, current_life: int, aliv
 	if now_sec < _next_sec - JITTER_SEC:
 		refused += 1
 		return Result.TOO_SOON
-	_next_sec = maxf(now_sec, _next_sec) + fire_interval_sec * RATE_SLACK
+	# It may have waited in the socket the whole stalled frame, so its slot is
+	# booked from the earliest it could have come in; never before the last slot.
+	var earliest_sec := now_sec - clampf(stall_sec, 0.0, MAX_STALL_SEC)
+	_next_sec = maxf(earliest_sec, _next_sec) + fire_interval_sec * RATE_SLACK
 	direction = new_direction.normalized()
 	return Result.ACCEPTED
 
