@@ -93,7 +93,7 @@ func fire(life: int, shot_id: int, direction: Vector2) -> void:
 	if not multiplayer.is_server() or _check == null:
 		return
 	var result := _check.check(multiplayer.get_remote_sender_id(), shot_id, life, _hero.life,
-		_hero.is_alive(), direction, _now_sec())
+		_hero.is_alive(), direction, _now_sec(), _hero.server_frame_gap_sec())
 	match result:
 		ShotCheck.Result.ACCEPTED:
 			_start_shot(shot_id, _check.direction)

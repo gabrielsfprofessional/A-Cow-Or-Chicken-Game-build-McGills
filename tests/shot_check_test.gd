@@ -29,6 +29,9 @@ func _initialize() -> void:
 	_late_shot_does_not_shorten_the_next()
 	_double_rate_held_down()
 	_honest_stream_through_lag()
+	_honest_stream_through_a_server_stall()
+	_double_rate_through_server_stalls()
+	_stall_credit_is_capped()
 	print("SHOT CHECK TEST: %s (%d checks)" % ["PASS" if _failed == 0 else "FAIL, %d wrong" % _failed, _count])
 	quit(0 if _failed == 0 else 1)
 
@@ -148,6 +151,66 @@ func _honest_stream_through_lag() -> void:
 			queue.pop()
 	_expect_true("an honest 60 s stream through 150 ms lag and 50 ms jitter refuses nothing (%d shots, %d refused)" % [
 		received, check.refused], received == shot_id and check.refused == 0)
+
+
+# --- server stalls (J18): a frame that took STALL reads every message that came in
+# during it at once, and the server passes how long that frame took ---------------
+
+const STALL: float = 0.8
+
+
+## When a shot sent at `sent` is read, if the server is stuck from `stall_at` for STALL.
+func _read_at(sent: float, stall_at: float) -> float:
+	return stall_at + STALL if sent >= stall_at and sent < stall_at + STALL else sent
+
+
+func _honest_stream_through_a_server_stall() -> void:
+	# Fired every 0.3 s for 10 s; the server is stuck from 3.0 to 3.8 s, so the
+	# shots sent at 3.0, 3.3 and 3.6 s are all read at 3.8 s (John's Nov 3 failure).
+	var check := _new_check()
+	for i: int in range(34):
+		var sent := i * INTERVAL
+		var read := _read_at(sent, 3.0)
+		_shoot_after(check, i + 1, read, STALL if read != sent else TICK)
+	_expect_true("an honest stream through a 0.8 s server stall refuses nothing (%d refused)" % check.refused,
+		check.refused == 0)
+
+
+func _double_rate_through_server_stalls() -> void:
+	# A x2 stream for 60 s, the server stuck for 0.8 s every 3 s: a stall buys a
+	# cheater nothing, since its next slot is always ahead of the stall's start.
+	var check := _new_check()
+	var accepted := 0
+	var seconds := 60.0
+	var shots := int(seconds / (INTERVAL * 0.5))
+	for i: int in range(shots):
+		var sent := i * INTERVAL * 0.5
+		var phase := fmod(sent, 3.0)
+		var stalled := phase >= 2.0 and phase < 2.0 + STALL
+		var read := sent - phase + 2.0 + STALL if stalled else sent
+		if _shoot_after(check, i + 1, read, STALL if stalled else TICK) == ShotCheck.Result.ACCEPTED:
+			accepted += 1
+	var limit := seconds / (INTERVAL * ShotCheck.RATE_SLACK)
+	_expect_true("a x2 stream through server stalls is still held to 1/0.9 of the rate (%d accepted of %d, limit %.1f)" % [
+		accepted, shots, limit], accepted <= ceili(limit) + 1 and check.refused > 0)
+
+
+func _stall_credit_is_capped() -> void:
+	# After a pause, a 5 s stall and 30 shots read at once: the stall counts for
+	# MAX_STALL_SEC at most.
+	var check := _new_check()
+	_shoot_after(check, 1, 0.0, TICK)
+	var accepted := 0
+	for i: int in range(30):
+		if _shoot_after(check, i + 2, 20.0, 5.0) == ShotCheck.Result.ACCEPTED:
+			accepted += 1
+	var most := 1 + floori((ShotCheck.MAX_STALL_SEC + ShotCheck.JITTER_SEC) / (INTERVAL * ShotCheck.RATE_SLACK))
+	_expect_true("a 5 s stall buys at most %d shots at once (%d accepted)" % [most, accepted], accepted <= most)
+
+
+## An honest shot read at `now` in a server frame that took `stall` seconds.
+func _shoot_after(check: ShotCheck, shot_id: int, now: float, stall: float) -> ShotCheck.Result:
+	return check.check(OWNER, shot_id, LIFE, LIFE, true, AIM, now, stall)
 
 
 func _expect(case_name: String, got: ShotCheck.Result, wanted: ShotCheck.Result) -> void:

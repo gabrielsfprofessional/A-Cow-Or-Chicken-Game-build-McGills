@@ -38,6 +38,8 @@ var _teams_seen: Dictionary[int, int] = {}
 ## The map this world runs (T39): "test" for none. The server picks it; clients hear it in load_map.
 var _map_name: String = MapList.TEST
 var _map: Node2D = null
+## When the tree's last process_frame fired, in Time.get_ticks_usec() (J18: frame_gap_sec).
+var _frame_usec: int = 0
 
 @onready var _heroes: Node2D = $Heroes
 @onready var _shots: Shots = $Shots
@@ -47,6 +49,8 @@ var _map: Node2D = null
 
 
 func _ready() -> void:
+	_frame_usec = Time.get_ticks_usec()
+	get_tree().process_frame.connect(_on_process_frame)
 	# Every peer builds heroes the same way, so the spawner only has to send
 	# the peer id and hero index across.
 	_spawner.spawn_function = _make_hero
@@ -99,6 +103,19 @@ func send_to_ready(node: Node, method: StringName, args: Array = []) -> void:
 ## The world's shots: the server's simulation and every client's drawing.
 func shots() -> Shots:
 	return _shots
+
+
+## Seconds since the tree's last process_frame. Godot reads network messages at
+## the start of a frame, just before process_frame, so a message read now may
+## have waited this long in the socket: a stalled server frame reads a burst at
+## once. The server's ShotCheck excuses that much (J18). Real time, because
+## Godot caps a frame's delta.
+func frame_gap_sec() -> float:
+	return (Time.get_ticks_usec() - _frame_usec) / 1000000.0
+
+
+func _on_process_frame() -> void:
+	_frame_usec = Time.get_ticks_usec()
 
 
 ## Server: the match rules heroes, shots and bots follow (week-3 seams).

@@ -22,6 +22,8 @@ var _count: int = 0
 func _initialize() -> void:
 	_names()
 	_token()
+	_load_checks()
+	_public_checks()
 	_corrupt_files()
 	_crash_before_rename()
 	_crash_between_renames()
@@ -57,6 +59,37 @@ func _names() -> void:
 	}
 	for label: String in good:
 		_expect_true("name passes: %s" % label, ProfileScript.name_problem(good[label]) == "")
+
+
+## A file that parses but breaks the Save rules is treated like a bad file (follow-up #87).
+func _load_checks() -> void:
+	var good_token: String = "ab".repeat(16)
+	var cases: Dictionary[String, Dictionary] = {
+		"empty token": {"name": "Ann", "device_token": ""},
+		"short token": {"name": "Ann", "device_token": "abc123"},
+		"upper-case token": {"name": "Ann", "device_token": good_token.to_upper()},
+		"empty name": {"name": "", "device_token": good_token},
+		"13-character name": {"name": "1234567890123", "device_token": good_token},
+		"control character in name": {"name": "A" + char(1) + "B", "device_token": good_token},
+	}
+	for label: String in cases:
+		_clean()
+		var entry: Dictionary = cases[label]
+		_write(TEST_PATH, JSON.stringify({"version": 1, "name": entry["name"], "color": "#F2555A", "device_token": entry["device_token"]}))
+		_expect_true("%s: treated as a bad file" % label, not ProfileScript.exists(TEST_PATH))
+		_expect_true("%s: the bad file is moved aside, not deleted" % label, not _files_starting(TEST_FILE + ".bad-").is_empty())
+	_clean()
+	_write(TEST_PATH, JSON.stringify({"version": 1, "name": "Ann", "color": "#F2555A", "device_token": good_token}))
+	_expect_true("a good file still loads", ProfileScript.exists(TEST_PATH) and ProfileScript.load_or_default(TEST_PATH)["name"] == "Ann")
+	_clean()
+
+
+## is_token() and is_color() are public so the server can reuse them (follow-up #87).
+func _public_checks() -> void:
+	_expect_true("is_token takes 32 lowercase hex", ProfileScript.is_token("ab".repeat(16)))
+	_expect_true("is_token refuses upper case, a minus sign and a short one", not ProfileScript.is_token("AB".repeat(16)) and not ProfileScript.is_token("-" + "a".repeat(31)) and not ProfileScript.is_token("ab"))
+	_expect_true("is_color takes #RRGGBB", ProfileScript.is_color("#F2555A") and ProfileScript.is_color("#f2555a"))
+	_expect_true("is_color refuses a missing # and a wrong length", not ProfileScript.is_color("F2555A") and not ProfileScript.is_color("#F2555"))
 
 
 func _token() -> void:
