@@ -8,6 +8,7 @@ extends CanvasLayer
 const HUD_SCENE: PackedScene = preload("res://game/ui/hud.tscn")
 
 var _hud: Hud = null
+var _hit_feedback: HitFeedback = null
 
 
 func _ready() -> void:
@@ -15,11 +16,14 @@ func _ready() -> void:
 	_hud = HUD_SCENE.instantiate() as Hud
 	add_child(_hud)
 	_hud.visible = false
+	_hit_feedback = HitFeedback.new()
+	add_child(_hit_feedback)
 
 
 func _process(_delta: float) -> void:
 	var hero := _own_hero()
 	_hud.visible = hero != null
+	_hit_feedback.active = hero != null
 	if hero == null:
 		return
 	var health := hero.get_node_or_null(^"Health") as Health

@@ -270,7 +270,8 @@ add up, the later expiry wins, and `reset()` (respawn) clears them.
 On a reject the server keeps the last good position, advances the last
 sequence, sends the owner a `snap_back` (at most every 0.5 s while rejects
 keep coming, so one bad move cannot cause a stream of them), and logs
-`[Move] peer <id>: rejected ...` at most once a second per hero.
+`[Move] peer <id>: rejected ...` at most once a second per hero. The
+`(<n> since spawn)` count runs from the hero's first spawn: a respawn doesn't reset it.
 
 ### Remote heroes (RemoteTimeline)
 
@@ -420,9 +421,17 @@ In order, the first failure wins:
    never makes the next on-time one look early, up to 0.25 s of jitter never
    refuses an honest shot, the sustained rate stays within 1/0.9 of the
    weapon's, and a pause buys at most 0.25 s of extra fire.
+5. **Server stalls (J18):** a stalled server frame reads every shot that came
+   in during it at once. Weapon passes the world's `frame_gap_sec()` as
+   `stall_sec`, and the slot is booked from the earliest the shot could have
+   arrived: `next = max(now - stall_sec, next) + fire_interval_sec x 0.9`. The
+   refusal test (rule 4) doesn't change, and since `next` never moves back, a
+   stream faster than the weapon gains nothing. A pause plus a stall buys at
+   most `ShotCheck.MAX_STALL_SEC` (1 s) more.
 
-Refusals log `[Shot] peer <id>: refused <n> shot(s), last: <reason>` at most
-once a second per hero. Constants: `ShotCheck.JITTER_SEC`, `RATE_SLACK`,
+Refusals log `[Shot] peer <id>: refused <n> shot(s), last: <reason> (<n> since spawn)`
+at most once a second per hero; the count runs from the hero's first spawn (a
+respawn doesn't reset it). Constants: `ShotCheck.JITTER_SEC`, `RATE_SLACK`, `MAX_STALL_SEC`,
 `ShotSim.CAPACITY`, `Shots.VISUAL_CAPACITY`.
 
 ### Late join

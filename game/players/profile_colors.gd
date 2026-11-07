@@ -21,7 +21,7 @@ const WHITE: Vector3 = Vector3(0.95047, 1.0, 1.08883)
 
 ## One message per broken rule, each naming this file and the swatch. Empty means all good.
 func validate() -> PackedStringArray:
-	var problems := PackedStringArray()
+	var problems: PackedStringArray = PackedStringArray()
 	if swatches.size() != swatch_count:
 		problems.append("%s: has %d swatches, needs exactly %d" % [FILE_NAME, swatches.size(), swatch_count])
 	if team_colors.size() != team_names.size():
@@ -29,19 +29,19 @@ func validate() -> PackedStringArray:
 	var seen: Dictionary[String, int] = {}
 	for i: int in swatches.size():
 		var swatch: Color = swatches[i]
-		var label := "%s: swatch %d (#%s)" % [FILE_NAME, i + 1, swatch.to_html(false).to_upper()]
-		var hex := swatch.to_html(false).to_upper()
+		var label: String = "%s: swatch %d (#%s)" % [FILE_NAME, i + 1, swatch.to_html(false).to_upper()]
+		var hex: String = swatch.to_html(false).to_upper()
 		if seen.has(hex):
 			problems.append("%s is the same as swatch %d" % [label, seen[hex] + 1])
 		else:
 			seen[hex] = i
 		for t: int in team_colors.size():
-			var distance := delta_e(swatch, team_colors[t])
+			var distance: float = delta_e(swatch, team_colors[t])
 			if distance < min_team_distance:
 				var team: String = team_names[t] if t < team_names.size() else "team %d" % (t + 1)
 				problems.append("%s is too close to %s (delta E %.1f, needs at least %.0f)" % [
 					label, team, distance, min_team_distance])
-		var ratio := contrast_ratio(swatch, ui_background)
+		var ratio: float = contrast_ratio(swatch, ui_background)
 		if ratio < min_contrast:
 			problems.append("%s is hard to read on the menu background (contrast %.2f, needs at least %.1f)" % [
 				label, ratio, min_contrast])
@@ -54,22 +54,22 @@ static func delta_e(a: Color, b: Color) -> float:
 
 
 static func to_lab(color: Color) -> Vector3:
-	var r := _linear(color.r)
-	var g := _linear(color.g)
-	var b := _linear(color.b)
-	var x := (0.4124564 * r + 0.3575761 * g + 0.1804375 * b) / WHITE.x
-	var y := (0.2126729 * r + 0.7151522 * g + 0.0721750 * b) / WHITE.y
-	var z := (0.0193339 * r + 0.1191920 * g + 0.9503041 * b) / WHITE.z
-	var fx := _lab_f(x)
-	var fy := _lab_f(y)
-	var fz := _lab_f(z)
+	var r: float = _linear(color.r)
+	var g: float = _linear(color.g)
+	var b: float = _linear(color.b)
+	var x: float = (0.4124564 * r + 0.3575761 * g + 0.1804375 * b) / WHITE.x
+	var y: float = (0.2126729 * r + 0.7151522 * g + 0.0721750 * b) / WHITE.y
+	var z: float = (0.0193339 * r + 0.1191920 * g + 0.9503041 * b) / WHITE.z
+	var fx: float = _lab_f(x)
+	var fy: float = _lab_f(y)
+	var fz: float = _lab_f(z)
 	return Vector3(116.0 * fy - 16.0, 500.0 * (fx - fy), 200.0 * (fy - fz))
 
 
 ## The WCAG contrast ratio, 1 to 21.
 static func contrast_ratio(a: Color, b: Color) -> float:
-	var la := _luminance(a)
-	var lb := _luminance(b)
+	var la: float = _luminance(a)
+	var lb: float = _luminance(b)
 	return (maxf(la, lb) + 0.05) / (minf(la, lb) + 0.05)
 
 
