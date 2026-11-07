@@ -35,27 +35,31 @@ It takes about 20 minutes, most of it the 10-minute bot test.
 5. It ends with `RELEASE: PASS`, the zip's file list, its SHA-256 and the Drive steps.
    Anything else: read the `RELEASE: FAIL` line; the logs are in the release
    folder's `logs\`.
+6. Double-click `client\ACowOrChicken.exe` in the release folder. The script's checks
+   run headless, so this is the one look at the real window: the main menu opens and
+   shows the new version. Click **Quit**.
 
 ## What each check proves
 
 | Step | Check | Why |
 | --- | --- | --- |
-| 0 | Templates, clean main at origin/main, server.cfg has an address, UDP 7777 free | The zip is exactly main, built with the official engine |
+| 0 | Godot 4.7.2, templates, clean main at origin/main, server.cfg has an address, UDP 7777 free | The zip is exactly main, built with the official engine |
 | 1 | `tools\smoke.ps1` | Nothing is broken before a 10-minute run |
 | 2 | Both presets export with `--export-release` and the data is inside each `.exe` | No debug build reaches the family; one file to copy |
 | 3 | The game prints `[Net] server.cfg: found, Play joins its address`, and the address is in none of its output | Play joins the right server; the address never lands in a log |
 | 4 | The exported game joins the exported server with `--version-override` and the server sees the real version | Release builds ignore the debug flags |
-| 5 | 8 bots (console editor build, this commit) play 10 minutes against the exported server; every bot exits 0, 8 joins, hits, no error or refusal line; the server is then stopped by PID | The real server build holds a match |
+| 5 | 8 bots (console editor build, this commit) play 10 minutes against the exported server, started with no `--server` flag; every bot exits 0, the server stays up, 8 joins, hits, no error or refusal line; the server is then stopped by PID and UDP 7777 is free | The real server build holds a match |
 | 6 | `LICENSES.txt` (Godot's license, its copyright notices, third-party texts) | Godot's license must ship with the game |
-| 7 | The zip holds the game `.exe` and `LICENSES.txt`, with a `.sha256.txt` | What the family downloads |
+| 7 | The zip holds exactly the game `.exe` and `LICENSES.txt`, at their sizes, with a `.sha256.txt` | What the family downloads |
 
 Steps 4 and 5 save to the release folder's `test-saves\`, and the script stops if the
 server says otherwise. A release server's default folder is the family's saves.
 Step 4's test game joins with this PC's real profile. It only reads the profile, and
 the save it leaves in `test-saves\` has the player's id, name and color, never the token.
 
-The server build (`server\ACowOrChickenServer.exe`) stays on the server PC.
-Start it with `ACowOrChickenServer.exe --headless -- --map=arena`.
+The server build (`server\`, both files) stays on the server PC. Start it from a
+window with `ACowOrChickenServer.console.exe --headless -- --map=arena`, so you can
+see its lines.
 
 ## The Drive
 

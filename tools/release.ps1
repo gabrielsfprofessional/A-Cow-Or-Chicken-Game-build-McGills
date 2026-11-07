@@ -15,7 +15,8 @@
 #   6. LICENSES.txt (tools\write_licenses.gd) next to the game.
 #   7. Zip (the game + LICENSES.txt) with its SHA-256, then the Drive steps.
 # -TestBranch: for testing this script before it merges. HEAD only has to contain
-# origin/main; the zip is named TEST-... and no Drive steps are printed.
+# origin/main; the zip is named TEST-... and no Drive steps are printed. Only a test run
+# may change -Bots or -BotMinutes.
 # Every process it starts is stopped by PID at the end; UDP 7777 is free after.
 # The test servers save to the release folder's test-saves\, never the family's saves.
 # Godot path: $env:GODOT if set, else C:\Godot\Godot_v4.7.2-stable_win64_console.exe
@@ -27,6 +28,8 @@ param(
 )
 $ErrorActionPreference = "Continue"
 
+$FullBots = 8
+$FullBotMinutes = 10
 $GodotVersion = "4.7.2"
 $TemplateDir = Join-Path $env:APPDATA "Godot\export_templates\$GodotVersion.stable"
 $ClientPreset = "Windows client"
@@ -119,7 +122,12 @@ function Get-NetProtocol([string]$project) {
 
 # Step 0. Returns the release folder name parts.
 function Test-Preconditions {
+    if (-not $TestBranch -and ($Bots -ne $FullBots -or $BotMinutes -ne $FullBotMinutes)) {
+        Stop-Release "a real release runs the full bot test ($FullBots bots, $FullBotMinutes min). -Bots and -BotMinutes need -TestBranch."
+    }
     if (-not (Test-Path $godot)) { Stop-Release "Godot not found at $godot (docs/SETUP.md step 5)" }
+    $engine = "$(& $godot --version)".Trim()
+    if (-not $engine.StartsWith("$GodotVersion.stable")) { Stop-Release "$godot is Godot $engine, not $GodotVersion" }
     foreach ($template in @("windows_release_x86_64.exe", "windows_release_x86_64_console.exe")) {
         if (-not (Test-Path (Join-Path $TemplateDir $template))) {
             Stop-Release ("the official $GodotVersion export templates are not installed ($template missing in $TemplateDir). " +
@@ -271,6 +279,7 @@ function Invoke-BotTest([string]$serverExe, [string]$serverArgs, [string]$logDir
         & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "run_bots.ps1") `
             -Count $Bots -Address 127.0.0.1 -Minutes $BotMinutes *>&1 | Tee-Object -FilePath $botsLog | Out-Host
         $botsCode = $LASTEXITCODE
+        $serverDied = $server.Process.HasExited
     } finally {
         Stop-Logged $server
     }
@@ -278,6 +287,7 @@ function Invoke-BotTest([string]$serverExe, [string]$serverArgs, [string]$logDir
     Copy-Item -Path (Join-Path $botLogDir "bot*.log") -Destination $logDir -ErrorAction SilentlyContinue
     $problems = @()
     if ($botsCode -ne 0) { $problems += "run_bots.ps1 exit $botsCode" }
+    if ($serverDied) { $problems += "the server exited during the bot test" }
     $joins = @(Select-String -Path $server.Log -Pattern "\[Net\] join: peer").Count
     if ($joins -ne $Bots) { $problems += "$joins join line(s) for $Bots bots" }
     $hits = @(Select-String -Path $server.Log -Pattern "\[Combat\] hero_damaged").Count
@@ -306,11 +316,28 @@ function Write-Licenses([string]$clientDir, [string]$logDir) {
     return $path
 }
 
+# True when the zip holds exactly these files, at their sizes.
+function Test-ZipHolds([string]$zipPath, [string[]]$files) {
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $zip = [IO.Compression.ZipFile]::OpenRead($zipPath)
+    try {
+        if ($zip.Entries.Count -ne $files.Count) { return $false }
+        foreach ($file in $files) {
+            $entry = $zip.GetEntry((Split-Path $file -Leaf))
+            if ($null -eq $entry -or $entry.Length -ne (Get-Item $file).Length) { return $false }
+        }
+        return $true
+    } finally {
+        $zip.Dispose()
+    }
+}
+
 # Step 7. Returns the zip path.
 function New-ReleaseZip([string[]]$files, [string]$zipPath) {
     Write-Step "step 7: zip"
     if (Test-Path $zipPath) { Stop-Release "$zipPath already exists" }
-    Compress-Archive -Path $files -DestinationPath $zipPath
+    Compress-Archive -Path $files -DestinationPath $zipPath -ErrorAction Stop
+    if (-not (Test-ZipHolds $zipPath $files)) { Stop-Release "the zip doesn't hold exactly the game and LICENSES.txt" }
     $hash = (Get-FileHash -Path $zipPath -Algorithm SHA256).Hash
     "$hash  $(Split-Path $zipPath -Leaf)" | Out-File "$zipPath.sha256.txt" -Encoding ascii
     Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -349,10 +376,13 @@ function Invoke-Release {
         $builds = Export-Builds $releaseDir $logDir
         $expected = "$($info.Version)+net$($info.Net)"
         $script:testSaves = (Join-Path $releaseDir "test-saves\") -replace '\\', '/'
-        $serverArgs = "--headless -- --server --map=$ServerMap `"--saves=$($script:testSaves)`""
+        # No --server: the dedicated_server export has to host by itself, as on the server PC.
+        $serverArgs = "--headless -- --map=$ServerMap `"--saves=$($script:testSaves)`""
         Test-ConfigProof $builds.Client "--headless" $logDir
         Test-JoinProof $builds.Server $serverArgs $builds.Client "--headless -- --join=127.0.0.1" $expected $logDir
         Invoke-BotTest $builds.Server $serverArgs $logDir
+        Start-Sleep -Seconds 2
+        if (-not (Test-PortFree)) { Stop-Release "UDP 7777 is still in use after the servers stopped: a test server is still running" }
         $licenses = Write-Licenses $builds.ClientDir $logDir
         $prefix = if ($TestBranch) { "TEST-" } else { "" }
         $zipPath = Join-Path $releaseDir "$($prefix)acoc-$($info.Version)-$($info.Sha)-windows.zip"
