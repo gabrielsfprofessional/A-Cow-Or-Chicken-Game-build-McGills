@@ -59,11 +59,17 @@ and `join()` always ends in exactly one of `joined` or `join_failed`.
 
 Reasons players can see today, all written for a 12-year-old:
 
-- `Could not reach the server at <address> on UDP 7777 within 5 seconds. Is the server running?`
+- `Could not use that address (error <n>). Check it and try again.`
+- `Could not reach the server on UDP 7777 within 5 seconds. Check the address, and that the server is running.`
+- `Could not reach the server on UDP 7777. Check the address, and that the server is running.`
 - `Update the game from the Drive folder (server v0.0.1+net3, you v0.0.1+net2)` (an older build)
 - `The server refused the connection. It may be full, or running a different version.`
 - `Lost connection to the server. It may have been closed.`
 - `Could not open the game world. Tell Gabe.` (the world scene failed to load)
+
+None of these, and no `[Net]` line, names the server address: Godot's file log keeps
+them on every player's PC. `game/core/net_address.gd` builds them and says only which
+kind of address it was (`this PC`, `a LAN address` or `an internet address`).
 
 A failed join or a lost connection puts the player back on the Join screen
 (`game/ui/join_screen.tscn`), with no pop-up. `Net` keeps the reason in the public

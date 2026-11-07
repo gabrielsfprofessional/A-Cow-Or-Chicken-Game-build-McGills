@@ -232,10 +232,10 @@ func join(address: String) -> Error:
 	var peer := ENetMultiplayerPeer.new()
 	var err := peer.create_client(_join_target, DEFAULT_PORT, CHANNEL_COUNT)
 	if err != OK:
-		_fail_join("Could not use the address %s (error %d). Check it and try again." % [_join_target, err])
+		_fail_join(NetAddress.unusable_reason(err))
 		return err
 	multiplayer.multiplayer_peer = peer
-	_log("joining %s:%d as version %s" % [_join_target, DEFAULT_PORT, version()])
+	_log(NetAddress.join_line(_join_target, DEFAULT_PORT, version()))
 	if sim_lag_msec() > 0 or sim_jitter_msec() > 0:
 		# One line, so a test's log proves the fake lag was on.
 		_log("sim lag %d ms, jitter %d ms" % [sim_lag_msec(), sim_jitter_msec()])
@@ -301,9 +301,7 @@ func _watch_join_timeout(attempt: int) -> void:
 	await get_tree().create_timer(JOIN_TIMEOUT).timeout
 	if state != State.CONNECTING or attempt != _join_attempt:
 		return
-	_fail_join("Could not reach the server at %s on UDP %d within %d seconds. Is the server running?" % [
-		_join_target, DEFAULT_PORT, int(JOIN_TIMEOUT),
-	])
+	_fail_join(NetAddress.timeout_reason(DEFAULT_PORT, int(JOIN_TIMEOUT)))
 
 
 # --- handshake ---------------------------------------------------------------
@@ -461,9 +459,7 @@ func _on_connected_to_server() -> void:
 
 
 func _on_connection_failed() -> void:
-	_fail_join.call_deferred("Could not reach the server at %s on UDP %d. Is the server running?" % [
-		_join_target, DEFAULT_PORT,
-	])
+	_fail_join.call_deferred(NetAddress.unreachable_reason(DEFAULT_PORT))
 
 
 func _on_server_disconnected() -> void:
