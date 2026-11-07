@@ -1,6 +1,6 @@
 # A Cow or Chicken: Project Plan
 
-v1.1 · Oct 6, 2026 · Owner: Gabe · Engine: Godot 4.7.2
+v1.2 · Nov 2, 2026 (Oct 31 scope decisions) · Owner: Gabe · Engine: Godot 4.7.2
 
 **Bottom line:** a 2D top-down fantasy and sci-fi hero shooter for 5-16 family players. **Arena** mode ships for the Thanksgiving playtest (Thu Nov 26, 2026). **Battle Royale with unlocks** ships as v1 (Sat Feb 27, 2027). The plan fits only if each builder gives about 5 hours a week (Gabe 7 to Nov 25, then 5) and Gabe's workload stays protected. At those hours the margin is about zero, so cuts come early, not late.
 
@@ -32,11 +32,11 @@ Made at the Oct 3 kickoff. Fixed unless the whole team agrees to change them.
 These shape the whole plan. Ordered by how badly each problem would hurt.
 
 1. **Gabe holds the two hardest jobs** (tech lead plus Heroes & Combat: 13 of the 37 cards before Thanksgiving). Combat is data-driven so Adam builds weapons as data and John owns visuals. A 4th builder would take test bots and balance.
-2. **Home hosting has three traps:** CGNAT blocks hosting, weak upload causes lag, and players in Gabe's house can't join by his public address. Test in week 1 (T03), require 10 Mbps upload, add LAN discovery. **Settled Oct 6:** cable, no CGNAT, 31 Mbps upload, UDP 7777 forwarded. Home hosting works; the cloud VM is off the table. Same-house joining still needs the LAN discovery in T10.
+2. **Home hosting has three traps:** CGNAT blocks hosting, weak upload causes lag, and players in Gabe's house can't join by his public address. Test in week 1 (T03), require 10 Mbps upload, add LAN discovery. **Settled Oct 6:** cable, no CGNAT, 31 Mbps upload, UDP 7777 forwarded. Home hosting works; the cloud VM is off the table. No LAN discovery before Thanksgiving (A12, Jan 16). T29's server.cfg holds the public address if the router's NAT loopback works; if not, the server PC's house address, and players from outside type the public address once.
 3. **Unlocks never add power.** Every hero is free from day one, weapon unlocks are sidegrades, cosmetics are looks only. Otherwise the 12-year-old and the 65-year-old lose every match.
 4. **20-minute matches punish early deaths.** Arena's score limit is tuned so matches usually end in 12-15 minutes (20-minute cap). Battle Royale lets players redeploy until the zone's second close.
 5. **15+ players in one match needs 15+ Windows PCs in one place.** Count working laptops by Nov 1; run rotations of 8-10 if short.
-6. **A 12-to-65 skill spread makes fights lopsided.** Rating-based team balance, a practice range, and only four inputs at Thanksgiving: WASD, mouse, left click, Q.
+6. **A 12-to-65 skill spread makes fights lopsided.** Team-size balance at Thanksgiving, rating-based at Alpha, a practice range, and only four inputs at Thanksgiving: WASD, mouse, left click, Q.
 7. **Three people can't test a 10-player game.** Headless test bots arrive in week 2 (T09). They are a dev tool, not the "computer bots" feature.
 8. **Stats and unlocks need one trusted home.** A dedicated server at Gabe's house from week 1; saves live only there and are backed up nightly.
 9. **Small lobbies on big maps feel empty.** The Battle Royale zone and loot scale with player count.
@@ -83,14 +83,14 @@ Names and looks are decided by John and Gabe by Oct 17, including whether the he
 | Long range | Ballista | Rail gun | Picks from far away | Quick shot: faster, weaker |
 | Launcher | Fire staff | Plasma launcher | Splash damage | Bouncing grenade |
 
-Arena: players pick any unlocked weapon at hero select. Battle Royale: everyone drops with a sidearm and loots the rest. A weapon's look follows the hero's theme; its stats don't.
+At Thanksgiving each hero uses its default weapon (Spread, Rapid, Rifle or Sidearm). The weapon pick at hero select (T40), Long range and Launcher come in Alpha. Battle Royale: everyone drops with a sidearm and loots the rest. A weapon's look follows the hero's theme; its stats don't.
 
 ### Modes
 
 | Mode | Players | Teams | Win condition | Respawn | Map | Ships |
 | --- | --- | --- | --- | --- | --- | --- |
 | Practice Range | 1 | None | None | Instant | One room with target dummies | Thanksgiving |
-| Arena | 2-16 | 2, auto-balanced | Score limit (start at 8 x players) or 20-minute cap | 4 s, then 2 s spawn protection | About 3 x 3 screens | Thanksgiving |
+| Arena | 2-16 | 2, auto-balanced by team size (within 1, on join and leave) | Score limit (start at 8 x players) or 20-minute cap | 4 s, then 2 s spawn protection | About 3 x 3 screens | Thanksgiving |
 | Battle Royale | 5-16 | Squads of 1-4 | Last squad standing | Redeploy until the zone's second close; knocked-down players can be revived | About 8 x 8 screens; zone starts smaller with fewer players | v1 |
 
 ### Progression and leaderboard
@@ -99,7 +99,7 @@ Arena: players pick any unlocked weapon at hero select. Battle Royale: everyone 
 - Saved per player on the server: matches, wins, eliminations, damage, favorite hero, level, unlocks.
 - Leaderboard tabs: wins, eliminations, level.
 - Stats record from Thanksgiving on. At v1, saved stats convert to XP, so Thanksgiving matches still count.
-- Team-balance rating: everyone starts at 1,000; +20 for a win, -20 for a loss. Teams are snake-drafted by rating.
+- Team-balance rating (Alpha; Thanksgiving balances team sizes only): everyone starts at 1,000; +20 for a win, -20 for a loss. Teams are snake-drafted by rating.
 
 ### Controls (keyboard and mouse; defined in game/core/game.gd)
 
@@ -113,7 +113,7 @@ Arena: players pick any unlocked weapon at hero select. Battle Royale: everyone 
 | Interact, revive | E | v1 |
 | Reload | Automatic when empty; R at v1 | Automatic only |
 | Swap weapon | 1 / 2 | v1 |
-| Scoreboard | Tab | Yes |
+| Scoreboard | Tab | Yes, after Gate 2 (T41, week 7): team lists and team scores |
 | Menu | Esc | Yes |
 
 ### Family-friendly rules
@@ -162,13 +162,13 @@ flowchart TB
 | Bullets | The server sends spawn events (origin, direction, speed); clients draw the flight | Smooth bullets, little bandwidth |
 | Sync | 20 updates a second per hero; other heroes drawn 100 ms behind with smoothing | Hides jitter on home internet |
 | Transport | ENet over UDP port 7777, forwarded on Gabe's router, Windows Firewall rule on the server PC | Built into Godot, free |
-| Joining | Server address in git-ignored `server.cfg`, shipped inside each build (export filter, T29); LAN discovery for same-house play; free dynamic DNS name if Gabe's IP changes | Players just click Play; no home address in the public repo |
+| Joining | Server address in git-ignored `server.cfg`, shipped inside each build (export filter, T29); same-house play by T29's server.cfg choice (LAN discovery: Alpha, A12); free dynamic DNS name if Gabe's IP changes | Players just click Play; no home address in the public repo |
 | Version check | Client and server versions must match exactly; a mismatch says "Update from the Drive folder" | Stops half the family playing an old build |
 | Identity | Random device token plus a chosen name, no passwords; a recovery code moves a profile to a new PC | Keeps "no passwords" without names colliding |
 | Saves | One JSON file per player on the server, with a schema version, written to a temp file then renamed, backed up nightly | Survives crashes and updates |
 | Data | Heroes, weapons, abilities, modes and unlocks are Godot Resources (.tres) | Non-coders tune numbers in the Inspector |
 | Builds | Windows x64 client with data embedded (one .exe); Windows server build | One file to download |
-| Budgets | 60 fps on the oldest family laptop; server under 20% CPU and 5 Mbps upload at 16 players | Measured at Gate 2; Gabe's upload must test at 10 Mbps or more |
+| Budgets | 60 fps on the oldest family laptop; at 16 players, the server under 20% of the whole PC's CPU, with server fps 60 or more once all have joined (decided Oct 31), and 5 Mbps upload | Measured at Gate 2; Gabe's upload must test at 10 Mbps or more |
 
 ### Repository layout
 
@@ -212,6 +212,14 @@ tests/          Gabe GUT unit tests
 - **Pre-Thanksgiving cuts.** The cut order above only removes Alpha and v1 work, so it frees no time before Nov 26. These two rules do:
   - T08 builds its weapon on a WeaponData resource from the start, so T13 only adds HeroData.
   - If T14 isn't merged by Sun Nov 1, T18 ships one hero (Sci-fi Scout), and Mage and Medic move to Alpha.
+- **Thanksgiving scope, decided Oct 31:**
+  - T40 weapon choice moves to Alpha; heroes use their default weapons at Thanksgiving.
+  - T19 is the 4 hero defaults (Spread, Rapid, Rifle, Sidearm); Long range and Launcher move to Alpha.
+  - T16 is hero select before joining, with no lobby. A new match starts a .tres number of seconds after match_ended, and T15 respawns every hero.
+  - T23 runs only if the T05 arena jams with 8-10 bots; otherwise T05 is Thanksgiving's map.
+  - T24 (results) and T28 (leaderboard) move to after Thanksgiving. T22 still records stats from Thanksgiving on, and the HUD shows the winner until the next match.
+  - T20 part 2 (the dummies) moves to week 7, after Gate 2.
+  - T15's auto-balance keeps team sizes within 1 on join and leave; rating balance moves to Alpha.
 - **Gabe's weeks 3 and 4 are the pinch.** Four of his cards fall in each (T07, T08, T13, T14, then T09, T18, T21, T22): about 12 hours of work against 7 available. Move cards out or accept slipping into weeks 4 and 5.
 - **Critical path:** Gabe's online foundation (T06-T08) blocks online testing. Adam and John start with work that doesn't need it.
 - **Plan B for Thanksgiving:** if Gabe loses two or more weeks, ship a LAN-only Arena with 2 heroes and placeholder art.
@@ -269,7 +277,7 @@ Cadence: a 30-minute sync every week, merges on three fixed days a week, family 
 5. Stop the server, back up the saves, start the new server build.
 6. Post in the family chat: version, what's new, the link.
 
-**Server runbook (Gabe's PC):** pause OneDrive, backups and video calls while hosting, since anything that maxes the upload adds about 80 ms of lag for every player; a desktop shortcut starts the headless server; Windows never sleeps while it runs; Task Scheduler copies the saves folder to Google Drive every night at 3 a.m.; to restore, stop the server, copy the backup over the saves folder, start it again. If the server is down at a gathering, run the server build on any laptop there; LAN discovery finds it.
+**Server runbook (Gabe's PC):** pause OneDrive, backups and video calls while hosting, since anything that maxes the upload adds about 80 ms of lag for every player; a desktop shortcut starts the headless server; Windows never sleeps while it runs; Task Scheduler copies the saves folder to Google Drive every night at 3 a.m.; to restore, stop the server, copy the backup over the saves folder, start it again. If the server is down at a gathering, run the server build on any laptop there; players type its address on the Join screen (LAN discovery finds it from Alpha, A12).
 
 **Family install guide (one page, John):** open the Drive link and download the game; if Windows says "Windows protected your PC", click More info, then Run anyway; if Windows asks about network access, click Allow; pick a name and a color, then click Play.
 
@@ -280,7 +288,7 @@ Reviewed by John at every weekly sync.
 | # | Risk | Severity | Early warning | Mitigation | Owner |
 | --- | --- | --- | --- | --- | --- |
 | 1 | Gabe overloaded or unavailable | High | His cards slip two weeks in a row | Data-driven combat, a 4th builder, Plan B for Thanksgiving | Gabe |
-| 2 | Home hosting fails: CGNAT, slow upload, same-house joining | ~~High~~ Low | ~~T03 fails~~ T03 passed Oct 6 | Hosting confirmed: cable, no CGNAT, 31 Mbps up. Cloud VM no longer needed. Still open: same-house joining needs LAN discovery (T10), and the server PC should be wired before the playtest | Gabe |
+| 2 | Home hosting fails: CGNAT, slow upload, same-house joining | ~~High~~ Low | ~~T03 fails~~ T03 passed Oct 6 | Hosting confirmed: cable, no CGNAT, 31 Mbps up. Cloud VM no longer needed. Still open: same-house joining (no LAN discovery before Thanksgiving: A12, Jan 16; T29's server.cfg choice covers it), and the server PC should be wired before the playtest | Gabe |
 | 3 | Scope creep | High | New ideas land in "This week"; Alpha slips past Jan 16 | Later list, Jan 16 feature freeze, the cut order in section 5 | All |
 | 4 | Not enough PCs at Thanksgiving | High | Fewer than 10 laptops named by Nov 1 | Borrow laptops; rotations of 8-10; practice range for waiting players | John |
 | 5 | Skill gap ruins it for casual players | Medium | Youngest or oldest players rate fun under 3 | Rating-based balance, sidegrade-only unlocks, spawn protection | Adam |

@@ -22,6 +22,9 @@ const MAP_FLAG: String = "--map="
 ## A map without bot_area(): its floor inside the outer wall (one 48 px cell), kept 32 px clear.
 const MAP_WALL_PX: float = 48.0
 const BOT_WALL_CLEARANCE_PX: float = 32.0
+## Debug builds, server: "-- --respawn-all-at=<sec>" calls respawn_all() once, that
+## many seconds after the world loads. Smoke's bot match tests a new match with it.
+const RESPAWN_ALL_FLAG: String = "--respawn-all-at="
 
 ## Server only: peers that said client_ready, so relays never reach a peer
 ## whose world is not loaded yet.
@@ -35,6 +38,8 @@ var _teams_seen: Dictionary[int, int] = {}
 ## The map this world runs (T39): "test" for none. The server picks it; clients hear it in load_map.
 var _map_name: String = MapList.TEST
 var _map: Node2D = null
+## When the tree's last process_frame fired, in Time.get_ticks_usec() (J18: frame_gap_sec).
+var _frame_usec: int = 0
 
 @onready var _heroes: Node2D = $Heroes
 @onready var _shots: Shots = $Shots
@@ -44,6 +49,8 @@ var _map: Node2D = null
 
 
 func _ready() -> void:
+	_frame_usec = Time.get_ticks_usec()
+	get_tree().process_frame.connect(_on_process_frame)
 	# Every peer builds heroes the same way, so the spawner only has to send
 	# the peer id and hero index across.
 	_spawner.spawn_function = _make_hero
@@ -64,6 +71,7 @@ func _ready() -> void:
 		var stats := ServerStats.new()
 		stats.name = "ServerStats"
 		add_child(stats)
+		_start_respawn_all_timer()
 	# A client: Net loads this world before it joins, and hello waits for the
 	# server's load_map, so the map is built before this player's own hero spawns
 	# (T39). Other players' heroes can arrive a few packets earlier (the spawner
@@ -95,6 +103,19 @@ func send_to_ready(node: Node, method: StringName, args: Array = []) -> void:
 ## The world's shots: the server's simulation and every client's drawing.
 func shots() -> Shots:
 	return _shots
+
+
+## Seconds since the tree's last process_frame. Godot reads network messages at
+## the start of a frame, just before process_frame, so a message read now may
+## have waited this long in the socket: a stalled server frame reads a burst at
+## once. The server's ShotCheck excuses that much (J18). Real time, because
+## Godot caps a frame's delta.
+func frame_gap_sec() -> float:
+	return (Time.get_ticks_usec() - _frame_usec) / 1000000.0
+
+
+func _on_process_frame() -> void:
+	_frame_usec = Time.get_ticks_usec()
 
 
 ## Server: the match rules heroes, shots and bots follow (week-3 seams).
@@ -130,6 +151,35 @@ func set_rules(new_rules: MatchRules) -> void:
 ## default). Clients get the first spot in the spawn data, later ones with the respawn.
 func respawn_point(peer_id: int) -> Vector2:
 	return _rules.respawn_point(peer_id)
+
+
+## Server: a new match (T15). Drops every shot in flight, so none from the old
+## match lands, then brings every hero back at once, alive or eliminated
+## (NetHero.respawn_now()): a new life, full health, a point from rules(), the
+## rules' spawn protection, every ready peer told. Ability cooldowns carry over.
+## Logs "[Combat] respawn_all: <n> heroes, <m> shots cleared" and returns n; 0 on clients.
+func respawn_all() -> int:
+	if Net.state != Net.State.SERVER:
+		return 0
+	var cleared := _shots.clear_server_shots()
+	var count := 0
+	for child: Node in _heroes.get_children():
+		var hero := child as NetHero
+		if hero == null or hero.is_queued_for_deletion():
+			continue  # A hero whose player just left goes at the end of this frame.
+		if hero.respawn_now():
+			count += 1
+	print("[Combat] respawn_all: %d heroes, %d shots cleared" % [count, cleared])
+	return count
+
+
+## Debug builds, server: "--respawn-all-at=<sec>" (RESPAWN_ALL_FLAG).
+func _start_respawn_all_timer() -> void:
+	var value := Net.debug_flag(OS.is_debug_build(), OS.get_cmdline_user_args(), RESPAWN_ALL_FLAG)
+	if not value.is_valid_float() or value.to_float() <= 0.0:
+		return
+	print("[TestWorld] respawn-all-at=%s: respawn_all() in %s s" % [value, value])
+	get_tree().create_timer(value.to_float()).timeout.connect(respawn_all)
 
 
 ## Where test bots wander (T09): BotBrain walks to random points in it. Points
@@ -275,7 +325,7 @@ func client_ready(hero_index: int) -> void:
 			peer_id, hero_index, ROSTER.first().display_name])
 		hero_index = 0
 	var spot := respawn_point(peer_id)
-	_spawner.spawn([peer_id, hero_index, spot])
+	_spawner.spawn([peer_id, hero_index, spot, Net.player_name(peer_id)])
 	print("[TestWorld] hero spawned for peer %d%s" % [peer_id, _spot_text(spot)])
 	for child: Node in _heroes.get_children():
 		var hero := child as NetHero
@@ -317,10 +367,13 @@ func _remove_hero(peer_id: int) -> void:
 
 
 ## Runs on every peer, server included, through the spawner. The spawn data is
-## [peer_id, hero_index, spawn_position] (T18, week-3 seams); every peer picks the
-## same HeroData from the same roster, so a late joiner gets each hero right too.
-## The server decides the spot (its MatchRules); without one, the T06 ring.
-## A late joiner gets the first spot, then the hero's current position with its relays.
+## [peer_id, hero_index, spawn_position, player_name] (T18, week-3 seams, the names
+## seam); every peer picks the same HeroData from the same roster, so a late joiner
+## gets each hero right too. The server decides the spot (its MatchRules); without one,
+## the T06 ring. A late joiner gets the first spot, then the hero's current position
+## with its relays. The name is "" for a guest; anything PlayerAuth.clean_name() turns
+## down shows as a guest too. One line per hero on every peer:
+##   [TestWorld] built peer <id>: <hero file>, player "<name>"   (or ", a guest")
 func _make_hero(data: Variant) -> Node:
 	var spawn: Array = data
 	var peer_id := int(spawn[0])
@@ -330,9 +383,12 @@ func _make_hero(data: Variant) -> Node:
 	var spot := MatchRules.new().respawn_point(peer_id)
 	if spawn.size() > 2 and spawn[2] is Vector2:
 		spot = spawn[2]
+	var joined_name: String = PlayerAuth.clean_name(spawn[3]) if spawn.size() > 3 else ""
 	var hero := HERO_SCENE.instantiate() as NetHero
 	# The owning client drives this hero; setup() makes it the authority.
-	hero.setup(peer_id, spot, _hero_color(peer_id), hero_data)
+	hero.setup(peer_id, spot, _hero_color(peer_id), hero_data, joined_name)
+	print("[TestWorld] built peer %d: %s, %s" % [peer_id, hero_data.resource_path.get_file().get_basename(),
+		"player %s" % JSON.stringify(joined_name) if joined_name != "" else "a guest"])
 	return hero
 
 
@@ -358,8 +414,11 @@ func _on_hero_eliminated(victim: int, attacker: int) -> void:
 	print("[Combat] hero_eliminated: Player %d by Player %d" % [victim, attacker])
 
 
+## With the life it starts, so a log shows which respawn each peer applied.
 func _on_hero_respawned(peer_id: int, at: Vector2) -> void:
-	print("[Combat] hero_respawned: Player %d at (%.0f, %.0f)" % [peer_id, at.x, at.y])
+	var hero := _heroes.get_node_or_null(NodePath(str(peer_id))) as NetHero
+	var life := str(hero.life) if hero != null else "?"
+	print("[Combat] hero_respawned: Player %d at (%.0f, %.0f), life %s" % [peer_id, at.x, at.y, life])
 
 
 func _on_ability_used(peer_id: int, ready_in_sec: float) -> void:

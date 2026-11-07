@@ -17,7 +17,7 @@ Every task is a card. Gabe turns each row below into a GitHub Issue titled `TNN:
 
 Weeks: 1 = Oct 4-10 · 2 = Oct 11-17 · 3 = Oct 18-24 · 4 = Oct 25-31 · 5 = Nov 1-7 · 6 = Nov 8-14 · 7 = Nov 15-21 · 8 = Nov 22-25
 
-## To Thanksgiving: Arena mode (T01-T40)
+## To Thanksgiving: Arena mode (T01-T41)
 
 | # | Card | Owner | Week | Label | Depends on | Done when |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -35,22 +35,22 @@ Weeks: 1 = Oct 4-10 · 2 = Oct 11-17 · 3 = Oct 18-24 · 4 = Oct 25-31 · 5 = No
 | T12 | Team spawns and 2 s spawn protection | Adam | 3 | modes | T05, T08, T39 | No spawn eliminations across 20 respawns with 2 players; the 10-minute bot test runs in T30 |
 | T13 | HeroData and WeaponData resources; all numbers in .tres files | Gabe | 3 | heroes | T08 | Changing a number in the Inspector changes the game |
 | T14 | Hero 1 (Fantasy Bruiser) with Shield Charge | Gabe | 3 | heroes | T13 | Ability works online with its cooldown |
-| T15 | Arena rules: 2 teams, auto-balance, score limit, 20-minute cap | Adam | 3 | modes | T12, T39 | A full match ends and declares a winner |
-| T16 | Lobby and hero select | John | 3 | ui | T11, T13, T39, T40 | 4 players pick heroes and start a match |
+| T15 | Arena rules: 2 teams, auto-balance (team sizes within 1 on join and leave), score limit, 20-minute cap | Adam | 3 | modes | T12, T39 | A full match ends and declares a winner |
+| T16 | Hero select before joining (no lobby) | John | 3 | ui | T11, T13, T39 | 4 players each pick a hero before joining and play it (a server; 2 windows through hero select, 2 bots by --hero) |
 | T17 | HUD: health, Q cooldown, team scores, timer | John | 3 | ui | T13 | All values update live online; names show above heroes |
 | T18 | Heroes 2-4 with their Q abilities | Gabe | 4 | heroes | T14 | All 4 heroes playable online |
-| T19 | Six base weapons as data files | Adam | 4 | weapons | T13, T40 | All 6 usable in the practice range |
-| T20 | Practice range with target dummies | Adam | 4 | maps | T08, T39 | Dummies show damage numbers |
+| T19 | Four hero default weapons as data files | Adam | 4 | weapons | T13 | All 4 (Spread, Rapid, Rifle, Sidearm) usable in the practice range |
+| T20 | Practice range with target dummies (the dummies, part 2: week 7, after Gate 2) | Adam | 4; dummies 7 | maps | T08, T39 | Dummies show damage numbers |
 | T21 | Server profile store: JSON saves, schema version, safe writes, nightly backup | Gabe | 4 | server | T11 | Pulling the plug mid-match loses no saved profile |
 | T22 | Stats recording: matches, wins, eliminations, damage, hero | Gabe | 4 | server | T15, T21 | Stats correct after 3 test matches |
-| T23 | Arena map v1, sized for 8-16 players | Adam | 5 | maps | T04, T15, T09, T39 | 16 bots play without traffic jams |
-| T24 | Results screen | John | 5 | ui | T22 | Shows every player's match stats |
+| T23 | Arena map v1, sized for 8-16 players (only if the T05 arena jams with 8-10 bots; otherwise T05 is Thanksgiving's map) | Adam | 5 | maps | T04, T15, T09, T39 | 16 bots play without traffic jams |
+| T24 | Results screen | John | after Thanksgiving | ui | T22 | Shows every player's match stats. Until then, T22 still records stats and the HUD shows the winner until the next match |
 | T25 | Hit feedback: flash, damage numbers, hit and elimination sounds | John | 5 | art | T08 | Every hit is visible and audible |
 | T26 | Thanksgiving logistics: location, Wi-Fi, laptop list | John | 5 | docs | none | At least 10 Windows laptops named by Nov 1 (Risk 4's trigger). Works is checked with the T29 installer. |
 | T27 | Balance pass 1 (data only) | Adam | 5 | weapons | T18, T19, T09 | No hero or weapon wins every bot test |
-| T28 | Family leaderboard screen | John | 6 | ui | T22 | Top 10 by wins and by eliminations |
+| T28 | Family leaderboard screen | John | after Thanksgiving | ui | T22 | Top 10 by wins and by eliminations |
 | T29 | Release pipeline: client .exe, server build, version bump, server.cfg in export, Godot license in credits, Drive upload, install guide | Gabe | 6 | core | T06 | A non-builder installs and joins in 5 minutes |
-| T30 | Internal 8-player playtest and bug bash | All | 6 | tests | T09, T14, T15, T16, T17, T19, T23, T25 | Gate 2 passed |
+| T30 | Internal 8-player playtest and bug bash | All | 6 | tests | T09, T14, T15, T16, T17, T19, T23 (if it runs), T25 | Gate 2 passed |
 | T31 | Art pass: heroes, weapons, tiles, projectiles | John | 7 | art | T04, T18 | No placeholder art left in Arena |
 | T32 | Sound pass: weapons, abilities, UI, one music loop | John | 7 | audio | T18 | Every action has a sound |
 | T33 | Motion polish: walk bob, recoil, hit squash, elimination puff (code-driven, no frame animation) | John | 7 | art | T31 | Heroes feel alive |
@@ -60,7 +60,8 @@ Weeks: 1 = Oct 4-10 · 2 = Oct 11-17 · 3 = Oct 18-24 · 4 = Oct 25-31 · 5 = No
 | T37 | Printed quick-start card: install, controls, joining | John | 8 | docs | T29 | A first-timer joins without help |
 | T38 | Settings screen: volume, UI scale, window mode, test sound | John | 3 | ui | none (shipped before T11) | Every setting survives a restart; the test sound follows the SFX and Master sliders; no text is cut off at 150% in a 1280x720 window |
 | T39 | Maps online: the server runs Adam's maps by name; every player builds the map and spawns on its points | Gabe | 3 | net | T05, T18 | 4 bots play 120 s on the arena with zero refusal or error lines; a late joiner gets the same map |
-| T40 | Weapon choice: any roster weapon, the same on every peer | Gabe | 4 | weapons | T39 | A player plays any roster weapon (by --weapon until T16's picker); every peer, late joiners too, sees the same weapon |
+| T40 | Weapon choice: any roster weapon, the same on every peer (moved to Alpha Oct 31; heroes use their default weapons at Thanksgiving) | Gabe | Alpha | weapons | T39 | A player plays any roster weapon (by --weapon until T16's picker); every peer, late joiners too, sees the same weapon |
+| T41 | Tab scoreboard: team lists and team scores (no per-player stats) | set at the Nov 5 sync | 7 | ui | T15, T17 | Holding Tab shows both teams' players and scores, live online |
 
 ## Gates
 

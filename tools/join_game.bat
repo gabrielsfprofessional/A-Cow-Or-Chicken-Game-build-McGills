@@ -27,5 +27,5 @@ if not defined HERO set /p "HERO=Hero: bruiser, mage, scout or medic (Enter = br
 if not defined HERO set "HERO=bruiser"
 
 echo.
-echo Joining %ADDRESS% as %HERO% ...
+echo Joining as %HERO% ...
 start "" "%GODOT_EXE%" --path . -- "--join=%ADDRESS%" "--hero=%HERO%"

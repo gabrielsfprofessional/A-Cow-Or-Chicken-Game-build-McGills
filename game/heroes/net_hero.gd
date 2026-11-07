@@ -17,12 +17,15 @@ extends CharacterBody2D
 ##   emits signals; this script hides the hero, turns its collider off, stops
 ##   its input and brings it back.
 ## - Every respawn raises `life`. Moves and fire carry the life they were sent
-##   in, and another life's are dropped silently.
+##   in, and another life's are dropped silently. A mode's new match brings
+##   every hero back at once, alive or not: respawn_now(), from world.respawn_all().
 ## - T14: the "Ability" child (built by HeroData.ability's make(), T18) and
 ##   forced motion: a dash or a knockback runs a whole number of physics ticks
 ##   with an equal step each, ignores move input, stops at a wall, and ends on
 ##   a snap-back, elimination or respawn. A new one replaces the one running.
 ##   The server grants its distance to MoveCheck before it tells anyone.
+## - The names seam (for T17): `player_name` is the player's profile name from the
+##   spawn data, "" for a guest; shown_name() is what the label above the hero shows.
 
 ## Sends per second. physics_ticks_per_second must be a multiple of it.
 const SEND_RATE: int = 20
@@ -40,6 +43,9 @@ const FORCED_MOTION_GRACE_SEC: float = 1.0
 const MAX_RESPAWN_SYNC_SEC: float = 60.0
 
 var owner_peer: int = 0
+## The player's profile name (T21 part 2) from the spawn data, set by setup(); "" for
+## a guest (a test bot, a PC with no profile, a second window with the same profile).
+var player_name: String = ""
 ## This hero's numbers (T13), set by setup(). The same file on every peer.
 var hero_data: HeroData = null
 var color: Color = Color.WHITE
@@ -83,9 +89,11 @@ static var _default_rules: MatchRules = MatchRules.new()
 
 ## Called by the spawn function before the hero enters the tree, so the
 ## Weapon and Health children get their numbers before their own _ready.
-func setup(peer_id: int, spawn_position: Vector2, hero_color: Color, hero: HeroData) -> void:
+## `joined_name` is a name PlayerAuth.clean_name() passed, or "" for a guest.
+func setup(peer_id: int, spawn_position: Vector2, hero_color: Color, hero: HeroData, joined_name: String = "") -> void:
 	assert(hero != null, "NetHero.setup() needs a HeroData; check game/heroes/data/roster.tres")
 	owner_peer = peer_id
+	player_name = joined_name
 	name = str(peer_id)
 	position = spawn_position
 	color = hero_color
@@ -152,6 +160,12 @@ func _make_input() -> HeroInput:
 ## True on the client that drives this hero.
 func is_owned() -> bool:
 	return not multiplayer.is_server() and multiplayer.get_unique_id() == owner_peer
+
+
+## What players see for this hero (T17 shows it above the hero): the player's profile
+## name, or "Player <peer id>" for a guest, the way the [Combat] log lines name everyone.
+func shown_name() -> String:
+	return player_name if player_name != "" else "Player %d" % owner_peer
 
 
 func is_alive() -> bool:
@@ -236,6 +250,20 @@ func take_hit(attacker: int, shot_id: int, amount: int, at: Vector2) -> int:
 	return _health.take_damage(amount, attacker, shot_id, at)
 
 
+## Server only: brings this hero back now, alive or eliminated, the same way as
+## the respawn after an elimination: a new life, full health, the rules'
+## respawn point and spawn protection, and every ready peer told. Moves, fire,
+## ability uses and ability effects (a dash's sweep, a Heal Drone) from the old
+## life end; ability cooldowns carry over. For a mode's new match, through
+## world.respawn_all(). False (and nothing done) off the server, or for a hero
+## not in the tree or not past its _ready().
+func respawn_now() -> bool:
+	if not is_inside_tree() or not multiplayer.is_server() or _check == null:
+		return false
+	_respawn_on_server()
+	return true
+
+
 ## Server only: true while this hero's spawn protection lasts.
 func is_protected() -> bool:
 	return _protection.is_protected(_now_sec())
@@ -267,6 +295,16 @@ func shots() -> Shots:
 	if world == null or not world.has_method(&"shots"):
 		return null
 	return world.call(&"shots") as Shots
+
+
+## Server: how long a message read now may have waited in the socket (the
+## world's frame_gap_sec, J18), or 0 outside a world that has one.
+func server_frame_gap_sec() -> float:
+	var world := _world()
+	if world == null or not world.has_method(&"frame_gap_sec"):
+		return 0.0
+	var gap: Variant = world.call(&"frame_gap_sec")
+	return gap if gap is float else 0.0
 
 
 ## Server only: true when `peer` may get messages (its world is loaded).
@@ -572,7 +610,7 @@ func _end_forced_motion() -> void:
 
 
 func _update_label() -> void:
-	_name_label.text = "Player %d  %s  %d" % [owner_peer, hero_data.display_name, _health.health()]
+	_name_label.text = "%s  %s  %d" % [shown_name(), hero_data.display_name, _health.health()]
 
 
 func _world() -> Node:

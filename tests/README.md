@@ -13,7 +13,15 @@ Run one:
 The smoke test (`tools/smoke.ps1`, `tools/smoke.sh`) runs every `tests/*_test.gd`
 and fails on a non-zero exit, so GitHub runs them on every pull request. It also
 runs Adam's `game/maps/tools/check_arena.gd` and every `test_*.gd` in
-`game/maps/tools` and `game/modes/tools` (sorted by name) when they exist.
+`game/maps/tools`, `game/modes/tools`, `game/ui/tools` and `game/players/tools`
+(sorted by name in `smoke.ps1`) when they exist.
+
+A script test also fails when its log has `SCRIPT ERROR`, `Parse Error` or
+`resources still in use at exit` (a leak: free what the test made before it quits).
+Any other engine error is allowed: a test may `push_error` on purpose. Smoke runs
+script tests with `APPDATA` (and `XDG_DATA_HOME` in `smoke.sh`) on a temp folder, so
+a test that saves to `user://` never touches real settings. Run by hand, point
+`APPDATA` at a temp folder yourself.
 
 Each script gets 60 s. One still running then is killed (by PID in `smoke.ps1`,
 by `timeout --kill-after=5s 60s` in `smoke.sh`), and smoke fails with
@@ -22,6 +30,12 @@ awaits frames should still fail itself sooner, with a reason, as
 `charge_sweep_test.gd` does after 10 s. On Windows each script's logs are
 `%TEMP%\acoc-smoke-<name>.log` and `.err.log`.
 
+A test script compiles before the autoloads (Net, Events) register, so it can't
+name a class that uses them (NetHero, its abilities, Shots, the test world):
+compiling fails. It can still load them at run time and call them by name, as
+`respawn_test.gd` does with `net_hero.tscn`. Offline, `multiplayer.is_server()`
+is true, so a hero built that way runs its server side and sends no RPC.
+
 | Test | What it covers |
 | --- | --- |
 | `move_check_test.gd` | The server's movement check (T07): wrong owner, old sequence, too far, time budget, huge sequence jump, NaN/INF, out of bounds, a player who lags as they join; `reset()` on respawn (T08); dash grants (T14): a dash step without a grant is too far, a 240 px grant lets a 4-send dash through and is drawn only for the excess over walking, walking never draws on it, a used-up or expired grant refuses the next step and never comes back, two grants add up and the later expiry wins, `reset()` clears it |
@@ -29,18 +43,23 @@ awaits frames should still fail itself sooner, with a reason, as
 | `delay_queue_test.gd` | The `--sim-lag` / `--sim-jitter` queue (T07): never reorders, delays stay in range; carries each message's life (T08) |
 | `shot_check_test.gd` | The server's fire check (T08): wrong owner, old shot id, dead shooter, earlier life, NaN/INF/zero direction, the rate schedule at both jitter boundaries, a late shot, a x2 stream, 60 s through 150 ms lag + 50 ms jitter |
 | `health_test.gd` | Health (T08): damage, floor at 0, eliminated exactly once, no damage while eliminated, respawn restores, client mirror, late-join sync; healing (T18): heals and returns the amount, only what fits under max, nothing at max, while eliminated or for 0 or less; `Health.heal()` emits once per heal and never for 0; a mirrored heal takes the server's health and does nothing while eliminated |
-| `projectile_test.gd` | Server shots in a real physics world (T08): a 100 px/tick shot never tunnels, walls block, range expires, a hero stepping onto a shot or overlapping the shooter is hit, a shot starting in a wall never starts, the shooter is never hit, a disabled collider lets shots pass |
-| `data_test.gd` | The hero and weapon data (T13): every `.tres` in `game/heroes/data` and `game/weapons/data` loads, is a known type, passes `validate()`, and the roster has no empty slot, the roster is bruiser, mage, scout, medic (the tools' order), `index_of()` gives -1 for an unknown name and `at()` null out of range (T18); `validate()` catches out-of-range numbers (at both ends, NaN, INF), empty texts, a missing weapon, a bad weapon passed on to its hero, an empty roster slot; `or_greater` / `or_less` are open-ended and other range flags don't change limits; a `.tres` with a wrong script path fails, naming the file; abilities (T14): `bruiser.tres` has `shield_charge.tres`, a charge at the defaults passes, a hero with no ability fails (T18), an empty name and each charge number out of range fail once each, `knockback_px` 0 passes, a dash or knockback over 4000 px/s fails (exactly 4000 passes), the speed cap stays within `RemoteTimeline.SNAP_DISTANCE`, a bad ability fails its hero; every ability file names a node script that exists (T18), and `make()` gives null for no script, a missing one or one that does not extend `Ability`; `scout.tres` has `jet_dash.tres` (2 charges, no knockback), `charges` 0 and 6 fail, 1 and 5 pass; `mage.tres` has `blink.tres`, a blink at the defaults passes, `distance_px` 47 and 481 fail, 48 and 480 pass; `medic.tres` has `heal_drone.tres`, a heal drone at the defaults passes (8 ticks, 40 HP), each of its numbers out of range fails once, `duration_sec` 4.2 with 0.5 s ticks fails, 4.5 passes |
+| `projectile_test.gd` | Server shots in a real physics world (T08): a 100 px/tick shot never tunnels, walls block, range expires, a hero stepping onto a shot or overlapping the shooter is hit, a shot starting in a wall never starts, the shooter is never hit, a disabled collider lets shots pass, `clear()` drops every shot and frees every slot, even from inside a hit |
+| `respawn_test.gd` | A new match's respawn (the T15 seam), on real heroes loaded at run time: `NetHero.respawn_now()` gives a live, hurt hero a new life, full health, the rules' point and protection, a reset MoveCheck (grant gone) and one `hero_respawned`; it brings an eliminated hero back shown and hittable; a hero not in the tree is refused; the Heal Drone heals until its healer respawns, then stops; a dash knocks back in its own life (twice for two dashes) and no one after the dasher respawns. Fails itself after 20 s |
+| `hero_names_test.gd` | The names seam (for T17), on the test world's spawn function and real heroes loaded at run time: spawn data with a player's name gives the hero that name, trimmed; a guest's `""`, a net8 server's spawn data (no name), and a name that isn't text or breaks the profile rules all make a guest (`""`); the name changes nothing else; a player's label is `<name>  <hero>  <hp>` and keeps the name after a hit; a guest's is `Player <peer id>  <hero>  <hp>`, as before. Fails itself after 20 s |
+| `data_test.gd` | The hero, weapon and arena rules data (T13): every `.tres` in `game/heroes/data`, `game/weapons/data` and `game/modes/data` loads, is a known type, passes `validate()`, and the roster has no empty slot, the roster is bruiser, mage, scout, medic (the tools' order), `index_of()` gives -1 for an unknown name and `at()` null out of range (T18); `validate()` catches out-of-range numbers (at both ends, NaN, INF), empty texts, a missing weapon, a bad weapon passed on to its hero, an empty roster slot; `or_greater` / `or_less` are open-ended and other range flags don't change limits; a `.tres` with a wrong script path fails, naming the file; abilities (T14): `bruiser.tres` has `shield_charge.tres`, a charge at the defaults passes, a hero with no ability fails (T18), an empty name and each charge number out of range fail once each, `knockback_px` 0 passes, a dash or knockback over 4000 px/s fails (exactly 4000 passes), the speed cap stays within `RemoteTimeline.SNAP_DISTANCE`, a bad ability fails its hero; every ability file names a node script that exists (T18), and `make()` gives null for no script, a missing one or one that does not extend `Ability`; `scout.tres` has `jet_dash.tres` (2 charges, no knockback), `charges` 0 and 6 fail, 1 and 5 pass; `mage.tres` has `blink.tres`, a blink at the defaults passes, `distance_px` 47 and 481 fail, 48 and 480 pass; `medic.tres` has `heal_drone.tres`, a heal drone at the defaults passes (8 ticks, 40 HP), each of its numbers out of range fails once, `duration_sec` 4.2 with 0.5 s ticks fails, 4.5 passes; the map list (T39): `maps.tres` passes and each broken entry fails; a team spawn number is digits only and a map names both teams' points or neither (#78); hero scene labels are 18 px or more (#78); it removes its scratch folder `user://data_test` at the end (#78) |
 | `bot_rules_test.gd` | A test bot's decisions (T09): the nearest visible hero wins; itself, eliminated, blocked and out-of-range heroes are ignored; no target holds fire; aim error within ±6°; 0.5-1.5 s bursts and 0.3-1 s pauses; a look every 0.25 s; a stuck bot re-picks after 1 s, steady progress keeps the point, arrival and the 4-8 s wander time re-pick; points stay in the area; the same seed makes the same choices; Q (T14): pressed only with a target and the ability ready, released when the target drops |
 | `ability_check_test.gd` | The server's ability check (T14): wrong owner is dropped and books nothing; another life and eliminated are not logged refusals; zero/NaN/INF direction is refused; the direction is normalized; the cooldown refuses until exactly `cooldown_sec` and counts again from each use; the cooldown carries through death; an honest owner (countdown from the answer, 1-241 ms one way) is never refused over 20 uses; charges (T18): two at once then a refusal that books nothing, ready in 0 s while one is left, each charge back exactly `cooldown_sec` after its own use (refused 0.01 s before), `charge_ready_in` soonest first, charges kept through death, an honest owner with 2 charges never refused over 30 uses |
 | `charge_sweep_test.gd` | The dash hit test in a real physics space (T14): a hero-sized circle swept 240 px finds a hero mid-path and one overlapping by 2 px, misses one 20 px beside or past the end, skips the excluded dasher and a hero with its collider off; a sweep that doesn't move checks only where it is. Fails itself after 10 s if an await hangs |
+| `profile_store_test.gd` | The server's player saves (T21 part 1): `--saves` and the debug/release folders; ids are the token's SHA-256 (64 lowercase hex, no sign); a round trip keeps ints and capitals and never stores the token; every validation rule refuses and writes nothing; unknown fields are dropped, numbers past 2^53 and a name that wouldn't load back are refused; a crash while writing the `.tmp` or between the two renames loses only the newest save; a cut-short file falls back to `.bak` and is moved aside unchanged; two unreadable files are both kept; a newer save (main or `.bak`) is never touched; a file holding another id is moved aside; quick saves keep the settled `.bak` as `.old`, which loads after a pulled plug; a locked save is LOCKED, never a new player (as a user who can't open it; skipped on Windows and as root); `list_ids()` reads `.json`, `.json.bak` and `.json.old` only. The 20-kill crash test is `tools/save_crash_test.*` (not in smoke; see server/README.md) |
+| `player_auth_test.gd` | The second auth message (T21 part 2): a player message reads back (name trimmed, color in capitals) and fields it doesn't know are ignored; a guest note wins and its reason is cut to plain words (a fake log line becomes "unknown"); the token is exactly 32 lowercase hex characters (31, 33, capitals, a sign, `0x`, a space, a letter past f and empty all make guests); a bad color, a name that breaks T11's rules (empty, spaces, 13 characters, a tab, a new line, two spaces, an invisible mark), a missing or wrongly typed field, an unreadable or over-1024-byte message all make guests; the server's name check agrees with T11's `Profile.name_problem()` on every name the menus' font can draw (a change to T11's rules fails here); `Net.shown_version()` repeats only a plain version under 41 characters, so a player message sent as a version never logs its token; `PlayerAuth.clean_name()` (the names seam) gives a name from the spawn data back, trimmed, when it passes `name_ok()`, and `""` for anything else (a number, null, a list, 13 characters, a new line, two spaces, a direction mark) |
+| `player_registry_test.gd` | The server's players (T21 part 2): a new player is saved at once with name, color and time; the same token from a second window is a guest and changes nothing; leaving saves the last-seen time; a returning player keeps the created time and takes the new name and color; bots and broken messages are guests and write nothing; a save from a newer game is left alone and its player is a guest; the server closing saves everyone; no token in any file name or save; `player_name()` (the names seam) is the name a player joined with (the new one when they return), and `""` for a guest, a bot, a peer that never joined and a player who left |
 
 ## The bot match (cards T09, T18)
 
 After the tests, smoke plays a short match on the real network path, on UDP 7777:
 
-1. It starts a headless server with `--quit-after-sec=45` and waits for
-   `server up`. If the server can't host, smoke fails with
+1. It starts a headless server with `--quit-after-sec=45 --respawn-all-at=15`
+   and waits for `server up`. If the server can't host, smoke fails with
    `UDP 7777 is in use: stop the other server` and starts no bots, so they never
    join someone else's server.
 2. It starts test bots 1-4, one per hero (`--join=127.0.0.1 --bot=<n>
@@ -50,6 +69,12 @@ After the tests, smoke plays a short match on the real network path, on UDP 7777
    `ERROR:`, the server logged at least one `[Combat] hero_damaged` and an
    `[Combat] ability_used` for each of Shield Charge, Blink, Jet Dash and Heal
    Drone (T18), and no log has a `[Move]`, `[Shot]` or `[Ability]` line.
+4. The new match (the hook for T15): 15 s in, the server respawns every hero at
+   once. It must log `[Combat] respawn_all: 4 heroes, <n> shots cleared` exactly
+   once; its 4 `[Combat] hero_respawned: Player <id> at (x, y), life <n>` lines
+   (the last 4 in the 8 lines before it: rules with spawn protection add a
+   `protected` line after each) must name 4 players; every bot's log must have
+   each of those 4 lines' player and life; and the server must log a hit after it.
 
 Anything still running after 60 s is killed by PID. The match adds about 46 s.
 On Windows the logs are `%TEMP%\acoc-smoke-server.log`, `-bot1.log` to
@@ -57,12 +82,27 @@ On Windows the logs are `%TEMP%\acoc-smoke-server.log`, `-bot1.log` to
 paths when it fails. Running smoke while a server is up on this PC fails on
 purpose: stop that server first.
 
+## Player saves (card T21 part 2)
+
+After the arena check, smoke runs a server with a saves folder of its own
+(`--saves=<new temp folder>`), two game clients with one throwaway test profile
+(`--profile=<temp file>`, a random token) and a bot, 1 s apart. It passes when all
+four exit 0, no log has an error or a refusal, the server logged the player once as
+new, the second window and the bot once each as guests, and the player once as
+saved on leaving (before the server quit), the folder holds only that player's
+files, under the SHA-256 of the token, with the name, and no log or save holds the
+token. Names (the names seam, for T17): every peer, the server included, logs
+`[TestWorld] built peer <window 1's id>: <hero>, player "Smoke"` once and no other
+named hero, and window 1 logs the second window's hero as `a guest`. It adds about 22 s. On Windows the logs are `%TEMP%\acoc-smoke-saves-server.log`,
+`-saves-window1`, `-saves-window2` and `-saves-bot`; the folder is
+`%TEMP%\acoc-smoke-saves-<8 characters>`.
+
 ## Check tools (T18 follow-up)
 
 | Tool | What it does |
 | --- | --- |
 | `tools/smoke_repeat.ps1 [-Times 3]` | Runs smoke that many times in a row, prints each run's exit code and last `SMOKE:` line, then `SMOKE REPEAT: <passed>/<Times> passed`. Exit 0 only when every run passed; every run goes even after a failure. Logs: `%TEMP%\acoc-smoke-run<n>.log`. |
-| `tools/hand_check.ps1 <step>` | A hand check on this PC: `start` (headless server and bots, each running Rounds x (RoundSec + GapSec) + 120 s, defaults 4 x (100 + 90) + 120 = 880 s), `open -Hero <name>` (the game window for one round, brought to the front), `mark` (the round starts), `finish` (waits out the round, closes the window by PID, prints the server's `[Combat]` lines for that player with counts), `stop` (everything by PID, then checks UDP 7777), `status`. Logs: `%TEMP%\acoc-hand`. Don't pipe `start` or `open`: the games inherit the pipe and hold it open until they exit. |
+| `tools/hand_check.ps1 <step>` | A hand check on this PC: `start [-Map <name>]` (headless server and bots, each running Rounds x (RoundSec + GapSec) + 120 s, defaults 4 x (100 + 90) + 120 = 880 s; `-Map arena` runs the server with `--map=arena`, left out the test world), `open -Hero <name>` (the game window for one round, brought to the front), `mark` (the round starts), `finish` (waits out the round, closes the window by PID, prints the server's `[Combat]` lines for that player with counts), `stop` (everything by PID, then checks UDP 7777), `status`. Logs: `%TEMP%\acoc-hand`. Don't pipe `start` or `open`: the games inherit the pipe and hold it open until they exit. |
 | `tools/focus_game.ps1 -GamePid <pid>` | Brings that process's game window (or its child's: the console build starts the game as one) to the front by minimizing and restoring it. Never looks windows up by title, never sends keys, never touches another window. Exit 0 when the window in front is that PID's, 1 when not, 2 when the PID isn't running. |
 
 Only the owner's cards change this folder. See CLAUDE.md, "Folders and owners".

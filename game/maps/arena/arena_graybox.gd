@@ -11,6 +11,45 @@ const SPAWN_NAMES: Array[String] = ["SpawnA1", "SpawnA2", "SpawnA3", "SpawnA4", 
 ## Team colors from PROJECT_PLAN (decided Oct 9): Blue and Orange.
 const TEAM_A_COLOR: Color = Color("#3B82F6")
 const TEAM_B_COLOR: Color = Color("#F97316")
+## The world's node that holds the heroes (game/net/README.md, "Match scene").
+const HEROES_NODE: NodePath = ^"Heroes"
+
+
+## Server: the arena's spawn rules (card T12). The world calls this when it builds the map
+## (T39), so --map=arena uses them before any mode exists.
+func make_rules() -> ArenaRules:
+	var problem := heroes_problem(self)
+	if problem != "":
+		push_error(problem)
+	var heroes: Node = get_parent().get_node_or_null(HEROES_NODE) if problem == "" else null
+	return ArenaRules.new(MapRules.points_of(self), _living_heroes.bind(heroes))
+
+
+## Why `map` can't see the world's heroes, in plain words; "" when it can. The world is
+## the map's parent, and its heroes are the children of its Heroes node
+## (game/net/README.md, "Match scene").
+static func heroes_problem(map: Node) -> String:
+	if map.get_parent() == null:
+		return "ArenaMap: the map is not in a world, so spawns can't keep away from enemies."
+	if map.get_parent().get_node_or_null(HEROES_NODE) == null:
+		return "ArenaMap: the world has no Heroes node, so spawns can't keep away from enemies. The world must keep its heroes under Heroes."
+	return ""
+
+
+## Every living hero under `heroes` as peer id -> global position; none when `heroes` is null.
+## Fails closed: a child that isn't a hero (no position, owner_peer or is_alive()) is named
+## in an error and skipped. A dead hero is skipped quietly.
+static func _living_heroes(heroes: Node) -> Dictionary[int, Vector2]:
+	var living: Dictionary[int, Vector2] = {}
+	if heroes == null:
+		return living
+	for hero: Node in heroes.get_children():
+		if not (hero is Node2D and &"owner_peer" in hero and hero.has_method(&"is_alive")):
+			push_error("ArenaMap: Heroes/%s is not a hero (it needs a 2D position, owner_peer and is_alive()), so spawns ignore it." % hero.name)
+			continue
+		if hero.call(&"is_alive"):
+			living[int(hero.get(&"owner_peer"))] = (hero as Node2D).global_position
+	return living
 
 
 func _check_layout(blocks: Array[ArenaBlock], cover: Array[ArenaBlock], problems: PackedStringArray) -> Dictionary:
