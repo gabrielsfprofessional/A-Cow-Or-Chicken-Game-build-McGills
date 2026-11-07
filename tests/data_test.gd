@@ -1,5 +1,5 @@
 extends SceneTree
-## Tests for the hero, ability and weapon data files (cards T13, T14, T18). Owner: Gabe.
+## Tests for the hero, ability, weapon and arena rules data files (cards T13, T14, T18). Owner: Gabe.
 ## Run: godot --headless --path . --script res://tests/data_test.gd
 ## Exits 1 when any case fails. tools/smoke.ps1 and smoke.sh run it, so every
 ## pull request checks all the data files, Adam's weapon edits included.
@@ -13,7 +13,7 @@ extends SceneTree
 ## 5. Labels in the hero scene are 18 px or more (PROJECT_PLAN: no text under 18 px at 1080p).
 ## 6. It leaves no scratch files behind: user://data_test is gone at the end (#78).
 
-const DATA_FOLDERS: PackedStringArray = ["res://game/heroes/data", "res://game/weapons/data"]
+const DATA_FOLDERS: PackedStringArray = ["res://game/heroes/data", "res://game/weapons/data", "res://game/modes/data"]
 const ROSTER_PATH: String = "res://game/heroes/data/roster.tres"
 const SIDEARM_PATH: String = "res://game/weapons/data/sidearm.tres"
 const BRUISER_PATH: String = "res://game/heroes/data/bruiser.tres"
@@ -30,7 +30,7 @@ const ARENA_SCENE: String = "res://game/maps/arena/arena_graybox.tscn"
 const PRACTICE_SCENE: String = "res://game/maps/practice/practice_range.tscn"
 const NET_HERO_SCENE: String = "res://game/heroes/net_hero.tscn"
 const MIN_FONT_PX: int = 18
-const UNKNOWN_TYPE: String = "is not a HeroData, HeroRoster, CombatData, AbilityData or WeaponData file; check its script path"
+const UNKNOWN_TYPE: String = "is not a HeroData, HeroRoster, CombatData, AbilityData, WeaponData or ArenaRulesData file; check its script path"
 const SCRATCH_FOLDER: String = "user://data_test"
 const WRONG_SCRIPT_TRES: String = """[gd_resource type="Resource" script_class="HeroData" format=3]
 
@@ -121,6 +121,8 @@ func _file_problem(path: String) -> String:
 		problems = (resource as AbilityData).validate()
 	elif resource is WeaponData:
 		problems = (resource as WeaponData).validate()
+	elif resource is ArenaRulesData:
+		problems = (resource as ArenaRulesData).validate()
 	else:
 		return UNKNOWN_TYPE
 	return "; ".join(problems)
