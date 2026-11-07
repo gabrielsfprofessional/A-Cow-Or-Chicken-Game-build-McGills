@@ -17,6 +17,7 @@
 # -TestBranch: for testing this script before it merges. HEAD only has to contain
 # origin/main; the zip is named TEST-... and no Drive steps are printed.
 # Every process it starts is stopped by PID at the end; UDP 7777 is free after.
+# The test servers save to the release folder's test-saves\, never the family's saves.
 # Godot path: $env:GODOT if set, else C:\Godot\Godot_v4.7.2-stable_win64_console.exe
 param(
     [string]$Out = "C:\Dev\acoc-release-test",
@@ -43,6 +44,7 @@ if (-not $godot) { $godot = "C:\Godot\Godot_v$($GodotVersion)-stable_win64_conso
 $root = Split-Path -Parent $PSScriptRoot
 $script:started = @()
 $script:configAddress = ""
+$script:testSaves = ""
 
 function Write-Step([string]$text) { Write-Host "RELEASE: $text" }
 
@@ -223,6 +225,11 @@ function Start-Server([string]$exe, [string]$arguments, [string]$name, [string]$
         Stop-Logged $entry
         Stop-Release "$name did not print 'server up' within $ServerUpSec s (log $($entry.Log))"
     }
+    # A release server's default folder is the family's saves on this PC.
+    if (-not (Wait-ForLine $entry ([regex]::Escape("player saves in $($script:testSaves)")) $ServerUpSec)) {
+        Stop-Logged $entry
+        Stop-Release "$name isn't using the release's test saves folder (log $($entry.Log))"
+    }
     return $entry
 }
 
@@ -341,9 +348,11 @@ function Invoke-Release {
         Invoke-Smoke
         $builds = Export-Builds $releaseDir $logDir
         $expected = "$($info.Version)+net$($info.Net)"
+        $script:testSaves = (Join-Path $releaseDir "test-saves\") -replace '\\', '/'
+        $serverArgs = "--headless -- --server --map=$ServerMap `"--saves=$($script:testSaves)`""
         Test-ConfigProof $builds.Client "--headless" $logDir
-        Test-JoinProof $builds.Server "--headless -- --server --map=$ServerMap" $builds.Client "--headless -- --join=127.0.0.1" $expected $logDir
-        Invoke-BotTest $builds.Server "--headless -- --server --map=$ServerMap" $logDir
+        Test-JoinProof $builds.Server $serverArgs $builds.Client "--headless -- --join=127.0.0.1" $expected $logDir
+        Invoke-BotTest $builds.Server $serverArgs $logDir
         $licenses = Write-Licenses $builds.ClientDir $logDir
         $prefix = if ($TestBranch) { "TEST-" } else { "" }
         $zipPath = Join-Path $releaseDir "$($prefix)acoc-$($info.Version)-$($info.Sha)-windows.zip"

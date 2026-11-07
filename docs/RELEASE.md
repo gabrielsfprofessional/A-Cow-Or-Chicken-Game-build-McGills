@@ -7,8 +7,11 @@ It takes about 20 minutes, most of it the 10-minute bot test.
 ## Once per PC
 
 1. The official Godot 4.7.2 export templates. In the Godot editor:
-   **Editor > Manage Export Templates > Download and Install**. They go to
+   **Editor > Manage Export Templates > Download and Install**. The download is about
+   1.3 GB, and they take about 2 GB on disk. They go to
    `%APPDATA%\Godot\export_templates\4.7.2.stable\`. Never use other templates.
+   To see they're installed: that folder has `windows_release_x86_64.exe`,
+   `windows_release_x86_64_console.exe` and a `version.txt` that says `4.7.2.stable`.
 2. `server.cfg` in the main folder (git ignores it; never commit it). It holds the
    address the game joins when a player clicks Play:
 
@@ -45,6 +48,11 @@ It takes about 20 minutes, most of it the 10-minute bot test.
 | 5 | 8 bots (console editor build, this commit) play 10 minutes against the exported server; every bot exits 0, 8 joins, hits, no error or refusal line; the server is then stopped by PID | The real server build holds a match |
 | 6 | `LICENSES.txt` (Godot's license, its copyright notices, third-party texts) | Godot's license must ship with the game |
 | 7 | The zip holds the game `.exe` and `LICENSES.txt`, with a `.sha256.txt` | What the family downloads |
+
+Steps 4 and 5 save to the release folder's `test-saves\`, and the script stops if the
+server says otherwise. A release server's default folder is the family's saves.
+Step 4's test game joins with this PC's real profile. It only reads the profile, and
+the save it leaves in `test-saves\` has the player's id, name and color, never the token.
 
 The server build (`server\ACowOrChickenServer.exe`) stays on the server PC.
 Start it with `ACowOrChickenServer.exe --headless -- --map=arena`.
