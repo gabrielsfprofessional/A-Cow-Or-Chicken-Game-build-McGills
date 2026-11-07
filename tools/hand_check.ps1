@@ -3,8 +3,9 @@
 # front so nothing quits mid-check. Every process is stopped by PID.
 #   powershell -NoProfile -ExecutionPolicy Bypass -File tools\hand_check.ps1 <step> [options]
 # Steps, in order:
-#   start  [-Rounds 4] [-RoundSec 100] [-GapSec 90] [-Bots 2] [-BotHeroes bruiser,medic]
-#          (bot n plays the nth name in -BotHeroes, round robin)
+#   start  [-Rounds 4] [-RoundSec 100] [-GapSec 90] [-Bots 2] [-BotHeroes bruiser,medic] [-Map <name>]
+#          (bot n plays the nth name in -BotHeroes, round robin; -Map runs the server
+#          with --map=<name>, for example arena; left out, the test world)
 #          Starts the server and the bots. Each runs Rounds x (RoundSec + GapSec)
 #          + 120 s: GapSec is the time between rounds (opening the window, a
 #          question), 120 s the margin. -GapSec 0 gives exactly Rounds x RoundSec + 120.
@@ -28,6 +29,7 @@ param(
     [ValidateRange(0, 1800)][int]$GapSec = 90,
     [ValidateRange(0, 15)][int]$Bots = 2,
     [string]$BotHeroes = "bruiser,medic",
+    [ValidatePattern("^[a-z0-9_]*$")][string]$Map = "",
     [ValidateSet("bruiser", "mage", "scout", "medic")][string]$Hero = "bruiser"
 )
 $ErrorActionPreference = "Continue"
@@ -80,7 +82,8 @@ switch ($Step) {
         if ($bad.Count -gt 0 -or $botHeroList.Count -eq 0) { Write-Host "-BotHeroes takes a comma list of bruiser, mage, scout, medic (got: $BotHeroes)"; exit 1 }
         $runSec = $Rounds * ($RoundSec + $GapSec) + $MARGIN_SEC
         Write-Host "Run time: $Rounds rounds x ($RoundSec s + $GapSec s gap) + $MARGIN_SEC s margin = $runSec s for the server and each bot"
-        $server = Start-Godot "server" "--headless --path `"$root`" -- --server --quit-after-sec=$runSec"
+        $mapArg = if ($Map) { " --map=$Map" } else { "" }
+        $server = Start-Godot "server" "--headless --path `"$root`" -- --server$mapArg --quit-after-sec=$runSec"
         $started = Get-Date
         $up = $false
         while (((Get-Date) - $started).TotalSeconds -lt 30) {

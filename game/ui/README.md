@@ -23,5 +23,5 @@ Play on the main menu opens `hero_select.tscn`, then the Join screen, which call
   first hero. A failed join comes back to the Join screen with the pick kept.
 - It logs one line per pick: `[UI] hero picked: <file> (slot <n>)`.
 - `--server`, `--join` and `--bot` launches never open it; they use `--hero`.
-- Test: `game/ui/tools/test_hero_select.gd` (smoke does not run game/ui/tools yet; run it
-  with `APPDATA` pointed at a temp folder).
+- Test: `game/ui/tools/test_hero_select.gd` (smoke runs it; by hand, point `APPDATA`
+  at a temp folder).

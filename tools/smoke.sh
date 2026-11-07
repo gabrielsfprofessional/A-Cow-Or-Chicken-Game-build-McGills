@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Smoke test: import the project, run the game headless for 300 frames and fail
 # if Godot prints any script or engine error. Then run every tests/*_test.gd,
-# Adam's check_arena.gd and every test_*.gd in game/maps/tools and
-# game/modes/tools (when they exist), and fail if any exits non-zero or runs
-# longer than 60 s (it is then killed). Then play a bot match (cards T09, T18): a headless server and 4 test bots, one per hero, on UDP 7777,
+# Adam's check_arena.gd and every test_*.gd in game/maps/tools, game/modes/tools,
+# game/ui/tools and game/players/tools (when they exist), and fail if any exits
+# non-zero, leaks resources or runs longer than 60 s (it is then killed). Then play a bot match (cards T09, T18): a headless server and 4 test bots, one per hero, on UDP 7777,
 # then the arena check (T39) and the player saves check (T21 part 2).
 # Usage (Linux, CI, or Git Bash):  GODOT=/path/to/godot bash tools/smoke.sh
 set -uo pipefail
@@ -18,22 +18,25 @@ if grep -nE "SCRIPT ERROR|Parse Error|ERROR:" "$LOG"; then
 fi
 
 # Script tests. Each one prints its own cases and exits 1 on a failure. Their own
-# logs are judged by exit code and script errors only: a test may provoke an
-# engine error on purpose. Each gets SCRIPT_LIMIT_SEC; one still running then is
+# logs are judged by exit code, script errors and "resources still in use at exit"
+# only: a test may provoke an engine error on purpose. Each gets SCRIPT_LIMIT_SEC; one still running then is
 # killed (KILL 5 s after TERM) and fails as timed out, so a hung test can't hang
 # smoke.
 SCRIPT_LIMIT_SEC=60
+# A test may save settings (game/ui/tools): APPDATA (Windows) and XDG_DATA_HOME (Linux)
+# point at a temp folder while they run, so user:// is never the real one.
+TEST_DATA="$(mktemp -d)"
 SCRIPTS=()
 for f in "$ROOT"/tests/*_test.gd; do
   [ -e "$f" ] && SCRIPTS+=("res://tests/$(basename "$f")")
 done
-for f in "$ROOT"/game/maps/tools/check_arena.gd "$ROOT"/game/maps/tools/test_*.gd "$ROOT"/game/modes/tools/test_*.gd; do
+for f in "$ROOT"/game/maps/tools/check_arena.gd "$ROOT"/game/maps/tools/test_*.gd "$ROOT"/game/modes/tools/test_*.gd "$ROOT"/game/ui/tools/test_*.gd "$ROOT"/game/players/tools/test_*.gd; do
   [ -e "$f" ] && SCRIPTS+=("res://${f#"$ROOT"/}")
 done
 FAILED=0
 for s in "${SCRIPTS[@]}"; do
   SLOG="$(mktemp)"
-  timeout --kill-after=5s "${SCRIPT_LIMIT_SEC}s" "$GODOT" --headless --path "$ROOT" --script "$s" >"$SLOG" 2>&1
+  APPDATA="$TEST_DATA" XDG_DATA_HOME="$TEST_DATA" timeout --kill-after=5s "${SCRIPT_LIMIT_SEC}s" "$GODOT" --headless --path "$ROOT" --script "$s" >"$SLOG" 2>&1
   CODE=$?
   # 124: timeout stopped it with TERM; 137: it needed KILL as well.
   if [ "$CODE" -eq 124 ] || [ "$CODE" -eq 137 ]; then
@@ -41,7 +44,7 @@ for s in "${SCRIPTS[@]}"; do
     tail -n 40 "$SLOG"
     echo "SMOKE: $s timed out after $SCRIPT_LIMIT_SEC s"
     FAILED=$((FAILED + 1))
-  elif [ "$CODE" -ne 0 ] || grep -qE "SCRIPT ERROR|Parse Error" "$SLOG"; then
+  elif [ "$CODE" -ne 0 ] || grep -qE "SCRIPT ERROR|Parse Error|resources? still in use at exit" "$SLOG"; then
     cat "$SLOG"
     echo "SMOKE: $s FAILED (exit $CODE, log: $SLOG)"
     FAILED=$((FAILED + 1))
@@ -49,6 +52,7 @@ for s in "${SCRIPTS[@]}"; do
     echo "SMOKE: $s passed"
   fi
 done
+rm -rf "$TEST_DATA"
 if [ "$FAILED" -gt 0 ]; then
   echo "SMOKE: FAIL ($FAILED script(s) failed)"
   exit 1
