@@ -1,8 +1,8 @@
 # Smoke test: import the project, run the game headless for 300 frames and fail
 # if Godot prints any script or engine error. Then run every tests/*_test.gd,
-# Adam's check_arena.gd and every test_*.gd in game/maps/tools and
-# game/modes/tools (when they exist), and fail if any exits non-zero or runs
-# longer than 60 s (it is then killed by PID). Then play
+# Adam's check_arena.gd and every test_*.gd in game/maps/tools, game/modes/tools,
+# game/ui/tools and game/players/tools (when they exist), and fail if any exits
+# non-zero, leaks resources or runs longer than 60 s (it is then killed by PID). Then play
 # a bot match (cards T09, T18): a headless server and 4 test bots, one per hero, on UDP 7777,
 # then the arena check (T39) and the player saves check (T21 part 2).
 # Run from the repo folder:
@@ -27,14 +27,21 @@ if ($hits) {
 }
 
 # Script tests. Each one prints its own cases and exits 1 on a failure. Their own
-# logs are judged by exit code and script errors only: a test may provoke an
-# engine error on purpose. Each gets $scriptLimitSec; one still running then is
+# logs are judged by exit code, script errors and "resources still in use at exit"
+# only: a test may provoke an engine error on purpose. Each gets $scriptLimitSec; one still running then is
 # killed by PID and fails as timed out, so a hung test can't hang smoke.
 $scriptLimitSec = 60
+# A test may save settings (game/ui/tools): APPDATA points at a temp folder while
+# they run, so user:// is never the real one.
+$realAppData = $env:APPDATA
+$testAppData = Join-Path $env:TEMP "acoc-smoke-appdata"
+Remove-Item -Recurse -Force $testAppData -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force $testAppData | Out-Null
+$env:APPDATA = $testAppData
 $scripts = @(Get-ChildItem -Path (Join-Path $root "tests") -Filter "*_test.gd" | Sort-Object Name |
     ForEach-Object { "res://tests/" + $_.Name })
 if (Test-Path (Join-Path $root "game/maps/tools/check_arena.gd")) { $scripts += "res://game/maps/tools/check_arena.gd" }
-foreach ($folder in @("game/maps/tools", "game/modes/tools")) {
+foreach ($folder in @("game/maps/tools", "game/modes/tools", "game/ui/tools", "game/players/tools")) {
     $dir = Join-Path $root $folder
     if (Test-Path $dir) {
         $scripts += @(Get-ChildItem -Path $dir -Filter "test_*.gd" | Sort-Object Name |
@@ -62,7 +69,7 @@ foreach ($script in $scripts) {
     }
     $p.WaitForExit()  # Lets the redirected output finish writing.
     $code = $p.ExitCode
-    $errors = Select-String -Path @($scriptLog, $scriptErr) -Pattern "SCRIPT ERROR|Parse Error"
+    $errors = Select-String -Path @($scriptLog, $scriptErr) -Pattern "SCRIPT ERROR|Parse Error|resources? still in use at exit"
     if ($code -ne 0 -or $errors) {
         Get-Content $scriptLog, $scriptErr | ForEach-Object { Write-Host $_ -ForegroundColor Red }
         Write-Host "SMOKE: $script FAILED (exit $code, logs: $scriptLog, $scriptErr)" -ForegroundColor Red
@@ -71,6 +78,8 @@ foreach ($script in $scripts) {
         Write-Host "SMOKE: $script passed"
     }
 }
+$env:APPDATA = $realAppData
+Remove-Item -Recurse -Force $testAppData -ErrorAction SilentlyContinue
 if ($failed -gt 0) {
     Write-Host "SMOKE: FAIL ($failed script(s) failed)" -ForegroundColor Red
     exit 1
