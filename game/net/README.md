@@ -59,11 +59,17 @@ and `join()` always ends in exactly one of `joined` or `join_failed`.
 
 Reasons players can see today, all written for a 12-year-old:
 
-- `Could not reach the server at <address> on UDP 7777 within 5 seconds. Is the server running?`
+- `Could not use that address (error <n>). Check it and try again.`
+- `Could not reach the server on UDP 7777 within 5 seconds. Check the address, and that the server is running.`
+- `Could not reach the server on UDP 7777. Check the address, and that the server is running.`
 - `Update the game from the Drive folder (server v0.0.1+net3, you v0.0.1+net2)` (an older build)
 - `The server refused the connection. It may be full, or running a different version.`
 - `Lost connection to the server. It may have been closed.`
 - `Could not open the game world. Tell Gabe.` (the world scene failed to load)
+
+None of these, and no `[Net]` line, names the server address: Godot's file log keeps
+them on every player's PC. `game/core/net_address.gd` builds them and says only which
+kind of address it was (`this PC`, `a LAN address` or `an internet address`).
 
 A failed join or a lost connection puts the player back on the Join screen
 (`game/ui/join_screen.tscn`), with no pop-up. `Net` keeps the reason in the public
@@ -264,13 +270,23 @@ In order, the first failure wins:
 **Grants (T14):** before the server tells anyone about a dash or a knockback,
 it calls `MoveCheck.grant(extra_px, until_sec, now_sec)` with the motion's
 distance, open for its duration plus `NetHero.FORCED_MOTION_GRACE_SEC` (1 s).
+After that it stays open until the owner's moves for that long, plus
+`MoveCheck.GRANT_RTT_SLACK_SEC` (1 s) more for the ones it sent while the yes
+traveled, have arrived, so an owner whose game froze past it still gets its dash through (#92), but
+never more than `MoveCheck.GRANT_HOLD_MAX_SEC` (5 s) after it was given.
 A move beyond walking draws its excess from the grant (`drew_grant`), grants
 add up, the later expiry wins, and `reset()` (respawn) clears them.
 
 On a reject the server keeps the last good position, advances the last
-sequence, sends the owner a `snap_back` (at most every 0.5 s while rejects
-keep coming, so one bad move cannot cause a stream of them), and logs
-`[Move] peer <id>: rejected ...` at most once a second per hero. The
+sequence, sends the owner a `snap_back` when `MoveCheck.snap_due()` says so,
+and logs `[Move] peer <id>: rejected ...` at most once a second per hero.
+`snap_due()` allows one snap-back every 0.5 s, and after one, no other until a
+move is accepted or comes from within walking reach of the server's spot (the
+owner took it, even if the time budget refuses that move after a server stall),
+or 2 s pass (it never landed). Moves the
+owner sent before the snap landed are still rejected, but they no longer each
+send a snap with an old position: on a round trip over 0.5 s those snaps pulled
+the owner back again and again (#92: 50 lines in 45 s at 300 ms each way). The
 `(<n> since spawn)` count runs from the hero's first spawn: a respawn doesn't reset it.
 
 ### Remote heroes (RemoteTimeline)

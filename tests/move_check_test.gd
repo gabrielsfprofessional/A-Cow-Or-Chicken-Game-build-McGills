@@ -29,8 +29,15 @@ func _initialize() -> void:
 	_grant_lets_a_dash_through()
 	_grant_gets_used_up()
 	_grant_expires()
+	_grant_survives_a_freeze()
+	_grant_survives_a_freeze_on_a_slow_link()
+	_grant_hold_has_a_limit()
 	_grants_add_up()
 	_reset_clears_the_grant()
+	_snap_waits_for_the_owner()
+	_snap_retries_when_unanswered()
+	_snap_after_an_accept()
+	_snap_after_a_budget_refusal()
 	print("MOVE CHECK TEST: %s (%d checks)" % ["PASS" if _failed == 0 else "FAIL, %d wrong" % _failed, _count])
 	quit(0 if _failed == 0 else 1)
 
@@ -189,13 +196,53 @@ func _grant_gets_used_up() -> void:
 
 
 func _grant_expires() -> void:
+	# Open 0.5 s: 10 sends, plus 20 for the round trip. The owner stands still
+	# through all 30, on time.
 	var check := _new_check()
 	check.grant(240.0, 0.5, 0.0)
-	_expect("a dash step after the grant expired is too far",
-		check.check(OWNER, 1, START + DASH_STEP, 0.6), MoveCheck.Result.TOO_FAR)
+	for sequence: int in range(1, 31):
+		check.check(OWNER, sequence, START, sequence * STEP)
+	_expect("a dash step after the grant's time and its sends is too far",
+		check.check(OWNER, 31, START + DASH_STEP, 31 * STEP), MoveCheck.Result.TOO_FAR)
 	_expect_true("the expired grant is gone", check.grant_px == 0.0)
-	check.grant(30.0, 2.0, 1.0)
+	check.grant(30.0, 3.0, 2.0)
 	_expect_true("an expired leftover never comes back with a new grant", check.grant_px == 30.0)
+
+
+func _grant_survives_a_freeze() -> void:
+	# #92: the owner's game froze 1.5 s between the server's yes and the dash, so
+	# no move came while the 1.2 s grant was open. The dash lands after it.
+	var check := _new_check()
+	check.grant(240.0, 1.2, 0.0)
+	var all_ok := true
+	for i: int in 4:
+		var result := check.check(OWNER, 1 + i, check.position + DASH_STEP, 1.5 + i * STEP)
+		all_ok = all_ok and result == MoveCheck.Result.ACCEPTED and check.drew_grant
+	_expect_true("a dash after a 1.5 s freeze still draws on its grant", all_ok and check.rejected == 0)
+
+
+func _grant_survives_a_freeze_on_a_slow_link() -> void:
+	# 500 ms each way: the owner sent 20 more moves while the server's yes
+	# traveled, then froze 1.5 s; 3 catch-up sends, then the dash's 4.
+	var check := _new_check()
+	check.grant(240.0, 1.2, 0.0)
+	for sequence: int in range(1, 21):
+		check.check(OWNER, sequence, START, sequence * STEP)
+	var all_ok := true
+	for i: int in 3:
+		all_ok = all_ok and check.check(OWNER, 21 + i, START, 2.5 + i * STEP) == MoveCheck.Result.ACCEPTED
+	for i: int in 4:
+		var result := check.check(OWNER, 24 + i, check.position + DASH_STEP, 2.65 + i * STEP)
+		all_ok = all_ok and result == MoveCheck.Result.ACCEPTED and check.drew_grant
+	_expect_true("a dash after 20 sends in flight and a 1.5 s freeze still draws on its grant", all_ok and check.rejected == 0)
+
+
+func _grant_hold_has_a_limit() -> void:
+	var check := _new_check()
+	check.grant(240.0, 1.2, 0.0)
+	_expect("a dash step after the hold limit is too far",
+		check.check(OWNER, 1, START + DASH_STEP, MoveCheck.GRANT_HOLD_MAX_SEC + 0.1), MoveCheck.Result.TOO_FAR)
+	_expect_true("the held grant is gone", check.grant_px == 0.0)
 
 
 func _grants_add_up() -> void:
@@ -213,6 +260,60 @@ func _reset_clears_the_grant() -> void:
 	check.reset(START, 0.1)
 	_expect_true("reset clears the grant", check.grant_px == 0.0)
 	_expect("a dash step after reset is too far", check.check(OWNER, 1, START + DASH_STEP, 0.15), MoveCheck.Result.TOO_FAR)
+
+
+# --- snap-backs (#92) -------------------------------------------------------------
+
+## Rejects one teleport per send from `first` at `start_sec`, 20 a second, for
+## `seconds`; returns how many snap-backs snap_due() let through.
+func _rejects_snaps(check: MoveCheck, first: int, start_sec: float, seconds: float) -> int:
+	var snaps := 0
+	var sends := roundi(seconds / STEP)
+	for i: int in sends:
+		var now := start_sec + i * STEP
+		if check.check(OWNER, first + i, START + Vector2(500, 0), now) != MoveCheck.Result.ACCEPTED and check.snap_due(now):
+			snaps += 1
+	return snaps
+
+
+func _snap_waits_for_the_owner() -> void:
+	# A 600 ms round trip: 12 sends left the owner before the snap landed.
+	var check := _new_check()
+	var snaps := _rejects_snaps(check, 1, 0.05, 0.6)
+	_expect_true("moves in flight get one snap-back, not one per 0.5 s (got %d)" % snaps, snaps == 1)
+
+
+func _snap_retries_when_unanswered() -> void:
+	var check := _new_check()
+	# 2.6 s, so the retry at about 2.05 s or the send after it both fall inside.
+	var snaps := _rejects_snaps(check, 1, 0.05, 2.6)
+	_expect_true("a snap the owner never takes is sent again after 2 s (got %d)" % snaps, snaps == 2)
+
+
+func _snap_after_an_accept() -> void:
+	var check := _new_check()
+	_expect_true("the first reject snaps", _rejects_snaps(check, 1, 0.05, 0.05) == 1)
+	_expect("the owner took it: a move from the server's spot is fine",
+		check.check(OWNER, 2, START + Vector2(10, 0), 0.6), MoveCheck.Result.ACCEPTED)
+	_expect_true("a new reject 0.5 s after the last snap snaps again", _rejects_snaps(check, 3, 0.65, 0.05) == 1)
+
+
+func _snap_after_a_budget_refusal() -> void:
+	# #92 after a server stall: the burst drained the budget, so the owner's first
+	# move from the snapped spot is refused over budget; it still took the snap.
+	# The whole burst lands at t = 0: moves until one is over budget, then a teleport.
+	var check := _new_check()
+	var sequence := 0
+	var drained := false
+	while not drained and sequence < 40:
+		sequence += 1
+		drained = check.check(OWNER, sequence, START, 0.0) == MoveCheck.Result.OVER_BUDGET
+	_expect_true("the stall's burst drains the budget", drained)
+	_expect_true("the burst's teleport rejects and snaps", _rejects_snaps(check, sequence + 1, 0.0, 0.05) == 1)
+	_expect("the owner's move from the snapped spot is over budget",
+		check.check(OWNER, sequence + 2, START + Vector2(10, 0), 0.0), MoveCheck.Result.OVER_BUDGET)
+	_expect_true("its next miss 0.5 s after the snap snaps again, not 2 s after",
+		_rejects_snaps(check, sequence + 3, 0.55, 0.05) == 1)
 
 
 func _expect(case_name: String, got: MoveCheck.Result, wanted: MoveCheck.Result) -> void:
