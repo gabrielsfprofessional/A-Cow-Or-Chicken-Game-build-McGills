@@ -1,5 +1,5 @@
 extends SceneTree
-## Tests for the hero, ability, weapon and arena rules data files (cards T13, T14, T18). Owner: Gabe.
+## Tests for the hero, ability, weapon, arena rules and team mark data files (cards T13, T14, T18, T42). Owner: Gabe.
 ## Run: godot --headless --path . --script res://tests/data_test.gd
 ## Exits 1 when any case fails. tools/smoke.ps1 and smoke.sh run it, so every
 ## pull request checks all the data files, Adam's weapon edits included.
@@ -30,7 +30,7 @@ const ARENA_SCENE: String = "res://game/maps/arena/arena_graybox.tscn"
 const PRACTICE_SCENE: String = "res://game/maps/practice/practice_range.tscn"
 const NET_HERO_SCENE: String = "res://game/heroes/net_hero.tscn"
 const MIN_FONT_PX: int = 18
-const UNKNOWN_TYPE: String = "is not a HeroData, HeroRoster, CombatData, AbilityData, WeaponData or ArenaRulesData file; check its script path"
+const UNKNOWN_TYPE: String = "is not a HeroData, HeroRoster, CombatData, AbilityData, WeaponData, ArenaRulesData or TeamMarkData file; check its script path"
 const SCRATCH_FOLDER: String = "user://data_test"
 const WRONG_SCRIPT_TRES: String = """[gd_resource type="Resource" script_class="HeroData" format=3]
 
@@ -64,6 +64,7 @@ func _initialize() -> void:
 	_roster_empty_slot()
 	_range_flags()
 	_combat_out_of_range()
+	_team_marks_problems()
 	_bruiser_has_shield_charge()
 	_abilities_name_their_node()
 	_make_refuses_bad_scripts()
@@ -123,6 +124,8 @@ func _file_problem(path: String) -> String:
 		problems = (resource as WeaponData).validate()
 	elif resource is ArenaRulesData:
 		problems = (resource as ArenaRulesData).validate()
+	elif resource is TeamMarkData:
+		problems = (resource as TeamMarkData).validate()
 	else:
 		return UNKNOWN_TYPE
 	return "; ".join(problems)
@@ -277,6 +280,29 @@ func _combat_out_of_range() -> void:
 	_expect_problems(combat.validate(), [], "combat at the defaults passes")
 	combat.respawn_sec = 0.0
 	_expect_problems(combat.validate(), ["respawn_sec is 0 s; it must be 0.5 to 30 s"], "respawn_sec 0")
+
+
+## T42's ring and outline: sizes in range, colors solid, the two teams different.
+func _team_marks_problems() -> void:
+	var marks := TeamMarkData.new()
+	_expect_problems(marks.validate(), [], "team marks at the defaults pass")
+	marks.ring_radius_px = 4.0
+	_expect_problems(marks.validate(), ["ring_radius_px is 4 px; it must be 20 to 80 px"], "ring_radius_px 4")
+	marks = TeamMarkData.new()
+	marks.ring_width_px = 20.0
+	_expect_problems(marks.validate(), ["ring_width_px is 20 px; it must be 1 to 16 px"], "ring_width_px 20")
+	marks = TeamMarkData.new()
+	marks.outline_gap_px = -1.0
+	_expect_problems(marks.validate(), ["outline_gap_px is -1 px; it must be 0 to 16 px"], "outline_gap_px -1")
+	marks = TeamMarkData.new()
+	marks.outline_width_px = 0.0
+	_expect_problems(marks.validate(), ["outline_width_px is 0 px; it must be 1 to 8 px"], "outline_width_px 0")
+	marks = TeamMarkData.new()
+	marks.outline = Color(1.0, 1.0, 1.0, 0.0)
+	_expect_problems(marks.validate(), ["outline is see-through (alpha 0.00); it must be 1"], "a see-through outline")
+	marks = TeamMarkData.new()
+	marks.orange = marks.blue
+	_expect_problems(marks.validate(), ["blue and orange are the same color; the teams must differ"], "both teams blue")
 
 
 # --- abilities (T14) ----------------------------------------------------------------

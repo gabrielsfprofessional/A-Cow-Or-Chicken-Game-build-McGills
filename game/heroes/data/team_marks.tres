@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="TeamMarkData" format=3]
+
+[ext_resource type="Script" path="res://game/heroes/team_mark_data.gd" id="1_marks"]
+
+[resource]
+script = ExtResource("1_marks")
+blue = Color(0.23137255, 0.50980395, 0.9647059, 1)
+orange = Color(0.9764706, 0.4509804, 0.08627451, 1)
+outline = Color(1, 1, 1, 1)
+ring_radius_px = 36.0
+ring_width_px = 5.0
+outline_gap_px = 3.0
+outline_width_px = 3.0
