@@ -13,6 +13,14 @@ var _ready_at: Array[float] = [0.0, 0.0]
 var _respawn_left: float = 0.0
 var _scout: bool = true
 var _clock: float = 0.0
+## The fake match: the clock counts down once a second from this many seconds.
+const MATCH_SEC: int = 1200
+const PREVIEW_PEER: int = 1
+var _match_left: int = MATCH_SEC
+var _match_tick: float = 0.0
+var _my_team: int = 0
+var _winner_step: int = 0
+var _scores: Array[int] = [0, 0]
 
 @onready var _hud: Hud = $Hud
 @onready var _help: Label = $Help
@@ -20,12 +28,24 @@ var _clock: float = 0.0
 
 func _ready() -> void:
 	_help.add_theme_font_size_override(&"font_size", 24)
-	_help.text = "HUD preview (fake numbers)\nUp / Down: health   Q: use Q   E: eliminated\nT: Scout (2 charges) or one charge   1 / 2 / 3: UI scale 100 / 125 / 150%"
+	_help.text = "HUD preview (fake numbers)\nUp / Down: health   Q: use Q   E: eliminated\nT: Scout (2 charges) or one charge   1 / 2 / 3: UI scale 100 / 125 / 150%\nB / O: Blue / Orange scores   X: switch my team   W: winner banner (Blue, Orange, Draw, none)"
+	_hud.listen()
+	_hud.set_own_peer(PREVIEW_PEER)
+	Events.match_started.emit(&"arena")
+	Events.team_assigned.emit(PREVIEW_PEER, _my_team)
+	Events.team_score_changed.emit(0, 0)
+	Events.team_score_changed.emit(1, 0)
+	Events.match_clock_changed.emit(_match_left)
 	_refresh()
 
 
 func _process(delta: float) -> void:
 	_clock += delta
+	_match_tick += delta
+	if _match_tick >= 1.0:
+		_match_tick -= 1.0
+		_match_left = maxi(_match_left - 1, 0)
+		Events.match_clock_changed.emit(_match_left)
 	if _respawn_left > 0.0:
 		_respawn_left = maxf(0.0, _respawn_left - delta)
 	_refresh()
@@ -46,6 +66,24 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_respawn_left = RESPAWN_SEC if _respawn_left <= 0.0 else 0.0
 		KEY_T:
 			_scout = not _scout
+		KEY_B:
+			_scores[0] += 1
+			Events.team_score_changed.emit(0, _scores[0])
+		KEY_O:
+			_scores[1] += 1
+			Events.team_score_changed.emit(1, _scores[1])
+		KEY_X:
+			_my_team = 1 - _my_team
+			Events.team_assigned.emit(PREVIEW_PEER, _my_team)
+		KEY_W:
+			# Blue, Orange, Draw, then no banner (a new match starts).
+			var winners: Array[int] = [0, 1, -1]
+			if _winner_step < winners.size():
+				Events.match_ended.emit(winners[_winner_step])
+				_winner_step += 1
+			else:
+				_winner_step = 0
+				Events.match_started.emit(&"arena")
 		KEY_1:
 			Settings.set_ui_scale(1.0)
 		KEY_2:
