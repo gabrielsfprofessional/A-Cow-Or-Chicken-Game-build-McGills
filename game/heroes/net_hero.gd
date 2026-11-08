@@ -29,14 +29,13 @@ extends CharacterBody2D
 
 ## Sends per second. physics_ticks_per_second must be a multiple of it.
 const SEND_RATE: int = 20
-## The server snaps an owner back at most this often while their moves keep failing.
-const SNAP_INTERVAL_MSEC: int = 500
 ## [Move] (server rejects) and [Remote] (underruns) lines per hero at most this often.
 const LOG_INTERVAL_MSEC: int = 1000
 ## Clients' respawn countdown. The server's delay comes from MatchRules.
 const COMBAT: CombatData = preload("res://game/heroes/data/combat.tres")
 ## A forced-motion grant lasts its duration plus this, for the round trip and
-## the owner's send queue (T14).
+## the owner's send queue (T14), and on through the owner's moves for that long
+## if they arrive late (MoveCheck, #92).
 const FORCED_MOTION_GRACE_SEC: float = 1.0
 ## A late joiner trusts the server's respawn countdown up to this (a mode's
 ## MatchRules may use a longer delay than combat.tres); only a garbage value is cut.
@@ -64,9 +63,10 @@ var _timeline: RemoteTimeline
 ## (snap-backs on the owner, relays everywhere else).
 var _out_queue: DelayQueue
 var _in_queue: DelayQueue
-var _last_snap_msec: int = -SNAP_INTERVAL_MSEC
 var _last_log_msec: int = -LOG_INTERVAL_MSEC
 var _unlogged_rejects: int = 0
+## True when a snap-back went out since the last [Move] line.
+var _snapped_since_log: bool = false
 var _last_reason: String = ""
 var _underruns_logged: int = 0
 ## While eliminated: when the hero comes back (_now_sec() clock). The server
@@ -465,17 +465,19 @@ func _relay(sequence: int, new_position: Vector2) -> void:
 
 func _reject(result: MoveCheck.Result) -> void:
 	var now := Time.get_ticks_msec()
-	if now - _last_snap_msec >= SNAP_INTERVAL_MSEC:
-		_last_snap_msec = now
+	if _check.snap_due(_now_sec()):
 		snap_back.rpc_id(owner_peer, life, _check.last_sequence, _check.position)
+		_snapped_since_log = true
 	_unlogged_rejects += 1
 	_last_reason = MoveCheck.result_name(result)
 	if now - _last_log_msec >= LOG_INTERVAL_MSEC:
 		_last_log_msec = now
-		print("[Move] peer %d: rejected %d update(s), last: %s (%d since spawn), snapped back" % [
+		print("[Move] peer %d: rejected %d update(s), last: %s (%d since spawn), %s" % [
 			owner_peer, _unlogged_rejects, _last_reason, _check.rejected,
+			"snapped back" if _snapped_since_log else "snap-back already sent",
 		])
 		_unlogged_rejects = 0
+		_snapped_since_log = false
 
 
 func _receive(life_number: int, sequence: int, new_position: Vector2) -> void:
