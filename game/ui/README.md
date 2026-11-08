@@ -25,3 +25,29 @@ Play on the main menu opens `hero_select.tscn`, then the Join screen, which call
 - `--server`, `--join` and `--bot` launches never open it; they use `--hero`.
 - Test: `game/ui/tools/test_hero_select.gd` (smoke runs it; by hand, point `APPDATA`
   at a temp folder).
+
+## HUD: team scores, clock and winner banner (card T17, part 2)
+
+The HUD (`hud.tscn`, built by the `Overlay` autoload) also shows the match, from the
+`Events` signals only (`game/core/events.gd`, README "Seams for week 3" in game/net):
+
+- Top centre: `Blue n`, the clock as `mm:ss` (1200 is `20:00`), `Orange n`, and under them
+  `You are on <team>`. Nothing shows until the first match event arrives, so the test
+  world (no teams) looks the same as before.
+- `team_assigned` counts for your own peer id only and is followed at any time, so a
+  balance switch moves you to the other team on screen. Overlay hands the Hud your peer
+  id (`set_own_peer()`); the Hud keeps every peer's team, so a team that arrives before
+  your id is known still shows.
+- A banner (`Blue wins!`, `Orange wins!` or `Draw` for -1) shows from `match_ended` until
+  `match_started`. There is no "first to <n>": no signal carries the limit.
+- Everything clears when you are not a client any more (`clear_match()`), so the next
+  match starts from zero.
+- The Hud keeps the last value of each event, and Overlay calls `listen()` when it is
+  built (not on a headless run), before this client is ready. The late-join replay is
+  therefore never missed, even while the HUD is still hidden.
+- Team colors (`blue_color`, `orange_color`) and the banner size are `@export` values on
+  the Hud. They color the score names, `You are on ...` and the banner only, never a hero.
+- Names stay on each hero's own label (#86); the HUD adds no name tags.
+- Test: `game/ui/tools/test_hud.gd` (smoke runs it; by hand, point `APPDATA` at a temp
+  folder). Preview without a server: F6 on `hud_preview.tscn`; B / O add Blue / Orange
+  points, X switches your team, W shows the banner.
