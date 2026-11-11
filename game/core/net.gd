@@ -83,6 +83,8 @@ var _auth_stage: Dictionary[int, int] = {}
 var _player_readings: Dictionary[int, Dictionary] = {}
 ## Server: who each connected peer is (player saves). Null on clients.
 var _players: PlayerRegistry = null
+## Server: what each peer did in the match being played, for the saves (T22). Null on clients.
+var _stats: MatchStats = null
 var _join_target: String = ""
 var _join_started_msec: int = 0
 ## Bumped on every join and leave so a stale timeout cannot fail a later attempt.
@@ -225,6 +227,7 @@ func host() -> Error:
 	_log("server up on UDP %d, version %s, room for %d players" % [DEFAULT_PORT, version(), MAX_PLAYERS])
 	_players = PlayerRegistry.new(ProfileStore.open_default())
 	_server_log(_players.open())
+	_start_stats()
 	var loaded := await _load_world()
 	if not loaded and Game.is_server():
 		_log("the server has no world, quitting")
@@ -456,6 +459,9 @@ func _on_peer_disconnected(id: int) -> void:
 	])
 	_peer_versions.erase(id)
 	_auth_stage.erase(id)
+	if _stats != null:
+		# Before the leave save, which writes the registry's copy: a leaver keeps its counts.
+		_record(id, _stats.peer_left(id))
 	if _players != null:
 		var line := _players.leave(id, _now_unix())
 		if line != "":
@@ -511,6 +517,77 @@ func player_name(id: int) -> String:
 	return _players.player_name(id) if _players != null else ""
 
 
+# --- match stats (T22) -------------------------------------------------------
+#
+# Server only. MatchStats counts between match_started and match_ended; each answer
+# goes to PlayerRegistry.add_stats(), which saves it. Guests and bots get nothing.
+# host() connects these before the world loads, so they run before a mode's own
+# handlers: the elimination that ends a match is counted before match_ended arrives.
+
+func _start_stats() -> void:
+	_stats = MatchStats.new()
+	Events.match_started.connect(_on_match_started)
+	Events.match_ended.connect(_on_match_ended)
+	Events.team_assigned.connect(_on_team_assigned)
+	Events.hero_damaged.connect(_on_hero_damaged)
+	Events.hero_eliminated.connect(_on_hero_eliminated)
+
+
+## The server is closing: every peer keeps what it counted in the match being played.
+func _stop_stats() -> void:
+	if _stats == null:
+		return
+	Events.match_started.disconnect(_on_match_started)
+	Events.match_ended.disconnect(_on_match_ended)
+	Events.team_assigned.disconnect(_on_team_assigned)
+	Events.hero_damaged.disconnect(_on_hero_damaged)
+	Events.hero_eliminated.disconnect(_on_hero_eliminated)
+	for peer_id: int in _stats.peers():
+		_record(peer_id, _stats.peer_left(peer_id))
+	_stats = null
+
+
+func _on_match_started(_mode: StringName) -> void:
+	_stats.match_started()
+
+
+func _on_match_ended(winning_team: int) -> void:
+	var deltas: Dictionary[int, Dictionary] = _stats.match_ended(winning_team, _hero_file)
+	for peer_id: int in deltas:
+		_record(peer_id, deltas[peer_id])
+
+
+func _on_team_assigned(peer_id: int, team: int) -> void:
+	_stats.team_assigned(peer_id, team)
+
+
+func _on_hero_damaged(victim: int, attacker: int, amount: int, _position: Vector2) -> void:
+	_stats.hero_damaged(victim, attacker, amount)
+
+
+func _on_hero_eliminated(victim: int, attacker: int) -> void:
+	_stats.hero_eliminated(victim, attacker)
+
+
+## The file name of the hero a peer plays in the world that is loaded, or "".
+func _hero_file(peer_id: int) -> String:
+	var world := get_tree().current_scene
+	if world == null or not world.has_method(&"hero_file"):
+		return ""
+	var file: Variant = world.call(&"hero_file", peer_id)
+	return file if file is String else ""
+
+
+## Adds a delta from MatchStats to that peer's save. One "[Record]" line per save;
+## nothing for an empty delta or a guest. Never a name, token or address.
+func _record(peer_id: int, delta: Dictionary) -> void:
+	if _players == null or delta.is_empty():
+		return
+	var line := _players.add_stats(peer_id, delta)
+	if line != "":
+		print("[Record] ", line)
+
+
 # --- plumbing ----------------------------------------------------------------
 
 ## Stops ENet's RTT-based throttle from dropping our unreliable moves on the
@@ -533,6 +610,7 @@ func _fail_join(reason: String) -> void:
 
 
 func _close_peer() -> void:
+	_stop_stats()
 	if _players != null:
 		# The server is closing: save when each player was last seen, then forget them.
 		for line: String in _players.leave_all(_now_unix()):
