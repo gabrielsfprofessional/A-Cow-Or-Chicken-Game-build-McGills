@@ -23,6 +23,9 @@ func _initialize() -> void:
 	_rules_enemies_and_spawn_sides()
 	_rules_shooter_that_left()
 	_match_score_limit()
+	_match_limit_never_drops()
+	_match_fixed_limit()
+	_flag_values()
 	_match_clock_and_winner()
 	_match_draw()
 	_match_next_starts_after_the_pause()
@@ -155,24 +158,67 @@ func _rules_shooter_that_left() -> void:
 	_expect(book.sizes() == PackedInt32Array([1, 1]), "and asking about it counts no ghost", str(book.sizes()))
 
 
-func _match(length: float = 1200.0) -> ArenaMatch:
+func _match(length: float = 1200.0, players: int = 2) -> ArenaMatch:
 	var game := ArenaMatch.new(length, 8, 10.0)
+	game.set_players(players)
 	game.start()
 	return game
 
 
 func _match_score_limit() -> void:
 	var game := _match()
-	_expect(game.score_limit(2) == 16 and game.score_limit(0) == 1, "the limit is 8 per player, at least 1", str(game.score_limit(2)))
+	_expect(game.score_limit() == 16 and _match(1200.0, 0).score_limit() == 1, "the limit is 8 per player, at least 1", str(game.score_limit()))
 	for i: int in 15:
 		game.add_point(1)
-	_expect(not game.check_limit(2), "15 of 16 does not end it", str(game.scores))
+	_expect(not game.check_limit(), "15 of 16 does not end it", str(game.scores))
 	game.add_point(1)
-	_expect(game.check_limit(2) and game.winner == 1, "16 of 16 ends it: Orange wins", str(game.winner))
-	var shrink := _match()
+	_expect(game.check_limit() and game.winner == 1, "16 of 16 ends it: Orange wins", str(game.winner))
+
+
+## Gabe's N14: the limit is score_per_player x the most players seen this match.
+func _match_limit_never_drops() -> void:
+	var game := _match(1200.0, 3)
 	for i: int in 9:
-		shrink.add_point(0)
-	_expect(shrink.check_limit(1) and shrink.winner == 0, "a lower limit after a leave can end it at once", str(shrink.scores))
+		game.add_point(0)
+	game.set_players(1)
+	_expect(game.score_limit() == 24 and not game.check_limit() and game.phase == ArenaMatch.Phase.PLAYING,
+		"a leave keeps the limit (3 players, then 1: still 24), so it can't end the match", "%d, %s" % [game.score_limit(), game.scores])
+	game.set_players(4)
+	_expect(game.score_limit() == 32, "a join raises it (4 players: 32)", str(game.score_limit()))
+	game.set_players(2)
+	game.tick(1200.0)
+	game.tick(10.0)
+	_expect(game.phase == ArenaMatch.Phase.PLAYING and game.score_limit() == 16,
+		"a new match counts from the players present (2: 16)", str(game.score_limit()))
+	game.stop()
+	game.set_players(1)
+	game.start()
+	_expect(game.score_limit() == 8, "after everyone left, the next match counts afresh (1: 8)", str(game.score_limit()))
+
+
+## --score-limit=<n>: a fixed limit, whatever the players.
+func _match_fixed_limit() -> void:
+	var game := ArenaMatch.new(1200.0, 8, 10.0, 3)
+	game.set_players(6)
+	game.start()
+	_expect(game.score_limit() == 3, "a fixed limit ignores the players", str(game.score_limit()))
+	for i: int in 3:
+		game.add_point(1)
+	_expect(game.check_limit() and game.winner == 1, "3 of 3 ends it", str(game.scores))
+
+
+## The debug flags' values: a positive whole number, or ignored.
+func _flag_values() -> void:
+	var cases: Dictionary[String, int] = {
+		"": 0, "3": 3, "60": 60, "007": 7, "0": -1, "-3": -1, "+3": -1, "3.5": -1, "1e3": -1,
+		"abc": -1, "3x": -1, " 3": -1, "1234567890": -1, "999999999": 999999999,
+	}
+	var wrong: PackedStringArray = []
+	for text: String in cases:
+		if ArenaMatch.flag_value(text) != cases[text]:
+			wrong.append("\"%s\" gave %d, not %d" % [text, ArenaMatch.flag_value(text), cases[text]])
+	_expect(wrong.is_empty(), "flag values: positive whole numbers only; empty means not passed (%d cases)" % cases.size(),
+		"; ".join(wrong))
 
 
 func _match_clock_and_winner() -> void:

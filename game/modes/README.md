@@ -22,7 +22,7 @@ Mode rules: teams, score limit, timer, zone, loot tables. Cards: T12, T15, A02, 
 | Number | Default | Meaning |
 | --- | --- | --- |
 | `spawn_protection_sec` | 2 s | After each respawn: no damage, no knockback. |
-| `score_per_player` | 8 | The score limit is this x the players on teams (2 players: 16). |
+| `score_per_player` | 8 | The score limit is this x the most players on teams this match (2 players: 16). |
 | `match_length_sec` | 1200 s | The 20-minute cap. |
 | `next_match_delay_sec` | 10 s | From a match's end to the next match. |
 
@@ -46,8 +46,9 @@ Server decides; every peer hears.
   It never counts in team sizes and never gets a team again. The next match forgets
   its team (`respawn_all()` clears the shots).
 - **Score:** an elimination of an enemy gives the eliminator's team 1 point. The
-  limit is `score_per_player` x the players on teams, recounted on join and leave,
-  so a leave can end the match at once.
+  limit is `score_per_player` x the most players on teams seen this match: a join
+  raises it, a leave never lowers it (so a leave never ends a match), and a new
+  match counts from the players present.
 - **End:** a team reaches the limit, or the clock reaches 0 (higher score wins;
   equal is a draw, -1). The clock starts when the first player is in.
 - **Next match:** `next_match_delay_sec` later: scores 0, a full clock, teams stay,
@@ -70,8 +71,23 @@ The mode's RPCs (`receive_started`, `receive_team`, `receive_score`, `receive_cl
 `receive_ended`) go server to clients only, reliable, channel 0. NET_PROTOCOL 10.
 There is no signal for the score limit, so the HUD can't show "first to <n>" yet.
 
+### Debug flags (server, debug builds only)
+
+For short test matches, with no `.tres` edit. Pass them after `--` on the server's
+command line. Read with `Net.debug_flag()` at run time; release builds ignore them.
+
+| Flag | Effect |
+| --- | --- |
+| `--score-limit=<n>` | The score limit is `n`, whatever the players. |
+| `--match-sec=<n>` | The clock starts at `n` seconds instead of `match_length_sec`. |
+
+A value that isn't a positive whole number (digits only, at most 9) is ignored,
+with one line: `[Mode] --score-limit=abc ignored: not a positive whole number`.
+
 ### Log lines (server)
 
+    [Mode] debug: score limit fixed at <n>        (only with --score-limit=<n>)
+    [Mode] debug: match clock <n> s               (only with --match-sec=<n>)
     [Mode] Player <id> plays for Blue (Blue <n>, Orange <m>)
     [Mode] match started: first to <limit>, or 20:00 on the clock
     [Mode] Orange scores (Blue <a>, Orange <b>; first to <limit>)

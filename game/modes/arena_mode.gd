@@ -9,10 +9,18 @@ extends Node
 ## match_started) on itself, then sends each to every ready peer, whose copy
 ## emits it there. A late joiner gets the whole state once ready. Tunable numbers:
 ## data/arena_rules.tres.
-## It reaches the Events autoload at run time (EVENTS_PATH), never by name: the
-## arena map names this class, and --script tests load the map before autoloads exist.
+## It reaches the Events and Net autoloads at run time (EVENTS_PATH, NET_PATH), never
+## by name: the arena map names this class, and --script tests load the map before
+## autoloads exist.
+##
+## Debug builds only, for short test matches (server): --score-limit=<n> fixes the
+## score limit, --match-sec=<n> sets the clock. A value that isn't a positive whole
+## number is ignored, with one [Mode] line.
 
 const EVENTS_PATH: NodePath = ^"/root/Events"
+const NET_PATH: NodePath = ^"/root/Net"
+const SCORE_LIMIT_FLAG: String = "--score-limit="
+const MATCH_SEC_FLAG: String = "--match-sec="
 const DATA: ArenaRulesData = preload("res://game/modes/data/arena_rules.tres")
 const TEAM_NAMES: Array[String] = ["Blue", "Orange"]
 const MODE_NAME: StringName = &"arena"
@@ -38,6 +46,7 @@ func _ready() -> void:
 		return
 	if not multiplayer.is_server():
 		return
+	_match = _make_match()
 	book.score_of = func(team: int) -> int: return _match.scores[team]
 	book.team_changed.connect(_on_team_changed)
 	_events.connect(&"peer_became_ready", _on_peer_ready)
@@ -58,8 +67,36 @@ func _process(delta: float) -> void:
 
 # --- Server ---------------------------------------------------------------
 
+## The match, with the debug flags' limit and clock when they were passed.
+func _make_match() -> ArenaMatch:
+	var limit: int = _debug_number(SCORE_LIMIT_FLAG)
+	var seconds: int = _debug_number(MATCH_SEC_FLAG)
+	if limit > 0:
+		print("[Mode] debug: score limit fixed at %d" % limit)
+	if seconds > 0:
+		print("[Mode] debug: match clock %d s" % seconds)
+	var length: float = float(seconds) if seconds > 0 else DATA.match_length_sec
+	return ArenaMatch.new(length, DATA.score_per_player, DATA.next_match_delay_sec, limit)
+
+
+## A debug flag's positive whole number, or 0 when it's not passed, not a debug
+## build, or not a positive whole number (that one says so).
+func _debug_number(flag: String) -> int:
+	var net: Node = get_node_or_null(NET_PATH)
+	if net == null or not net.has_method(&"debug_flag"):
+		return 0
+	var text: Variant = net.call(&"debug_flag", OS.is_debug_build(), OS.get_cmdline_user_args(), flag)
+	if not text is String:
+		return 0
+	var value: int = ArenaMatch.flag_value(text as String)
+	if value < 0:
+		print("[Mode] %s%s ignored: not a positive whole number" % [flag, text])
+	return maxi(0, value)
+
+
 func _on_peer_ready(peer_id: int) -> void:
 	book.team_of(peer_id)  # Usually given already, when the server picked its spawn point.
+	_match.set_players(book.player_count())
 	if _match.phase == ArenaMatch.Phase.WAITING:
 		_begin(false)
 	_replay_to(peer_id)
@@ -68,16 +105,17 @@ func _on_peer_ready(peer_id: int) -> void:
 func _on_peer_left(peer_id: int) -> void:
 	for moved: int in book.peer_left(peer_id):
 		_respawn(moved)
+	# The limit never drops during a match, so a leave can't end it.
+	_match.set_players(book.player_count())
 	if book.player_count() == 0:
 		if _match.phase != ArenaMatch.Phase.WAITING:
 			print("[Mode] everyone left, waiting for players")
 		_match.stop()
 		_last_clock = -1
-	elif _match.check_limit(book.player_count()):
-		_announce_end()
 
 
 func _on_team_changed(peer_id: int, team: int) -> void:
+	_match.set_players(book.player_count())
 	var counts := book.sizes()
 	print("[Mode] Player %d plays for %s (Blue %d, Orange %d)" % [peer_id, TEAM_NAMES[team], counts[0], counts[1]])
 	_events.emit_signal(&"team_assigned", peer_id, team)
@@ -93,10 +131,10 @@ func _on_hero_eliminated(victim: int, attacker: int) -> void:
 	if not _match.add_point(team):
 		return
 	print("[Mode] %s scores (Blue %d, Orange %d; first to %d)" % [TEAM_NAMES[team],
-		_match.scores[0], _match.scores[1], _match.score_limit(book.player_count())])
+		_match.scores[0], _match.scores[1], _match.score_limit()])
 	_events.emit_signal(&"team_score_changed", team, _match.scores[team])
 	_send(&"receive_score", [team, _match.scores[team]])
-	if _match.check_limit(book.player_count()):
+	if _match.check_limit():
 		_announce_end()
 
 
@@ -108,7 +146,7 @@ func _begin(next: bool) -> void:
 	else:
 		_match.start()
 	print("[Mode] match started: first to %d, or %d:%02d on the clock" % [
-		_match.score_limit(book.player_count()), floori(_match.clock() / 60.0), _match.clock() % 60])
+		_match.score_limit(), floori(_match.clock() / 60.0), _match.clock() % 60])
 	_events.emit_signal(&"match_started", MODE_NAME)
 	_send(&"receive_started", [])
 	for team: int in 2:
