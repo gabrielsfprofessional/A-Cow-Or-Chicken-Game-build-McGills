@@ -524,6 +524,7 @@ func player_name(id: int) -> String:
 # host() connects these before the world loads, so they run before a mode's own
 # handlers: the elimination that ends a match is counted before match_ended arrives.
 
+## The server starts counting: a new MatchStats, listening to the match signals on Events.
 func _start_stats() -> void:
 	_stats = MatchStats.new()
 	Events.match_started.connect(_on_match_started)

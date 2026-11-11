@@ -104,7 +104,8 @@ per hero). The server records them; a client never sends a stat.
   their team won (nobody on a draw, -1), their eliminations and damage, and +1 for the
   hero they play then, by its file name in game/heroes/data (`scout`; display names can change).
 - A player who leaves mid-match keeps their eliminations and damage, with no match, win
-  or hero. The same when the server closes mid-match.
+  or hero. The same when the server shuts down mid-match the normal way (`Net.leave()`); a
+  server that is killed saves nothing for that match.
 - A match nobody finishes (everyone left) gives nobody a match. Hits before the first match
   and between matches count nothing.
 - Guests and bots get nothing: they have no save.

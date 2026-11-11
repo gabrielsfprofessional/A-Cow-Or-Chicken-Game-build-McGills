@@ -106,6 +106,7 @@ func peers() -> Array[int]:
 	return known
 
 
+## One answer for one peer: what to add to its save.
 static func _delta(matches: int, wins: int, eliminations: int, damage: int, hero: String) -> Dictionary:
 	var heroes: Dictionary = {}
 	if hero != "":
