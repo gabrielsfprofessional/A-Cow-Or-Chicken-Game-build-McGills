@@ -123,7 +123,7 @@ func add_stats(peer_id: int, delta: Dictionary) -> String:
 		return "Player %s: not recorded (heroes is not a list of heroes)" % _short(id)
 	for hero: Variant in (heroes as Dictionary):
 		var times: Variant = (heroes as Dictionary)[hero]
-		if not hero is String or not _is_hero_file(hero) or not times is int or (times as int) < 0:
+		if not hero is String or not is_hero_file(hero) or not times is int or (times as int) < 0:
 			return "Player %s: not recorded (a hero's name or count is wrong)" % _short(id)
 		stats["heroes"][hero] = int(stats["heroes"].get(hero, 0)) + (times as int)
 		parts.append("%s +%d" % [hero, times])
@@ -142,8 +142,8 @@ func player_count() -> int:
 
 
 ## True for a hero's file name as a log line can repeat it: small letters, digits and _.
-## ProfileStore.problem_in() holds its length.
-static func _is_hero_file(text: String) -> bool:
+## ProfileStore.problem_in() holds its length. tests/data_test.gd holds the roster to both.
+static func is_hero_file(text: String) -> bool:
 	const ALLOWED: String = "abcdefghijklmnopqrstuvwxyz0123456789_"
 	if text == "":
 		return false

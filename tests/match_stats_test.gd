@@ -165,6 +165,7 @@ func _teams() -> void:
 	stats.team_assigned(C, 2)
 	stats.team_assigned(C, -1)
 	stats.hero_damaged(A, C, 25)  # C is on no team.
+	_expect_true("peers() names a peer with a count and no team", stats.peers().has(C) and stats.peers().size() == 3)
 	var deltas: Dictionary[int, Dictionary] = stats.match_ended(ORANGE, _hero_of)
 	_expect_true("a late joiner on a team gets the match", deltas.has(B) and deltas[B]["matches"] == 1 and deltas[B]["wins"] == 1)
 	_expect_true("a peer moved to the other team wins or loses with its last team", deltas.has(A) and deltas[A]["wins"] == 1)
@@ -178,6 +179,10 @@ func _a_peer_with_no_hero() -> void:
 	stats.match_started()
 	var deltas: Dictionary[int, Dictionary] = stats.match_ended(BLUE, _hero_of)
 	_expect_equal("a peer with no hero gets the match and no hero count", deltas.get(99),
+		{"matches": 1, "wins": 1, "eliminations": 0, "damage": 0, "heroes": {}})
+	stats.match_started()
+	deltas = stats.match_ended(BLUE, func(_peer_id: int) -> int: return 7)
+	_expect_equal("a hero that isn't text is no hero", deltas.get(99),
 		{"matches": 1, "wins": 1, "eliminations": 0, "damage": 0, "heroes": {}})
 
 

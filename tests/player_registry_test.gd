@@ -165,6 +165,9 @@ func _add_stats_refused() -> void:
 	registry.join(30, _player("Adam", "#46A758", TOKEN_B), NOW + 400)
 	# Counts above 0 first, so a count below 0 would still leave a save that loads.
 	registry.add_stats(30, _delta(1, 0, 2, 50, {"scout": 1}))
+	var short_line: String = registry.add_stats(30, {"eliminations": 1})
+	_expect_true("a count left out of a delta adds 0 (%s)" % short_line,
+		short_line == "Player %s: matches +0, wins +0, eliminations +1, damage +0" % id.substr(0, 8))
 	var text: String = _text(path)
 	var bad: Dictionary[String, Dictionary] = {
 		"a count below 0": _delta(1, 0, -1, 0, {}),
@@ -176,6 +179,9 @@ func _add_stats_refused() -> void:
 		"an empty hero name": _delta(1, 0, 0, 0, {"": 1}),
 		"a hero name of 33 characters": _delta(1, 0, 0, 0, {"a".repeat(33): 1}),
 		"a hero count below 0": _delta(1, 0, 0, 0, {"scout": -1}),
+		"a hero count that is text": _delta(1, 0, 0, 0, {"scout": "1"}),
+		"a hero count that isn't whole": _delta(1, 0, 0, 0, {"scout": 1.5}),
+		"a hero name that isn't text": _delta(1, 0, 0, 0, {7: 1}),
 		"a count past what a save can hold": _delta(0, 0, 0, ProfileStore.WHOLE_MAX + 1, {}),
 	}
 	for what: String in bad:
