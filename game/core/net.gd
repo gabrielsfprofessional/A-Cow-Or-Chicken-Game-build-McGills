@@ -571,7 +571,7 @@ func _on_hero_eliminated(victim: int, attacker: int) -> void:
 
 ## The file name of the hero a peer plays in the world that is loaded, or "".
 func _hero_file(peer_id: int) -> String:
-	var world := get_tree().current_scene
+	var world: Node = get_tree().current_scene
 	if world == null or not world.has_method(&"hero_file"):
 		return ""
 	var file: Variant = world.call(&"hero_file", peer_id)
@@ -583,7 +583,7 @@ func _hero_file(peer_id: int) -> String:
 func _record(peer_id: int, delta: Dictionary) -> void:
 	if _players == null or delta.is_empty():
 		return
-	var line := _players.add_stats(peer_id, delta)
+	var line: String = _players.add_stats(peer_id, delta)
 	if line != "":
 		print("[Record] ", line)
 

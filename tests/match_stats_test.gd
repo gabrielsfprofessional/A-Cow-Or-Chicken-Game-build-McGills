@@ -34,7 +34,7 @@ func _initialize() -> void:
 
 ## Blue wins: every peer on a team gets a match, its counts and its hero; only Blue a win.
 func _a_win() -> void:
-	var stats := _three_players()
+	var stats: MatchStats = _three_players()
 	_expect_true("no match is being played before match_started", not stats.is_playing())
 	stats.match_started()
 	_expect_true("a match is being played after match_started", stats.is_playing())
@@ -43,7 +43,7 @@ func _a_win() -> void:
 	stats.hero_eliminated(C, A)
 	stats.hero_damaged(A, C, 20)
 	stats.hero_eliminated(C, B)
-	var deltas := stats.match_ended(BLUE, _hero_of)
+	var deltas: Dictionary[int, Dictionary] = stats.match_ended(BLUE, _hero_of)
 	_expect_true("a match is over after match_ended", not stats.is_playing())
 	_expect_true("three peers on teams: three answers", deltas.size() == 3)
 	_expect_equal("the winner who hit twice and eliminated once", deltas.get(A),
@@ -63,10 +63,10 @@ func _a_win() -> void:
 
 
 func _a_draw() -> void:
-	var stats := _three_players()
+	var stats: MatchStats = _three_players()
 	stats.match_started()
 	stats.hero_eliminated(C, A)
-	var deltas := stats.match_ended(DRAW, _hero_of)
+	var deltas: Dictionary[int, Dictionary] = stats.match_ended(DRAW, _hero_of)
 	var wins: int = 0
 	for peer_id: int in deltas:
 		wins += int(deltas[peer_id]["wins"])
@@ -76,11 +76,11 @@ func _a_draw() -> void:
 
 ## Before the first match, and between match_ended and the next match_started.
 func _outside_a_match() -> void:
-	var stats := _three_players()
+	var stats: MatchStats = _three_players()
 	stats.hero_damaged(C, A, 50)
 	stats.hero_eliminated(C, A)
 	stats.match_started()
-	var deltas := stats.match_ended(BLUE, _hero_of)
+	var deltas: Dictionary[int, Dictionary] = stats.match_ended(BLUE, _hero_of)
 	_expect_true("a hit and an elimination before match_started count nothing",
 		deltas[A]["damage"] == 0 and deltas[A]["eliminations"] == 0)
 	stats.hero_damaged(C, A, 50)
@@ -92,7 +92,7 @@ func _outside_a_match() -> void:
 
 
 func _hits_that_never_count() -> void:
-	var stats := _three_players()
+	var stats: MatchStats = _three_players()
 	stats.match_started()
 	stats.hero_damaged(C, A, 0)
 	stats.hero_damaged(C, A, -5)
@@ -103,7 +103,7 @@ func _hits_that_never_count() -> void:
 	stats.hero_eliminated(A, -1)
 	_expect_true("an elimination or a hit by no peer (0, -1) is kept for no one",
 		not stats.peers().has(0) and not stats.peers().has(-1) and stats.peer_left(0).is_empty() and stats.peer_left(-1).is_empty())
-	var deltas := stats.match_ended(BLUE, _hero_of)
+	var deltas: Dictionary[int, Dictionary] = stats.match_ended(BLUE, _hero_of)
 	_expect_true("a 0-damage hit (spawn protection) and a negative one count nothing", deltas[A]["damage"] == 0)
 	_expect_true("hitting or eliminating yourself counts nothing", deltas[A]["eliminations"] == 0)
 	_expect_true("and makes no answer at the end", deltas.size() == 3)
@@ -115,7 +115,7 @@ func _hits_that_never_count() -> void:
 
 ## A peer that leaves mid-match keeps its eliminations and damage, with no match.
 func _a_leaver() -> void:
-	var stats := _three_players()
+	var stats: MatchStats = _three_players()
 	stats.match_started()
 	stats.hero_damaged(C, A, 60)
 	stats.hero_eliminated(C, A)
@@ -124,7 +124,7 @@ func _a_leaver() -> void:
 	_expect_equal("leaving twice answers nothing the second time", stats.peer_left(A), {})
 	_expect_equal("a peer that counted nothing leaves with nothing", stats.peer_left(B), {})
 	stats.hero_eliminated(C, A)  # A shot of A's still in flight.
-	var deltas := stats.match_ended(BLUE, _hero_of)
+	var deltas: Dictionary[int, Dictionary] = stats.match_ended(BLUE, _hero_of)
 	_expect_true("the match ends without the leavers", deltas.size() == 1 and deltas.has(C))
 	stats.hero_damaged(A, C, 30)
 	stats.hero_eliminated(A, C)
@@ -134,14 +134,14 @@ func _a_leaver() -> void:
 
 ## Everyone leaves, so the mode never says match_ended: the next match starts clean.
 func _nobody_finishes() -> void:
-	var stats := _three_players()
+	var stats: MatchStats = _three_players()
 	stats.match_started()
 	stats.hero_damaged(C, A, 60)
 	for peer_id: int in [A, B, C]:
 		stats.peer_left(peer_id)
 	stats.team_assigned(A, BLUE)
 	stats.match_started()
-	var deltas := stats.match_ended(BLUE, _hero_of)
+	var deltas: Dictionary[int, Dictionary] = stats.match_ended(BLUE, _hero_of)
 	_expect_equal("the unfinished match adds nothing to the next one", deltas.get(A),
 		{"matches": 1, "wins": 1, "eliminations": 0, "damage": 0, "heroes": {"scout": 1}})
 	_expect_true("and only the peer that came back gets a match", deltas.size() == 1)
@@ -165,7 +165,7 @@ func _teams() -> void:
 	stats.team_assigned(C, 2)
 	stats.team_assigned(C, -1)
 	stats.hero_damaged(A, C, 25)  # C is on no team.
-	var deltas := stats.match_ended(ORANGE, _hero_of)
+	var deltas: Dictionary[int, Dictionary] = stats.match_ended(ORANGE, _hero_of)
 	_expect_true("a late joiner on a team gets the match", deltas.has(B) and deltas[B]["matches"] == 1 and deltas[B]["wins"] == 1)
 	_expect_true("a peer moved to the other team wins or loses with its last team", deltas.has(A) and deltas[A]["wins"] == 1)
 	_expect_true("a team that isn't 0 or 1 is no team: no match for that peer", not deltas.has(C))
@@ -176,13 +176,13 @@ func _a_peer_with_no_hero() -> void:
 	var stats := MatchStats.new()
 	stats.team_assigned(99, BLUE)
 	stats.match_started()
-	var deltas := stats.match_ended(BLUE, _hero_of)
+	var deltas: Dictionary[int, Dictionary] = stats.match_ended(BLUE, _hero_of)
 	_expect_equal("a peer with no hero gets the match and no hero count", deltas.get(99),
 		{"matches": 1, "wins": 1, "eliminations": 0, "damage": 0, "heroes": {}})
 
 
 func _ended_twice() -> void:
-	var stats := _three_players()
+	var stats: MatchStats = _three_players()
 	_expect_true("match_ended with no match being played answers nothing", stats.match_ended(BLUE, _hero_of).is_empty())
 	stats.match_started()
 	stats.match_ended(BLUE, _hero_of)
