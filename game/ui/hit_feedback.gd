@@ -17,6 +17,9 @@ const SFX_BUS: StringName = &"SFX"
 const SHOTS_FLAG: String = "--hit-shots="
 const SHOT_DELAY_MSEC: int = 150
 const MAX_SHOTS_PER_KIND: int = 3
+## A number ages at most this much in one frame. A hit arrives at the start of a frame,
+## so without this one long frame (a hitch) would age it out before it was ever drawn.
+const MAX_NUMBER_STEP_SEC: float = 0.1
 
 ## Set by Overlay; while false every hit is ignored.
 var active: bool = false
@@ -91,6 +94,9 @@ var _shots_dir: String = ""
 var _shot_kind: String = ""
 var _shot_victim: int = 0
 var _shot_at_msec: int = 0
+## The longest frame while the picture waited: a puff can be over before a long frame ends.
+var _shot_longest_frame_sec: float = 0.0
+var _shot_waits_for_draw: bool = false
 var _shots_taken: Dictionary[String, int] = {}
 
 
@@ -124,7 +130,7 @@ func _process(delta: float) -> void:
 		var label: Label = _numbers[i]
 		if not label.visible:
 			continue
-		_number_age[i] += delta
+		_number_age[i] += minf(delta, MAX_NUMBER_STEP_SEC)
 		var t: float = _number_age[i] / number_life_sec
 		if t >= 1.0:
 			label.visible = false
@@ -134,8 +140,12 @@ func _process(delta: float) -> void:
 		_flash_left = maxf(0.0, _flash_left - delta)
 		_flash.modulate.a = flash_max_opacity * (_flash_left / flash_sec)
 		_flash.visible = _flash_left > 0.0
-	if _shot_kind != "" and Time.get_ticks_msec() >= _shot_at_msec:
-		_save_shot()
+	if _shot_kind != "":
+		_shot_longest_frame_sec = maxf(_shot_longest_frame_sec, delta)
+		if Time.get_ticks_msec() >= _shot_at_msec and not _shot_waits_for_draw:
+			# The window's picture is only up to date right after a frame was drawn.
+			_shot_waits_for_draw = true
+			RenderingServer.frame_post_draw.connect(_save_shot, CONNECT_ONE_SHOT)
 
 
 func _on_ui_scale_changed(_scale: float) -> void:
@@ -149,7 +159,12 @@ func _scaled_font_size() -> int:
 
 
 func _on_hero_damaged(victim_peer_id: int, _attacker_peer_id: int, amount: int, hit_position: Vector2) -> void:
-	if not active or amount <= 0:
+	if not active:
+		return
+	if amount <= 0:
+		# Absorbed by spawn protection: nothing shows or plays. With --hit-shots on, a
+		# picture proves it.
+		_queue_shot("absorbed", victim_peer_id, hit_position)
 		return
 	_show_number(amount, hit_position)
 	if victim_peer_id == _me():
@@ -257,30 +272,42 @@ func _pick_voice(now: int, must_play: bool) -> int:
 
 
 ## With --hit-shots on, asks for one picture of the window once the puff at this world
-## point has spread. Off-screen puffs are skipped; an elimination wins over a waiting hit.
+## point has spread. Off-screen puffs are skipped. Kinds: "hit", "eliminated" and
+## "absorbed" (a hit of 0, which must show nothing); either of the last two wins over a
+## waiting hit.
 func _queue_shot(kind: String, victim_peer_id: int, world_position: Vector2) -> void:
 	if _shots_dir == "" or _shots_taken.get(kind, 0) >= MAX_SHOTS_PER_KIND:
 		return
-	if _shot_kind != "" and kind != "eliminated":
+	if _shot_kind != "" and (kind == "hit" or _shot_kind != "hit" or _shot_waits_for_draw):
 		return
 	if not get_viewport_rect().has_point(get_viewport().get_canvas_transform() * world_position):
 		return
 	_shot_kind = kind
 	_shot_victim = victim_peer_id
 	_shot_at_msec = Time.get_ticks_msec() + SHOT_DELAY_MSEC
+	_shot_longest_frame_sec = 0.0
 
 
 ## Saves the waiting picture as <kind>_<n>_peer<id>.png in the --hit-shots folder.
 func _save_shot() -> void:
 	var kind: String = _shot_kind
 	_shot_kind = ""
+	_shot_waits_for_draw = false
 	var count: int = _shots_taken.get(kind, 0) + 1
 	_shots_taken[kind] = count
 	var path: String = _shots_dir.path_join("%s_%d_peer%d.png" % [kind, count, _me()])
 	var image: Image = get_viewport().get_texture().get_image()
 	var error: Error = ERR_UNAVAILABLE if image == null else image.save_png(path)
 	if error == OK:
-		print("[UI] hit shot saved: %s (Player %d %s, seen by Player %d)" % [path.get_file(), _shot_victim, kind, _me()])
+		var numbers: int = 0
+		for label: Label in _numbers:
+			if label.visible:
+				numbers += 1
+		var puffs: int = 0
+		for puff: CPUParticles2D in _puffs:
+			if puff.emitting:
+				puffs += 1
+		print("[UI] hit shot saved: %s (Player %d %s, seen by Player %d, %d number(s) and %d puff(s) going, longest frame %.2f s)" % [path.get_file(), _shot_victim, kind, _me(), numbers, puffs, _shot_longest_frame_sec])
 	else:
 		push_warning("[UI] hit shot not saved (%s): %s" % [error_string(error), path.get_file()])
 

@@ -89,6 +89,10 @@ func _initialize() -> void:
 
 	# The elimination that follows the killing hit: a bigger puff at the hero, and the
 	# elimination sound takes the killing hit's voice so the two never blur into one.
+	# The hit counts as "just now" however slowly this test runs on a busy PC.
+	for i: int in feedback._voice_started_msec.size():
+		if feedback._voice_ends_msec[i] > Time.get_ticks_msec():
+			feedback._voice_started_msec[i] = Time.get_ticks_msec()
 	events.hero_eliminated.emit(OTHER, ME)
 	going = _puffs_going(feedback)
 	_check(going.size() == 2 and going[1].position.is_equal_approx(other_hero.global_position),
@@ -132,6 +136,15 @@ func _initialize() -> void:
 	var far: Vector2 = middle + Vector2(feedback.get_viewport_rect().size.x * feedback.silent_beyond_screens + 10.0, 0.0)
 	events.hero_damaged.emit(OTHER, ME, 20, far)
 	_check(_asked(feedback).is_empty(), "a hit beyond the silent distance asks for no sound")
+
+	# One long frame (a hitch) right after a hit must not hide its number before it is drawn.
+	_reset(feedback)
+	events.hero_damaged.emit(OTHER, ME, 20, other_hero.global_position)
+	feedback._process(1.0)
+	_check(_numbers_shown(feedback) == 1, "a number is still shown after one 1 s frame")
+	for i: int in ceili(feedback.number_life_sec / feedback.MAX_NUMBER_STEP_SEC):
+		feedback._process(feedback.MAX_NUMBER_STEP_SEC)
+	_check(_numbers_shown(feedback) == 0, "a number is gone once its life has passed")
 
 	settings.ui_scale = 1.0
 	current_scene = null

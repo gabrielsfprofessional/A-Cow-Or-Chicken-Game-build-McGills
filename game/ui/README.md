@@ -68,8 +68,13 @@ The HUD (`hud.tscn`, built by the `Overlay` autoload) also shows the match, from
 - The puff's look is the `puff_*` `@export` values (count, size, life, speed, fade).
 - Sounds fade with distance from the middle of your screen (`silent_beyond_screens`). A
   headless run picks voices the same way but never starts a sound.
+- A number ages at most `MAX_NUMBER_STEP_SEC` (0.1 s) in one frame, so one long frame
+  right after a hit cannot hide it before it was drawn.
 - Debug builds only: `-- --hit-shots=<folder>` saves a picture of the window 150 ms after
-  a puff starts on screen (`hit_<n>_peer<id>.png`, `eliminated_<n>_peer<id>.png`, at most
-  3 of each), and logs `[UI] hit shot saved: <file>`. It is for scripted checks.
+  a puff starts on screen (`hit_<n>_peer<id>.png`, `eliminated_<n>_peer<id>.png`), and
+  after a hit of 0 (`absorbed_<n>_peer<id>.png`, which must show nothing at the hit), at
+  most 3 of each. The picture is taken right after the next drawn frame, so it is never a
+  stale one. It logs `[UI] hit shot saved: <file>` with how many numbers and puffs were
+  going and the longest frame while the picture waited. It is for scripted checks.
 - Test: `game/ui/tools/test_hit_feedback.gd` (smoke runs it; by hand, point `APPDATA` at a
   temp folder). Preview without a server: `hit_feedback_preview.tscn`, keys on screen.
