@@ -15,13 +15,37 @@ const TEAM_B_COLOR: Color = Color("#F97316")
 const HEROES_NODE: NodePath = ^"Heroes"
 
 
-## Server: the arena's spawn rules (card T12). The world calls this when it builds the map
-## (T39), so --map=arena uses them before any mode exists.
+## The arena's match (T15), a child added in online play only.
+const MODE_NODE: String = "Mode"
+
+
+## Online (server and every client), the arena runs its match: ArenaMode as the child
+## "Mode", the same path on every peer. Never in the editor, played alone with F6 or offline.
+func _ready() -> void:
+	super()
+	if Engine.is_editor_hint() or is_played_alone() or not is_online(self):
+		return
+	var mode := ArenaMode.new()
+	mode.name = MODE_NODE
+	add_child(mode)
+
+
+## True when `node`'s game is connected to a server or is one.
+static func is_online(node: Node) -> bool:
+	var peer := node.multiplayer.multiplayer_peer
+	return peer != null and not (peer is OfflineMultiplayerPeer)
+
+
+## Server: the arena's rules. The world calls this when it builds the map (T39). Online,
+## two teams from the match (T15); without a match, T12's spawn rules alone.
 func make_rules() -> ArenaRules:
 	var problem := heroes_problem(self)
 	if problem != "":
 		push_error(problem)
 	var heroes: Node = get_parent().get_node_or_null(HEROES_NODE) if problem == "" else null
+	var mode := get_node_or_null(MODE_NODE) as ArenaMode
+	if mode != null:
+		return ArenaTeamRules.new(MapRules.points_of(self), _living_heroes.bind(heroes), mode.book)
 	return ArenaRules.new(MapRules.points_of(self), _living_heroes.bind(heroes))
 
 
