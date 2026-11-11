@@ -119,6 +119,7 @@ offset_right = 400.0
 offset_bottom = 230.0
 grow_horizontal = 2
 mouse_filter = 2
+theme_type_variation = &"BannerLabel"
 horizontal_alignment = 1
 
 [node name="BackIn" type="Label" parent="."]
