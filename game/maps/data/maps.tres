@@ -5,5 +5,6 @@
 [resource]
 script = ExtResource("1_maps")
 maps = Dictionary[String, String]({
-"arena": "res://game/maps/arena/arena_graybox.tscn"
+"arena": "res://game/maps/arena/arena_graybox.tscn",
+"practice": "res://game/maps/practice/practice_range.tscn"
 })
