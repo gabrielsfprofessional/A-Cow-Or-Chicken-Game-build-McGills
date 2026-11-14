@@ -6,6 +6,22 @@ Menus, HUD, lobby, hero select, results, leaderboard. Cards: T10, T16, T17, T24,
 
 Only the owner's cards change this folder. See CLAUDE.md, "Folders and owners".
 
+## Main menu and the first launch (card T11)
+
+`main_menu.tscn` opens `Your profile` first when there is no readable profile, except on
+`--server`, `--bot` and `--join` launches.
+
+- A debug window started with `-- --profile=<file>` checks and shows that file (the one
+  joining uses, `Net.PROFILE_FLAG`), so a good file opens on the menu with
+  `Playing as <its name>`. A file that is missing or unreadable falls back to the player's
+  own profile. Joining with that flag still reads the missing file, so it joins as a guest,
+  and the name on the menu isn't the one others see (debug builds only). A release build
+  ignores the flag.
+- The Profile button still edits the player's own `user://profile.json`, never the
+  `--profile` file.
+- Test: `game/ui/tools/test_main_menu.gd` (smoke runs it; by hand, point `APPDATA` at a
+  temp folder).
+
 ## Hero select (card T16)
 
 Play on the main menu opens `hero_select.tscn`, then the Join screen, which calls
