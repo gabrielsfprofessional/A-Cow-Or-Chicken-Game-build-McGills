@@ -44,7 +44,7 @@ Each hero's HeroData has two fields for its body art:
 
 With a texture, `NetHero.setup()` adds a `BodySprite` (a Sprite2D) in the Body square's place and hides
 the square. The sprite is centered, never tinted and never turned (the aim isn't sent over the network).
-Calling `setup()` again reuses that one `BodySprite` (or removes it when the new hero has no texture).
+If `setup()` runs twice, the body art is not doubled (one `BodySprite`, or none with no texture). `setup()` as a whole still runs once, before the hero enters the tree.
 The team ring and your own outline still draw; the outline goes around the sprite (`NetHero.body_rect()`).
 The collider (a 20 px circle) never changes, so art can't change who gets hit. No network change.
 

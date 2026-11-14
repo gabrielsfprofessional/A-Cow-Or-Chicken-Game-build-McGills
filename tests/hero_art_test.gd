@@ -183,6 +183,11 @@ func _second_setup() -> void:
 		"%d Sprite2D children" % _sprite_count(hero))
 	_expect(_drawn_size(hero).is_equal_approx(Vector2(48.0, 16.0)), "a second setup() draws the new texture (48 x 16 px)",
 		"drawn at %s" % _drawn_size(hero))
+	_expect(not (hero.get_node(^"Body") as ColorRect).visible, "after a second setup() with a texture, Body stays hidden",
+		"it shows")
+	_expect(hero.get_node(^"BodySprite").get_index() == hero.get_node(^"Body").get_index() + 1,
+		"after a second setup(), the sprite keeps the Body's place in the draw order", "index %d, Body %d" % [
+			hero.get_node(^"BodySprite").get_index(), hero.get_node(^"Body").get_index()])
 	hero.free()
 
 	hero = scene.instantiate() as Node2D
