@@ -28,6 +28,8 @@ extends CharacterBody2D
 ##   spawn data, "" for a guest; shown_name() is what the label above the hero shows.
 ## - T42: a TeamMarks child draws the team ring and the own hero's outline, on
 ##   screens only (never the dedicated server or a headless bot).
+## - T31: HeroData.body_texture, when set, draws a BodySprite in place of the Body
+##   square (see game/heroes/README.md, "Hero art").
 
 ## Sends per second. physics_ticks_per_second must be a multiple of it.
 const SEND_RATE: int = 20
@@ -100,6 +102,7 @@ func setup(peer_id: int, spawn_position: Vector2, hero_color: Color, hero: HeroD
 	position = spawn_position
 	color = hero_color
 	hero_data = hero
+	_add_body_sprite(hero)
 	($Weapon as Weapon).data = hero.default_weapon
 	($Health as Health).max_health = hero.max_health
 	if hero.ability != null:
@@ -147,8 +150,35 @@ func _ready() -> void:
 ## T42: the team ring and, on the owner's window, the outline. Screens only.
 func _add_team_marks() -> void:
 	var marks := TeamMarks.new()
-	marks.setup(owner_peer, is_owned(), ($Body as ColorRect).get_rect(), TeamMarkData.world_team(_world(), owner_peer))
+	marks.setup(owner_peer, is_owned(), body_rect(), TeamMarkData.world_team(_world(), owner_peer))
 	add_child(marks)
+
+
+## T31: with HeroData.body_texture, a BodySprite takes the Body square's place: centered, its
+## longer side at body_size_px, never tinted or turned (the aim isn't on the wire). Body is hidden.
+## Without a texture the Body square stays, tinted by player. The collider never changes.
+func _add_body_sprite(hero: HeroData) -> void:
+	if hero.body_texture == null:
+		return
+	var body := $Body as ColorRect
+	var sprite := Sprite2D.new()
+	sprite.name = "BodySprite"
+	sprite.texture = hero.body_texture
+	sprite.centered = true
+	sprite.scale = Vector2.ONE * HeroData.body_scale(hero.body_texture.get_size(), hero.body_size_px)
+	body.visible = false
+	add_child(sprite)
+	move_child(sprite, body.get_index() + 1)
+
+
+## The hero's drawn body in its own coordinates: the BodySprite's rect when it has art, else
+## the Body square's. T42's outline goes around it.
+func body_rect() -> Rect2:
+	var sprite := get_node_or_null(^"BodySprite") as Sprite2D
+	if sprite != null and sprite.texture != null:
+		var size: Vector2 = sprite.texture.get_size() * sprite.scale
+		return Rect2(-size * 0.5, size)
+	return ($Body as ColorRect).get_rect()
 
 
 ## The owner's input: the keyboard and mouse, or a test bot when the game was
