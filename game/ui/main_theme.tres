@@ -100,6 +100,8 @@ corner_radius_bottom_left = 8
 
 [resource]
 default_font_size = 28
+BannerLabel/base_type = &"Label"
+BannerLabel/font_sizes/font_size = 56
 Button/styles/disabled = SubResource("button_disabled")
 Button/styles/focus = SubResource("button_focus")
 Button/styles/hover = SubResource("button_hover")

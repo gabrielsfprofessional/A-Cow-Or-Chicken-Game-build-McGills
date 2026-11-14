@@ -4,10 +4,10 @@ extends Control
 ##
 ## It only shows what it is told: Overlay (or hud_preview.gd) calls set_health(),
 ## set_ability() and set_respawn(). It decides nothing and never takes a click, so
-## left click still shoots. Sizes and colors are the @export values below.
+## left click still shoots. Text sizes come from main_theme.tres (the default size, and
+## `BannerLabel` for the winner banner); the UI scaler (Settings.ui_scale) grows them.
+## Bar sizes and colors are the @export values below.
 
-## Text size at 1080p; the UI scaler (Settings.ui_scale) grows it.
-@export_range(18, 64, 1, "suffix:px") var font_size: int = 28
 @export var bar_size: Vector2 = Vector2(360.0, 32.0)
 @export var bar_color: Color = Color(0.27, 0.65, 0.35)
 @export var bar_low_color: Color = Color(0.94, 0.35, 0.35)
@@ -23,8 +23,6 @@ extends Control
 @export var blue_color: Color = Color("#3B82F6")
 @export var orange_color: Color = Color("#F97316")
 @export var draw_color: Color = Color(0.95, 0.95, 0.95)
-## Text size of the winner banner at 1080p.
-@export_range(18, 96, 1, "suffix:px") var banner_font_size: int = 56
 
 @onready var _health_bar: ProgressBar = $Corner/Stack/HealthRow/HealthBar
 @onready var _health_text: Label = $Corner/Stack/HealthRow/HealthText
@@ -44,23 +42,26 @@ extends Control
 const NO_WINNER: int = -2
 const DRAW: int = -1
 const TEAM_NAMES: Array[String] = ["Blue", "Orange"]
+## "Not colored yet" for _colored_team and _colored_winner.
+const NOT_COLORED: int = -3
 
 var _fill: StyleBoxFlat = StyleBoxFlat.new()
 ## What Events last said about the match. Kept here, not in the world, so a value
 ## that arrives before the HUD is visible (the late-join replay) still shows.
-var _teams: Dictionary = {}
+## Peer id -> team.
+var _teams: Dictionary[int, int] = {}
 var _scores: Array[int] = [0, 0]
 var _clock_sec: int = -1
 var _winner: int = NO_WINNER
 var _has_match: bool = false
 var _own_peer: int = 0
+## The team and the winner the "You are on ..." line and the banner are colored for now,
+## so a refresh sets a color only when it changes.
+var _colored_team: int = NOT_COLORED
+var _colored_winner: int = NOT_COLORED
 
 
 func _ready() -> void:
-	for label: Label in [_health_text, _q_key, _q_name, _q_state, _back_in,
-			_blue_score, _clock, _orange_score, _my_team]:
-		label.add_theme_font_size_override(&"font_size", font_size)
-	_banner.add_theme_font_size_override(&"font_size", banner_font_size)
 	_blue_score.add_theme_color_override(&"font_color", blue_color)
 	_orange_score.add_theme_color_override(&"font_color", orange_color)
 	_health_bar.custom_minimum_size = bar_size
@@ -151,13 +152,17 @@ func _refresh_match() -> void:
 	_blue_score.text = score_text(0, _scores[0])
 	_orange_score.text = score_text(1, _scores[1])
 	_clock.text = clock_text(_clock_sec)
-	var mine: int = int(_teams.get(_own_peer, -1))
+	var mine: int = _teams.get(_own_peer, -1)
 	_my_team.visible = mine >= 0
 	_my_team.text = my_team_text(mine)
-	_my_team.add_theme_color_override(&"font_color", _team_color(mine))
+	if mine != _colored_team:
+		_colored_team = mine
+		_my_team.add_theme_color_override(&"font_color", _team_color(mine))
 	_banner.visible = _winner != NO_WINNER
 	_banner.text = banner_text(_winner)
-	_banner.add_theme_color_override(&"font_color", draw_color if _winner == DRAW else _team_color(_winner))
+	if _winner != _colored_winner:
+		_colored_winner = _winner
+		_banner.add_theme_color_override(&"font_color", draw_color if _winner == DRAW else _team_color(_winner))
 
 
 ## Health bar and the "72 / 100" text.
@@ -176,7 +181,7 @@ func set_ability(display_name: String, ready_in_sec: float, charges_left: int, c
 	_q_box.visible = display_name != ""
 	_q_name.text = display_name
 	_q_state.text = ability_text(ready_in_sec, charges_left, charges_total)
-	var cooling := ready_in_sec > 0.0 and charges_left <= 0
+	var cooling: bool = ready_in_sec > 0.0 and charges_left <= 0
 	_q_state.add_theme_color_override(&"font_color", cooldown_color if cooling else ready_color)
 	_q_box.modulate.a = dimmed_alpha if cooling else 1.0
 

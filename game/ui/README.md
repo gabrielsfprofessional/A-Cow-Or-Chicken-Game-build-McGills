@@ -45,8 +45,15 @@ The HUD (`hud.tscn`, built by the `Overlay` autoload) also shows the match, from
 - The Hud keeps the last value of each event, and Overlay calls `listen()` when it is
   built (not on a headless run), before this client is ready. The late-join replay is
   therefore never missed, even while the HUD is still hidden.
-- Team colors (`blue_color`, `orange_color`) and the banner size are `@export` values on
-  the Hud. They color the score names, `You are on ...` and the banner only, never a hero.
+- Team colors (`blue_color`, `orange_color`) are `@export` values on the Hud. They color
+  the score names, `You are on ...` and the banner only, never a hero.
+- Text sizes come from `main_theme.tres`: the HUD's text is the theme's default size
+  (28 px at 1080p) and the banner is its `BannerLabel` (56 px). No HUD label sets a size
+  of its own; the UI scale setting grows them all.
+- On a headless run (the server, test bots) `Overlay` builds no HUD and no hit feedback
+  and does no work each frame. The layer they draw on is `Overlay.HUD_LAYER`.
+- The HUD does not show in an offline F6 run of a map or the practice range: `Net` is not
+  a client there. T20 part 2 decides whether it should.
 - Names stay on each hero's own label (#86); the HUD adds no name tags.
 - Test: `game/ui/tools/test_hud.gd` (smoke runs it; by hand, point `APPDATA` at a temp
   folder). Preview without a server: F6 on `hud_preview.tscn`; B / O add Blue / Orange
