@@ -62,6 +62,7 @@ Weeks: 1 = Oct 4-10 · 2 = Oct 11-17 · 3 = Oct 18-24 · 4 = Oct 25-31 · 5 = No
 | T39 | Maps online: the server runs Adam's maps by name; every player builds the map and spawns on its points | Gabe | 3 | net | T05, T18 | 4 bots play 120 s on the arena with zero refusal or error lines; a late joiner gets the same map |
 | T40 | Weapon choice: any roster weapon, the same on every peer (moved to Alpha Oct 31; heroes use their default weapons at Thanksgiving) | Gabe | Alpha | weapons | T39 | A player plays any roster weapon (by --weapon until T16's picker); every peer, late joiners too, sees the same weapon |
 | T41 | Tab scoreboard: team lists and team scores (no per-player stats) | set at the Nov 5 sync | 7 | ui | T15, T17 | Holding Tab shows both teams' players and scores, live online |
+| T42 | Team ring and own-hero outline (added Nov 6 for Gate 2) | Gabe | 6 | heroes | T15 | On the arena each hero's ring matches its team, each window outlines only its own hero, a balance switch and a late joiner show the right rings; the Practice Range shows no ring and your own outline |
 
 ## Gates
 
