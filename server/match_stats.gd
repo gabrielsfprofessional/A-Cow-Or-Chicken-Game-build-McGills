@@ -22,9 +22,10 @@ const TEAM_COUNT: int = 2
 var _playing: bool = false
 ## Peer id -> team (0 or 1), from team_assigned. A peer that left is not here.
 var _teams: Dictionary[int, int] = {}
-## Peer id -> eliminations in this match.
+## Peer id -> eliminations in this match. A leaver's shot still in flight can put it back
+## here; with no team it gets nothing at match_ended, and the next start or end clears it.
 var _eliminations: Dictionary[int, int] = {}
-## Peer id -> damage dealt in this match.
+## Peer id -> damage dealt in this match (a leaver can come back here the same way).
 var _damage: Dictionary[int, int] = {}
 
 

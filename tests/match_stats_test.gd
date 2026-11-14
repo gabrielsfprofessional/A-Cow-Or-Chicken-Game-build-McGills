@@ -62,6 +62,7 @@ func _a_win() -> void:
 		{"matches": 1, "wins": 0, "eliminations": 0, "damage": 0, "heroes": {"scout": 1}})
 
 
+## A draw (-1): every player on a team gets the match and its hero, nobody a win.
 func _a_draw() -> void:
 	var stats: MatchStats = _three_players()
 	stats.match_started()
@@ -72,6 +73,8 @@ func _a_draw() -> void:
 		wins += int(deltas[peer_id]["wins"])
 	_expect_true("a draw: a match for everyone, a win for no one", deltas.size() == 3 and wins == 0
 		and deltas[A]["matches"] == 1 and deltas[A]["eliminations"] == 1)
+	_expect_equal("a draw: Orange gets its match and hero too", deltas.get(C),
+		{"matches": 1, "wins": 0, "eliminations": 0, "damage": 0, "heroes": {HEROES[C]: 1}})
 
 
 ## Before the first match, and between match_ended and the next match_started.
@@ -91,6 +94,7 @@ func _outside_a_match() -> void:
 		deltas[A]["damage"] == 0 and deltas[A]["eliminations"] == 0)
 
 
+## Hits and eliminations that never count: 0 or less damage, yourself, and no peer (0, -1).
 func _hits_that_never_count() -> void:
 	var stats: MatchStats = _three_players()
 	stats.match_started()
@@ -156,6 +160,7 @@ func _nobody_finishes() -> void:
 		deltas[A]["damage"] == 0 and deltas[A]["eliminations"] == 0 and deltas[A]["matches"] == 1)
 
 
+## Teams: a late joiner, a balance move (the last team counts) and a team that isn't 0 or 1.
 func _teams() -> void:
 	var stats := MatchStats.new()
 	stats.team_assigned(A, BLUE)
@@ -173,6 +178,7 @@ func _teams() -> void:
 	_expect_true("peers() names every peer it knows", stats.peers().has(A) and stats.peers().has(B))
 
 
+## A peer with no hero, or a hero that isn't text, gets the match and no hero count.
 func _a_peer_with_no_hero() -> void:
 	var stats := MatchStats.new()
 	stats.team_assigned(99, BLUE)
@@ -186,6 +192,7 @@ func _a_peer_with_no_hero() -> void:
 		{"matches": 1, "wins": 1, "eliminations": 0, "damage": 0, "heroes": {}})
 
 
+## match_ended with no match being played, or a second time, answers nothing.
 func _ended_twice() -> void:
 	var stats: MatchStats = _three_players()
 	_expect_true("match_ended with no match being played answers nothing", stats.match_ended(BLUE, _hero_of).is_empty())
@@ -194,6 +201,7 @@ func _ended_twice() -> void:
 	_expect_true("a second match_ended answers nothing", stats.match_ended(BLUE, _hero_of).is_empty())
 
 
+## A MatchStats with A and B on Blue and C on Orange, no match started.
 func _three_players() -> MatchStats:
 	var stats := MatchStats.new()
 	stats.team_assigned(A, BLUE)
@@ -202,14 +210,17 @@ func _three_players() -> MatchStats:
 	return stats
 
 
+## Stands in for Net's _hero_file(): each test peer's hero file name, or "".
 func _hero_of(peer_id: int) -> String:
 	return HEROES.get(peer_id, "")
 
 
+## One check: `got` has the same type and value as `wanted`.
 func _expect_equal(case_name: String, got: Variant, wanted: Variant) -> void:
 	_expect_true("%s (got %s)" % [case_name, got], typeof(got) == typeof(wanted) and got == wanted)
 
 
+## One check: prints ok or FAIL with its name and counts it.
 func _expect_true(case_name: String, ok: bool) -> void:
 	_count += 1
 	if ok:

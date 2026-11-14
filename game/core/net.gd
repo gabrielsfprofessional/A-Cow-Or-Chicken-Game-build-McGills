@@ -548,24 +548,29 @@ func _stop_stats() -> void:
 	_stats = null
 
 
+## Events.match_started: MatchStats counts from 0 again.
 func _on_match_started(_mode: StringName) -> void:
 	_stats.match_started()
 
 
+## Events.match_ended: every player on a team gets its match saved through the registry.
 func _on_match_ended(winning_team: int) -> void:
 	var deltas: Dictionary[int, Dictionary] = _stats.match_ended(winning_team, _hero_file)
 	for peer_id: int in deltas:
 		_record(peer_id, deltas[peer_id])
 
 
+## Events.team_assigned: MatchStats keeps the peer's latest team.
 func _on_team_assigned(peer_id: int, team: int) -> void:
 	_stats.team_assigned(peer_id, team)
 
 
+## Events.hero_damaged: MatchStats counts the attacker's damage (it decides what counts).
 func _on_hero_damaged(victim: int, attacker: int, amount: int, _position: Vector2) -> void:
 	_stats.hero_damaged(victim, attacker, amount)
 
 
+## Events.hero_eliminated: MatchStats counts the attacker's elimination (it decides what counts).
 func _on_hero_eliminated(victim: int, attacker: int) -> void:
 	_stats.hero_eliminated(victim, attacker)
 

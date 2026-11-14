@@ -241,6 +241,7 @@ func _player(player_name: String, color: String, token: String) -> Dictionary:
 	return PlayerAuth.read_message(PlayerAuth.player_message(player_name, color, token))
 
 
+## A stats delta in the shape add_stats() takes.
 func _delta(matches: int, wins: int, eliminations: int, damage: int, heroes: Dictionary) -> Dictionary:
 	return {"matches": matches, "wins": wins, "eliminations": eliminations, "damage": damage, "heroes": heroes}
 
