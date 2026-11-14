@@ -49,12 +49,17 @@ The collider (a 20 px circle) never changes, so art can't change who gets hit. N
 
 What John sets for each hero (card T31, B16), in this order:
 
-1. The picture: `assets/heroes/<hero>.png` (`bruiser`, `mage`, `scout` or `medic`). CC0 or made by us,
-   a transparent background, the character seen from above. Commit it with its `.import` file.
-2. Its row in `CREDITS.md`: asset, author, license, link, added by.
-3. In Godot, open `game/heroes/data/<hero>.tres`, drag the PNG onto `body_texture` in the Inspector,
-   leave `body_size_px` at 48 unless the hero should look bigger or smaller, and save.
-4. Commit that `.tres` change on its own, as `T31: <hero> sprite (Gabe OK'd)`: one commit per hero,
+1. The picture: copy `<hero>.png` (`bruiser`, `mage`, `scout` or `medic`) into `assets/heroes`. CC0 or
+   made by us, a transparent background, the character seen from above. The project draws pictures
+   sharp, not smoothed (Nearest filter), so pixel art, or a picture 48 px across (or 96, 144), looks best.
+2. Open the project in Godot (or click into its window if it is open). Wait until `<hero>.png` shows in the
+   FileSystem panel: Godot has now made `assets/heroes/<hero>.png.import` next to it.
+   Commit the PNG and its `.import` file together.
+3. Its row in `CREDITS.md`: asset, author, license, link, added by.
+4. In Godot's FileSystem panel, double-click `game/heroes/data/<hero>.tres`. Drag `<hero>.png` from the
+   FileSystem panel onto Body Texture in the Inspector. Leave Body Size Px at 48 unless the hero should look
+   bigger or smaller. Press Ctrl+S.
+5. Commit that `.tres` change on its own, as `T31: <hero> sprite (Gabe OK'd)`: one commit per hero,
    with no other file in it (game/heroes is Gabe's folder; this one change is OK'd).
 
 `tests/data_test.gd` checks `body_size_px`'s range and refuses a texture with no pixels.
