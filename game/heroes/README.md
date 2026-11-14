@@ -35,6 +35,36 @@ T42, the team ring and own-hero outline:
 
 Never color a hero or a name with the player's profile color: the ring and the outline carry the team.
 
+## Hero art (T31)
+
+Each hero's HeroData has two fields for its body art:
+
+- `body_texture`: a PNG, or empty. Empty keeps today's plain 48 px square, tinted by player.
+- `body_size_px` (16 to 128, default 48): how long the art's longer side is drawn, in pixels. The shape is kept.
+
+With a texture, `NetHero.setup()` adds a `BodySprite` (a Sprite2D) in the Body square's place and hides
+the square. The sprite is centered, never tinted and never turned (the aim isn't sent over the network).
+The team ring and your own outline still draw; the outline goes around the sprite (`NetHero.body_rect()`).
+The collider (a 20 px circle) never changes, so art can't change who gets hit. No network change.
+
+What John sets for each hero (card T31, B16), in this order:
+
+1. The picture: copy `<hero>.png` (`bruiser`, `mage`, `scout` or `medic`) into `assets/heroes`. CC0 or
+   made by us, a transparent background, the character seen from above. The project draws pictures
+   sharp, not smoothed (Nearest filter), so pixel art, or a picture 48 px across (or 96, 144), looks best.
+2. Open the project in Godot (or click into its window if it is open). Wait until `<hero>.png` shows in the
+   FileSystem panel: Godot has now made `assets/heroes/<hero>.png.import` next to it.
+   Commit the PNG and its `.import` file together.
+3. Its row in `CREDITS.md`: asset, author, license, link, added by.
+4. In Godot's FileSystem panel, double-click `game/heroes/data/<hero>.tres`. Drag `<hero>.png` from the
+   FileSystem panel onto Body Texture in the Inspector. Leave Body Size Px at 48 unless the hero should look
+   bigger or smaller. Press Ctrl+S.
+5. Commit that `.tres` change on its own, as `T31: <hero> sprite (Gabe OK'd)`: one commit per hero,
+   with no other file in it (game/heroes is Gabe's folder; this one change is OK'd).
+
+`tests/data_test.gd` checks `body_size_px`'s range and refuses a texture with no pixels.
+`tests/hero_art_test.gd` checks the sprite's size, shape, tint and the collider.
+
 NetHero runs the forced motion itself (a dash, a blink or a knockback): whole physics
 ticks, equal steps, stopped by walls, ended by a snap-back, elimination or respawn.
 

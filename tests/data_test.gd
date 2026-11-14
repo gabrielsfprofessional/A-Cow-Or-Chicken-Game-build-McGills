@@ -1,5 +1,5 @@
 extends SceneTree
-## Tests for the hero, ability, weapon, arena rules and team mark data files (cards T13, T14, T18, T42). Owner: Gabe.
+## Tests for the hero, ability, weapon, arena rules and team mark data files (cards T13, T14, T18, T31, T42). Owner: Gabe.
 ## Run: godot --headless --path . --script res://tests/data_test.gd
 ## Exits 1 when any case fails. tools/smoke.ps1 and smoke.sh run it, so every
 ## pull request checks all the data files, Adam's weapon edits included.
@@ -58,6 +58,7 @@ func _initialize() -> void:
 	_hero_files_fit_a_save()
 	_good_hero_passes()
 	_speed_out_of_range()
+	_body_art_checks()
 	_not_a_number()
 	_empty_texts()
 	_missing_weapon()
@@ -216,6 +217,25 @@ func _speed_out_of_range() -> void:
 	hero.move_speed = 300.0
 	hero.max_health = 0
 	_expect_problems(hero.validate(), ["max_health is 0 HP; it must be 1 to 1000 HP"], "max_health 0")
+
+
+## T31: body_size_px at each edge of 16-128 px, and a body_texture with no pixels.
+func _body_art_checks() -> void:
+	var hero := _good_hero()
+	hero.body_size_px = 15.0
+	_expect_problems(hero.validate(), ["body_size_px is 15 px; it must be 16 to 128 px"], "body_size_px 15")
+	hero.body_size_px = 16.0
+	_expect_problems(hero.validate(), [], "body_size_px 16 (the bottom) passes")
+	hero.body_size_px = 128.0
+	_expect_problems(hero.validate(), [], "body_size_px 128 (the top) passes")
+	hero.body_size_px = 129.0
+	_expect_problems(hero.validate(), ["body_size_px is 129 px; it must be 16 to 128 px"], "body_size_px 129")
+	hero.body_size_px = 48.0
+	hero.body_texture = ImageTexture.new()
+	_expect_problems(hero.validate(),
+		["body_texture (built-in) has no pixels; pick a PNG from assets/heroes, or leave it empty"], "an empty body_texture")
+	hero.body_texture = ImageTexture.create_from_image(Image.create(8, 8, false, Image.FORMAT_RGBA8))
+	_expect_problems(hero.validate(), [], "a body_texture with pixels passes")
 
 
 func _not_a_number() -> void:
