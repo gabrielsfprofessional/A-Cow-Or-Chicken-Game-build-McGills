@@ -8,6 +8,11 @@ const HERO_SELECT_SCENE: String = "res://game/ui/hero_select.tscn"
 const PROFILE_SCENE: String = "res://game/players/profile_screen.tscn"
 const UPDATE_TEXT: String = "Update the game from the Drive folder"
 
+## How this window was started. Fields, so a test can stand in for a launch.
+var debug_build: bool = OS.is_debug_build()
+var launch_args: PackedStringArray = OS.get_cmdline_user_args()
+var default_profile_path: String = Profile.PATH
+
 @onready var _version: Label = $Center/Menu/Version
 @onready var _playing_as: Label = $Center/Menu/PlayingAs
 @onready var _play: Button = $Center/Menu/PlayButton
@@ -31,27 +36,40 @@ func _ready() -> void:
 
 ## True for --server and --bot launches: no profile load, no bad-file rename.
 func _skips_profile() -> bool:
-	return Game.is_server() or Net.debug_flag(OS.is_debug_build(), OS.get_cmdline_user_args(), "--bot=") != ""
+	return Game.is_server() or Net.debug_flag(debug_build, launch_args, "--bot=") != ""
+
+
+## The profile file this window plays with: the debug "--profile=<file>" one when the
+## window was started with it and it holds a profile (the file joining uses too), else
+## the player's own. So Save on "Your profile", which writes the player's own file,
+## always leads back to the menu.
+func _profile_path() -> String:
+	var path: String = Net.debug_flag(debug_build, launch_args, Net.PROFILE_FLAG)
+	if path != "" and (Profile.exists(path) or Profile.newer_version_found(path)):
+		return path
+	return default_profile_path
 
 
 ## True on a normal launch with no readable profile. Servers, bots and --join launches go straight on.
 func _needs_profile() -> bool:
 	if _skips_profile() or Net.join_argument() != "":
 		return false
-	return not Profile.exists() and not Profile.newer_version_found()
+	var path: String = _profile_path()
+	return not Profile.exists(path) and not Profile.newer_version_found(path)
 
 
 func _show_profile() -> void:
-	if Profile.newer_version_found():
+	var path: String = _profile_path()
+	if Profile.newer_version_found(path):
 		_playing_as.text = UPDATE_TEXT
 		_playing_as.remove_theme_color_override("font_color")
 		_profile.disabled = true
 		return
 	_profile.disabled = false
-	if not Profile.exists():
+	if not Profile.exists(path):
 		_playing_as.text = ""
 		return
-	var data: Dictionary = Profile.load_or_default()
+	var data: Dictionary = Profile.load_or_default(path)
 	_playing_as.text = "Playing as %s" % data["name"]
 	_playing_as.add_theme_color_override("font_color", Color(str(data["color"])))
 
