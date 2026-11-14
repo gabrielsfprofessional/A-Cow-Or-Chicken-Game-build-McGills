@@ -2,7 +2,7 @@
 
 Owner: Gabe
 
-Hero scenes, abilities and hero data files (data/*.tres). Cards: T08, T13, T14, T18, A07.
+Hero scenes, abilities and hero data files (data/*.tres). Cards: T08, T13, T14, T18, T42, A07.
 
 `net_hero.tscn` / `net_hero.gd`: `NetHero`, the hero every player drives online
 (T07-T09, T13; moved here from `game/net` in T14). It moves, sends, checks and
@@ -25,6 +25,15 @@ T14 and T18, the Q abilities (messages in `game/net/README.md`):
 | `ability_check.gd` | `AbilityCheck`: the server's pure check on each request (owner, life, alive, direction, a charge ready; T18: each charge comes back `cooldown_sec` after its own use). Tested by `tests/ability_check_test.gd`. |
 | `charge_sweep.gd` | `ChargeSweep`: which heroes a dash stretch passes through. Tested against real physics by `tests/charge_sweep_test.gd`. |
 | `spawn_protection.gd` | `SpawnProtection` (week-3 seams): the server's timer after a respawn, protected while now < its end. `NetHero.take_hit()` absorbs a shot and `knock_back()` does nothing while it runs; healing still works. Tested by `tests/match_rules_test.gd`. |
+
+T42, the team ring and own-hero outline:
+
+| File | What it is |
+| --- | --- |
+| `team_marks.gd` | `TeamMarks`: NetHero's `TeamMarks` child, drawn behind the hero's body (`show_behind_parent`, at the hero's own z: a negative `z_index` would sort it under a map's floor). A ring in the team's color (none with no team) and, on your own hero only, an outline. Its team comes from the world's `teams_seen()` when the hero spawns, then from `Events.team_assigned` for its peer, so a balance switch recolors it at once. No RPC. Built on screens only (`TeamMarkData.builds_marks()`): never on the dedicated server or a headless bot. One line per change: `[Team] peer <id>: ring Blue|Orange|none[, own outline]`. |
+| `team_mark_data.gd`, `data/team_marks.tres` | `TeamMarkData`: `blue` (#3B82F6), `orange` (#F97316), `outline` (white), `ring_radius_px` 36, `ring_width_px` 5, `outline_gap_px` 3, `outline_width_px` 3. `ring_color(team)` (0 blue, 1 orange, else see-through), `has_ring(team)`, `team_in(teams_seen, peer)`, `world_team(world, peer)` (NetHero's start team). `validate()` also refuses a see-through color and two equal team colors. Tested by `tests/team_marks_test.gd`. |
+
+Never color a hero or a name with the player's profile color: the ring and the outline carry the team.
 
 NetHero runs the forced motion itself (a dash, a blink or a knockback): whole physics
 ticks, equal steps, stopped by walls, ended by a snap-back, elimination or respawn.
