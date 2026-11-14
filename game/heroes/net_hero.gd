@@ -26,6 +26,8 @@ extends CharacterBody2D
 ##   The server grants its distance to MoveCheck before it tells anyone.
 ## - The names seam (for T17): `player_name` is the player's profile name from the
 ##   spawn data, "" for a guest; shown_name() is what the label above the hero shows.
+## - T42: a TeamMarks child draws the team ring and the own hero's outline, on
+##   screens only (never the dedicated server or a headless bot).
 
 ## Sends per second. physics_ticks_per_second must be a multiple of it.
 const SEND_RATE: int = 20
@@ -137,7 +139,16 @@ func _ready() -> void:
 	_health.healed.connect(_on_healed)
 	_health.eliminated.connect(_on_eliminated)
 	_update_label()
+	if TeamMarkData.builds_marks(DisplayServer.get_name()):
+		_add_team_marks()
 	reset_physics_interpolation()
+
+
+## T42: the team ring and, on the owner's window, the outline. Screens only.
+func _add_team_marks() -> void:
+	var marks := TeamMarks.new()
+	marks.setup(owner_peer, is_owned(), ($Body as ColorRect).get_rect(), TeamMarkData.world_team(_world(), owner_peer))
+	add_child(marks)
 
 
 ## The owner's input: the keyboard and mouse, or a test bot when the game was
