@@ -51,3 +51,30 @@ The HUD (`hud.tscn`, built by the `Overlay` autoload) also shows the match, from
 - Test: `game/ui/tools/test_hud.gd` (smoke runs it; by hand, point `APPDATA` at a temp
   folder). Preview without a server: F6 on `hud_preview.tscn`; B / O add Blue / Orange
   points, X switches your team, W shows the banner.
+
+## Hit feedback (card T25)
+
+`HitFeedback` (`hit_feedback.gd`, built by the `Overlay` autoload) listens to
+`Events.hero_damaged` and `Events.hero_eliminated` and decides nothing.
+
+- A hit shows its damage number and plays the hit sound. A hit on you flashes the screen
+  edge; a hit on anyone else shows a puff at the hit. An amount of 0 (spawn protection)
+  shows and plays nothing.
+- An elimination shows a bigger puff at the hero (`eliminated_puff_scale`) and plays the
+  elimination sound, lower than its file (`eliminated_pitch`) so it stands out from a hit.
+  It takes over the voice of the killing hit's sound (`eliminated_replaces_hit_sec`), and
+  is never dropped: with every voice busy it takes the oldest one. A hit sound is dropped
+  when every voice is busy.
+- The puff's look is the `puff_*` `@export` values (count, size, life, speed, fade).
+- Sounds fade with distance from the middle of your screen (`silent_beyond_screens`). A
+  headless run picks voices the same way but never starts a sound.
+- A number ages at most `MAX_NUMBER_STEP_SEC` (0.1 s) in one frame, so one long frame
+  right after a hit cannot hide it before it was drawn.
+- Debug builds only: `-- --hit-shots=<folder>` saves a picture of the window 150 ms after
+  a puff starts on screen (`hit_<n>_peer<id>.png`, `eliminated_<n>_peer<id>.png`), and
+  after a hit of 0 (`absorbed_<n>_peer<id>.png`, which must show nothing at the hit), at
+  most 3 of each. The picture is taken right after the next drawn frame, so it is never a
+  stale one. It logs `[UI] hit shot saved: <file>` with how many numbers and puffs were
+  going and the longest frame while the picture waited. It is for scripted checks.
+- Test: `game/ui/tools/test_hit_feedback.gd` (smoke runs it; by hand, point `APPDATA` at a
+  temp folder). Preview without a server: `hit_feedback_preview.tscn`, keys on screen.
