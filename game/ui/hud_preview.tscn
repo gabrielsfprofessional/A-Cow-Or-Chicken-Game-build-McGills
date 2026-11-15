@@ -28,7 +28,7 @@ layout_mode = 1
 [node name="Help" type="Label" parent="."]
 layout_mode = 0
 offset_left = 32.0
-offset_top = 24.0
+offset_top = 260.0
 offset_right = 1600.0
-offset_bottom = 160.0
+offset_bottom = 420.0
 mouse_filter = 2
