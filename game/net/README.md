@@ -705,8 +705,9 @@ before their hero spawns. NET_PROTOCOL 7 (the `load_map` message).
 ### Picking the map
 
 - `game/maps/data/maps.tres` (a `MapList`, Adam edits it): lowercase name -> scene
-  path. `arena` is Adam's graybox; T20 adds `practice`. `test` is reserved: no map,
-  just the test world. `tests/data_test.gd` checks every entry against the contract below.
+  path. `arena` is Adam's graybox; `practice` is the Practice Range (listed by T19 part 1).
+  `test` is reserved: no map, just the test world. `tests/data_test.gd` checks every entry
+  against the contract below.
 - Server: `-- --server --map=<name>`. It is a server setting, not a debug aid, so a
   release server (T29) reads it too. No flag or `--map=test`: the test world. An
   unknown name logs `[TestWorld] no map named <name> in maps.tres, so using the test world`
