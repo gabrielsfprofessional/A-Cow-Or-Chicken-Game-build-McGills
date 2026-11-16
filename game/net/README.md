@@ -163,7 +163,7 @@ signal and no new RPC to listen to. The profile color never colors a hero or a n
 a match; the team ring and the own-hero outline carry team identity.
 
 **NET_PROTOCOL** is 1 for T06 (which sent a bare version), 2 for T07, 3 for T08,
-4 from T14 (the ability and knockback RPCs), 5 from T18 (`client_ready`'s hero index, the spawn data, the ability answers' charge times and `receive_heal`) 6 from the week-3 seams (the spawn position in the spawn data), 7 from T39 (the `load_map` message), 8 from T21 part 2 (the second auth message) and 9 from the names seam (the player's name in the spawn data). Bump it in the same pull request as any change to an RPC, its arguments, its channel,
+4 from T14 (the ability and knockback RPCs), 5 from T18 (`client_ready`'s hero index, the spawn data, the ability answers' charge times and `receive_heal`) 6 from the week-3 seams (the spawn position in the spawn data), 7 from T39 (the `load_map` message), 8 from T21 part 2 (the second auth message), 9 from the names seam (the player's name in the spawn data) and 10 from T15 (the arena mode's five server-to-client RPCs in `game/modes/arena_mode.gd`). Bump it in the same pull request as any change to an RPC, its arguments, its channel,
 the channel count or the handshake. A build with a different wire format is then refused by name
 instead of failing later with channel or RPC errors.
 
