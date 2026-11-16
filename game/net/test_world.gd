@@ -134,6 +134,15 @@ func _on_team_assigned(peer_id: int, team: int) -> void:
 	_teams_seen[peer_id] = team
 
 
+## The file name of the hero a peer plays, such as "scout" (display names can change),
+## or "" when it has no hero here. The server's stats count matches per hero by it (T22).
+func hero_file(peer_id: int) -> String:
+	var hero := _heroes.get_node_or_null(NodePath(str(peer_id))) as NetHero
+	if hero == null or hero.hero_data == null:
+		return ""
+	return hero.hero_data.resource_path.get_file().get_basename()
+
+
 ## Server: a mode (T15) installs its rules here, before heroes spawn. Null puts
 ## the defaults back: MapRules on a map (T39; a mode there extends MapRules), else MatchRules.
 func set_rules(new_rules: MatchRules) -> void:

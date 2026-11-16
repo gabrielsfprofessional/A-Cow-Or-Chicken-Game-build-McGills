@@ -13,6 +13,8 @@ extends RefCounted
 ##   player plays as a guest this time.
 ## - Every answer is one log line for Net to print after "[Server] ". It names a player by
 ##   the first 8 characters of their id (the SHA-256 of the token), never by the token.
+## - add_stats() adds a match's counts to a player's stats and saves them (card T22). The
+##   save on leaving writes this same copy, so it keeps them.
 
 var _store: ProfileStore
 ## Connected players: peer id -> their save, as last saved. Guests are not here.
@@ -97,9 +99,58 @@ func player_name(peer_id: int) -> String:
 	return joined_name if joined_name is String else ""
 
 
+## Adds a match's counts to a connected player's stats and saves them (T22). `delta` has
+## the shape of a save's "stats" (MatchStats makes it): every count a whole number, 0 or
+## more, and hero file names (small letters, digits and _). Returns one log line for Net
+## to print after "[Record] ", or "" for a guest, who gets nothing. A delta that would
+## break the save's rules changes nothing. When the disk refuses the save, the counts
+## stay in this copy and the save on leaving writes them.
+func add_stats(peer_id: int, delta: Dictionary) -> String:
+	if not _players.has(peer_id):
+		return ""
+	var merged: Dictionary = _players[peer_id].duplicate(true)
+	var id: String = merged["id"]
+	var stats: Dictionary = merged["stats"]
+	var parts := PackedStringArray()
+	for key: String in ProfileStore.STAT_KEYS:
+		var amount: Variant = delta.get(key, 0)
+		if not amount is int or (amount as int) < 0:
+			return "Player %s: not recorded (%s is not a whole number, 0 or more)" % [_short(id), key]
+		stats[key] = int(stats[key]) + (amount as int)
+		parts.append("%s +%d" % [key, amount])
+	var heroes: Variant = delta.get("heroes", {})
+	if not heroes is Dictionary:
+		return "Player %s: not recorded (heroes is not a list of heroes)" % _short(id)
+	for hero: Variant in (heroes as Dictionary):
+		var times: Variant = (heroes as Dictionary)[hero]
+		if not hero is String or not is_hero_file(hero) or not times is int or (times as int) < 0:
+			return "Player %s: not recorded (a hero's name or count is wrong)" % _short(id)
+		stats["heroes"][hero] = int(stats["heroes"].get(hero, 0)) + (times as int)
+		parts.append("%s +%d" % [hero, times])
+	var problem: String = ProfileStore.problem_in(merged)
+	if problem != "":
+		return "Player %s: not recorded (%s)" % [_short(id), problem]
+	_players[peer_id] = merged
+	if not _store.save_player(merged):
+		return "Player %s: %s; could not save now, will try again when they leave" % [_short(id), ", ".join(parts)]
+	return "Player %s: %s" % [_short(id), ", ".join(parts)]
+
+
 ## How many connected peers are players (not guests).
 func player_count() -> int:
 	return _players.size()
+
+
+## True for a hero's file name as a log line can repeat it: small letters, digits and _.
+## ProfileStore.problem_in() holds its length. tests/data_test.gd holds the roster to both.
+static func is_hero_file(text: String) -> bool:
+	const ALLOWED: String = "abcdefghijklmnopqrstuvwxyz0123456789_"
+	if text == "":
+		return false
+	for i: int in text.length():
+		if not ALLOWED.contains(text[i]):
+			return false
+	return true
 
 
 static func _short(id: String) -> String:
