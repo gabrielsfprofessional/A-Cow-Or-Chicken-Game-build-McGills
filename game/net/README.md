@@ -802,7 +802,7 @@ Dropped for Thanksgiving with the lobby (decision 3): `test_world.tscn` stays th
 world, and T15's Mode node lives in the arena map (game/maps/arena/arena_graybox.tscn).
 The plan below waits for Alpha. Plan only; no scene yet.
 1. The match scene replaces `test_world.tscn`: Net loads it before joining, as now.
-2. It keeps test_world's root script contract: `rules()`/`set_rules()`, `respawn_point()`,
+2. It keeps test_world's root script contract: `rules()`/`set_rules()`, `respawn_point()`, `hero_file()` (T22),
    `shots()`, `bot_area()`, `teams_seen()`, `is_peer_ready()`, `client_ready()` and
    `respawn_all()`. Fixed paths: `Shots` and `Heroes` are direct children of the root, heroes direct children of `Heroes`.
 3. Gabe's parts move over unchanged: `Heroes` + `HeroSpawner`, `Shots`,
