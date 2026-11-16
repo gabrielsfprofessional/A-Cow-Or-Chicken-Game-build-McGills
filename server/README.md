@@ -127,7 +127,9 @@ per hero). The server records them; a client never sends a stat.
 `tools\backup_saves.ps1` copies the saves folder into `<name>.partial`, checks the copy,
 renames it to `saves-YYYYMMDD-HHMMSS`, keeps the newest 7 (`-Keep`), and logs one line per run
 to `backup-log.txt` in the destination and to `%LOCALAPPDATA%\acoc-backup-log.txt`. It only
-ever removes folders it named.
+ever removes folders it named. A saves folder with no files is a FAIL (exit 1) that makes no
+backup and removes none (it only logs the FAIL), so an empty run can never rotate out the real backups. Its test:
+`powershell -NoProfile -ExecutionPolicy Bypass -File tools\backup_saves_test.ps1`.
 
 1. Copy the script out of the repo, so a branch checkout can't take it away at 3 am:
 

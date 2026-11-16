@@ -1,7 +1,8 @@
 # Backup of the server's player saves (card T21, part 1). Owner: Gabe.
 # Copies the saves folder into <name>.partial under -Destination, checks the copy (same
 # files, same sizes), then renames it to saves-YYYYMMDD-HHMMSS, so a half-made copy never
-# looks like a backup. Then removes the oldest dated folders beyond -Keep. It only ever
+# looks like a backup. A saves folder with no files is a FAIL that makes no backup and
+# removes none (it only logs the FAIL). Then removes the oldest dated folders beyond -Keep. It only ever
 # removes folders under -Destination with names it makes. One line per run goes to
 # backup-log.txt there and to -LocalLog (default %LOCALAPPDATA%\acoc-backup-log.txt, which
 # works even when the Drive is missing).
@@ -41,6 +42,10 @@ try {
         }
         throw "no saves folder at $Source"
     }
+    # An empty saves folder is never a backup: copying it would rotate out real backups.
+    if ((Get-FileList $Source).Count -eq 0) {
+        throw "the saves folder $Source has no files, so there is nothing to back up (no backup made, none removed)"
+    }
     New-Item -ItemType Directory -Force -Path $Destination | Out-Null
     # A copy a crash left half-made earlier: it was never a backup.
     Get-ChildItem -LiteralPath $Destination -Directory |
@@ -56,6 +61,9 @@ try {
     $partial = Join-Path $Destination "$name.partial"
     Copy-Item -LiteralPath $Source -Destination $partial -Recurse
     $sourceList = Get-FileList $Source
+    if ($sourceList.Count -eq 0) {
+        throw "the saves folder $Source emptied while copying, so there is nothing to back up (no backup made, none removed)"
+    }
     $copyList = Get-FileList $partial
     if (($sourceList -join "`n") -ne ($copyList -join "`n")) {
         throw "the copy doesn't match the saves folder (a save may have changed while copying; the next run tries again)"
