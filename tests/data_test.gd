@@ -55,6 +55,7 @@ func _initialize() -> void:
 	_every_data_file()
 	_roster_has_a_first_hero()
 	_roster_finds_heroes()
+	_hero_files_fit_a_save()
 	_good_hero_passes()
 	_speed_out_of_range()
 	_body_art_checks()
@@ -166,6 +167,21 @@ func _roster_finds_heroes() -> void:
 		"index_of() or at() disagrees with roster.tres; update the tools too")
 	_expect(roster.index_of("dragon") == -1 and roster.index_of("") == -1, "an unknown hero name is -1", "it is not")
 	_expect(roster.at(-1) == null and roster.at(names.size()) == null, "a slot out of range is null", "it is not")
+
+
+## A save counts matches per hero by the hero's file name (T22): a name the save's
+## rules refuse would lose its players every match they finish on it.
+func _hero_files_fit_a_save() -> void:
+	var roster := load(ROSTER_PATH) as HeroRoster
+	var bad: PackedStringArray = []
+	for hero: HeroData in roster.heroes:
+		if hero == null:
+			continue
+		var file: String = hero.resource_path.get_file().get_basename()
+		if not PlayerRegistry.is_hero_file(file) or file.length() > ProfileStore.HERO_NAME_MAX:
+			bad.append(file)
+	_expect(bad.is_empty(), "every roster hero's file name fits a save (small letters, digits and _, %d at most)" % ProfileStore.HERO_NAME_MAX,
+		"rename: %s" % ", ".join(bad))
 
 
 # --- validate() on resources built here --------------------------------------------

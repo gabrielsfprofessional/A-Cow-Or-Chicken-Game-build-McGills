@@ -19,6 +19,8 @@ Only the owner's cards change this folder. See CLAUDE.md, "Folders and owners".
   ignores the flag.
 - The Profile button still edits the player's own `user://profile.json`, never the
   `--profile` file.
+- The Practice Range button (`PracticeButton`) is hidden until T20 wires it. It stays in
+  the scene: to bring it back, turn `visible` on again in `main_menu.tscn`.
 - Test: `game/ui/tools/test_main_menu.gd` (smoke runs it; by hand, point `APPDATA` at a
   temp folder).
 

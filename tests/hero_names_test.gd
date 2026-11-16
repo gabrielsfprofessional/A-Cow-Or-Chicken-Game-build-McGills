@@ -65,6 +65,7 @@ func _run() -> void:
 	_heroes.name = "Heroes"
 	_world.add_child(_heroes)
 	_names_from_spawn_data()
+	_hero_files()
 	await _a_player_shows_their_name()
 	await _a_guest_shows_their_peer()
 	_spawn_world.free()
@@ -91,6 +92,21 @@ func _names_from_spawn_data() -> void:
 	_expect(mage.get(&"owner_peer") == 27 and mage.get(&"hero_data") == _roster.at(MAGE) and mage.get(&"position") == SPOT,
 		"the name changes nothing else: peer 27, the mage, at the spot")
 	mage.free()
+
+
+## hero_file() (T22): the server's stats count a match under the hero's file name.
+func _hero_files() -> void:
+	var heroes: Node = _spawn_world.get_node(^"Heroes")
+	_spawn_world.set(&"_heroes", heroes)  # @onready, and this world is never in the tree.
+	var files: Array[String] = ["bruiser", "mage", "scout", "medic"]
+	for slot: int in files.size():
+		heroes.add_child(_spawn_world.call(&"_make_hero", [31 + slot, slot, SPOT, ""]))
+		var got: String = _spawn_world.call(&"hero_file", 31 + slot)
+		_expect(got == files[slot], "hero_file() of roster slot %d is %s (got %s)" % [slot, files[slot], JSON.stringify(got)])
+	_expect(_spawn_world.call(&"hero_file", 99) == "", "hero_file() of a peer with no hero is \"\"")
+	for hero: Node in heroes.get_children():
+		heroes.remove_child(hero)
+		hero.free()
 
 
 func _a_player_shows_their_name() -> void:

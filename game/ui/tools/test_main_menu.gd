@@ -53,6 +53,12 @@ func _initialize() -> void:
 	var playing_as: Label = menu.get_node(^"Center/Menu/PlayingAs") as Label
 	_check(playing_as.text == "Playing as %s" % FLAG_NAME, "the menu shows the --profile file's name (got '%s')" % playing_as.text)
 	_check(current_scene == null, "no other screen was opened")
+	# The Practice Range button stays hidden until T20 wires it; the other four show.
+	var practice: Button = menu.get_node_or_null(^"Center/Menu/PracticeButton") as Button
+	_check(practice != null and not practice.is_visible_in_tree(), "the Practice Range button is in the scene and hidden")
+	for button_name: String in ["PlayButton", "ProfileButton", "SettingsButton", "QuitButton"]:
+		var button: Button = menu.get_node_or_null("Center/Menu/" + button_name) as Button
+		_check(button != null and button.is_visible_in_tree(), "%s shows on the menu" % button_name)
 	menu.queue_free()
 	await process_frame
 

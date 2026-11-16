@@ -3,6 +3,7 @@
 [ext_resource type="Script" path="res://game/heroes/hero_data.gd" id="1_hero"]
 [ext_resource type="Resource" path="res://game/weapons/data/rapid.tres" id="2_rapid"]
 [ext_resource type="Resource" path="res://game/heroes/data/blink.tres" id="3_blink"]
+[ext_resource type="Texture2D" uid="uid://b25oep15cftp3" path="res://assets/heroes/mage.png" id="4_body"]
 
 [resource]
 script = ExtResource("1_hero")
@@ -12,3 +13,4 @@ move_speed = 300.0
 max_health = 100
 default_weapon = ExtResource("2_rapid")
 ability = ExtResource("3_blink")
+body_texture = ExtResource("4_body")

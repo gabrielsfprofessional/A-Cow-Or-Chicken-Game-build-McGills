@@ -28,6 +28,9 @@ func _initialize() -> void:
 	_guests(registry)
 	_other_version()
 	_leave_all()
+	_add_stats()
+	_add_stats_refused()
+	_add_stats_disk_refuses()
 	_token_nowhere()
 	_remove_folder()
 	_expect_true("the test folder is gone afterwards", not DirAccess.dir_exists_absolute(_global(TEST_FOLDER)))
@@ -119,13 +122,116 @@ func _leave_all() -> void:
 		and registry.player_count() == 0)
 
 
+## A match's counts are added and saved at once, add up, and outlive leaving (T22).
+func _add_stats() -> void:
+	var registry := PlayerRegistry.new(_store)
+	var id: String = ProfileStore.id_for_token(TOKEN_A)
+	var path: String = TEST_FOLDER + id + ".json"
+	registry.join(20, _player("Gabe", "#3B82F6", TOKEN_A), NOW + 400)
+	registry.join(21, PlayerAuth.guest("bot"), NOW + 400)
+	var before := _parse(path).get("stats", {}) as Dictionary
+	var line: String = registry.add_stats(20, _delta(1, 1, 3, 240, {"scout": 1}))
+	_expect_true("add_stats() answers one line with the short id and each count (%s)" % line,
+		line == "Player %s: matches +1, wins +1, eliminations +3, damage +240, scout +1" % id.substr(0, 8))
+	_expect_true("the save on disk has the counts at once", _stats_are(path, int(before["matches"]) + 1,
+		int(before["wins"]) + 1, int(before["eliminations"]) + 3, int(before["damage"]) + 240, {"scout": 1}))
+	registry.add_stats(20, _delta(1, 0, 2, 100, {"scout": 1}))
+	registry.add_stats(20, _delta(1, 0, 0, 0, {"mage": 1}))
+	_expect_true("later matches add up, per hero too", _stats_are(path, int(before["matches"]) + 3,
+		int(before["wins"]) + 1, int(before["eliminations"]) + 5, int(before["damage"]) + 340, {"scout": 2, "mage": 1}))
+	line = registry.add_stats(20, _delta(0, 0, 1, 60, {}))
+	_expect_true("a leaver's counts have no hero in the line (%s)" % line,
+		line == "Player %s: matches +0, wins +0, eliminations +1, damage +60" % id.substr(0, 8))
+	var files: int = _files().size()
+	_expect_true("a guest gets nothing: no line, no file", registry.add_stats(21, _delta(1, 1, 3, 240, {"scout": 1})) == ""
+		and registry.add_stats(999, _delta(1, 0, 0, 0, {})) == "" and _files().size() == files)
+	registry.leave(20, NOW + 500)
+	_expect_true("add_stats() then leave: the stats are still there, with the new last-seen time",
+		_stats_are(path, int(before["matches"]) + 3, int(before["wins"]) + 1, int(before["eliminations"]) + 6,
+			int(before["damage"]) + 400, {"scout": 2, "mage": 1})
+		and int(_parse(path).get("last_seen_unix", -1)) == NOW + 500)
+	registry.join(22, _player("Gabe", "#3B82F6", TOKEN_A), NOW + 600)
+	registry.add_stats(22, _delta(1, 1, 0, 0, {"scout": 1}))
+	_expect_true("coming back keeps them and adds to them", _stats_are(path, int(before["matches"]) + 4,
+		int(before["wins"]) + 2, int(before["eliminations"]) + 6, int(before["damage"]) + 400, {"scout": 3, "mage": 1}))
+	registry.leave(22, NOW + 700)
+
+
+## A delta that breaks the rules changes nothing, on disk or in the copy leave() saves.
+func _add_stats_refused() -> void:
+	var registry := PlayerRegistry.new(_store)
+	var id: String = ProfileStore.id_for_token(TOKEN_B)
+	var path: String = TEST_FOLDER + id + ".json"
+	registry.join(30, _player("Adam", "#46A758", TOKEN_B), NOW + 400)
+	# Counts above 0 first, so a count below 0 would still leave a save that loads.
+	registry.add_stats(30, _delta(1, 0, 2, 50, {"scout": 1}))
+	var short_line: String = registry.add_stats(30, {"eliminations": 1})
+	_expect_true("a count left out of a delta adds 0 (%s)" % short_line,
+		short_line == "Player %s: matches +0, wins +0, eliminations +1, damage +0" % id.substr(0, 8))
+	var text: String = _text(path)
+	var bad: Dictionary[String, Dictionary] = {
+		"a count below 0": _delta(1, 0, -1, 0, {}),
+		"a count that isn't whole": {"matches": 1, "wins": 0, "eliminations": 1.5, "damage": 0, "heroes": {}},
+		"a count that is text": {"matches": "1", "wins": 0, "eliminations": 0, "damage": 0, "heroes": {}},
+		"heroes that isn't a list": {"matches": 1, "wins": 0, "eliminations": 0, "damage": 0, "heroes": "scout"},
+		"a hero name with a new line": _delta(1, 0, 0, 0, {"scout\n[Server] fake": 1}),
+		"a hero name in capitals": _delta(1, 0, 0, 0, {"Scout": 1}),
+		"an empty hero name": _delta(1, 0, 0, 0, {"": 1}),
+		"a hero name of 33 characters": _delta(1, 0, 0, 0, {"a".repeat(33): 1}),
+		"a hero count below 0": _delta(1, 0, 0, 0, {"scout": -1}),
+		"a hero count that is text": _delta(1, 0, 0, 0, {"scout": "1"}),
+		"a hero count that isn't whole": _delta(1, 0, 0, 0, {"scout": 1.5}),
+		"a hero name that isn't text": _delta(1, 0, 0, 0, {7: 1}),
+		"a count past what a save can hold": _delta(0, 0, 0, ProfileStore.WHOLE_MAX + 1, {}),
+	}
+	for what: String in bad:
+		var line: String = registry.add_stats(30, bad[what])
+		_expect_true("%s is not recorded (%s)" % [what, line.c_escape()],
+			line.begins_with("Player %s: not recorded (" % id.substr(0, 8)) and not line.contains("\n") and _text(path) == text)
+	_expect_true("a count that reaches what a save can hold is recorded",
+		registry.add_stats(30, _delta(0, 0, 0, ProfileStore.WHOLE_MAX - 50, {})).ends_with("damage +%d" % (ProfileStore.WHOLE_MAX - 50))
+		and _text(path) != text)
+	text = _text(path)
+	var line: String = registry.add_stats(30, _delta(0, 0, 0, 1, {}))
+	_expect_true("a count that would pass what a save can hold is not recorded (%s)" % line,
+		line.begins_with("Player %s: not recorded (stats.damage" % id.substr(0, 8)) and _text(path) == text)
+	_expect_true("a hero name of 32 small letters, digits and _ is recorded",
+		registry.add_stats(30, _delta(1, 0, 0, 0, {"hero_2".repeat(5) + "ab": 1})).ends_with("ab +1"))
+	registry.leave(30, NOW + 500)
+	_expect_true("after the refusals, leaving still saves", int(_parse(path).get("last_seen_unix", -1)) == NOW + 500
+		and int((_parse(path).get("stats", {}) as Dictionary).get("matches", -1)) == 2)
+	DirAccess.remove_absolute(_global(path))
+	DirAccess.remove_absolute(_global(path + ".bak"))
+	DirAccess.remove_absolute(_global(path + ".old"))
+
+
+## The disk refuses a save (here: a save from a newer game appeared): the counts stay
+## in the registry's copy, and the save on leaving writes them.
+func _add_stats_disk_refuses() -> void:
+	var registry := PlayerRegistry.new(_store)
+	var id: String = ProfileStore.id_for_token(TOKEN_B)
+	var path: String = TEST_FOLDER + id + ".json"
+	registry.join(40, _player("Adam", "#46A758", TOKEN_B), NOW + 400)
+	var good: String = _text(path)
+	var newer: Dictionary = ProfileStore.new_player(id, "Adam", "#46A758", NOW)
+	newer["version"] = ProfileStore.VERSION + 1
+	_write(path, JSON.stringify(newer, "\t"))
+	print("  (1 WARNING line follows on purpose: the store refuses to save over a newer save)")
+	var line: String = registry.add_stats(40, _delta(1, 1, 2, 90, {"medic": 1}))
+	_expect_true("the disk refuses: the line says so and keeps the counts (%s)" % line,
+		line == "Player %s: matches +1, wins +1, eliminations +2, damage +90, medic +1; could not save now, will try again when they leave" % id.substr(0, 8))
+	_write(path, good)
+	registry.leave(40, NOW + 500)
+	_expect_true("and the save on leaving writes them", _stats_are(path, 1, 1, 2, 90, {"medic": 1}))
+
+
 ## Neither token is in any file name or file.
 func _token_nowhere() -> void:
 	var found := false
 	for file: String in _files():
 		if file.contains(TOKEN_A) or file.contains(TOKEN_B):
 			found = true
-		var text := _text(TEST_FOLDER + file)
+		var text: String = _text(TEST_FOLDER + file)
 		if text.contains(TOKEN_A) or text.contains(TOKEN_B):
 			found = true
 	_expect_true("no token in any file name or save (%d files)" % _files().size(), not found and _files().size() > 0)
@@ -133,6 +239,27 @@ func _token_nowhere() -> void:
 
 func _player(player_name: String, color: String, token: String) -> Dictionary:
 	return PlayerAuth.read_message(PlayerAuth.player_message(player_name, color, token))
+
+
+## A stats delta in the shape add_stats() takes.
+func _delta(matches: int, wins: int, eliminations: int, damage: int, heroes: Dictionary) -> Dictionary:
+	return {"matches": matches, "wins": wins, "eliminations": eliminations, "damage": damage, "heroes": heroes}
+
+
+## True when the save at `path` has exactly these stats.
+func _stats_are(path: String, matches: int, wins: int, eliminations: int, damage: int, heroes: Dictionary) -> bool:
+	var stats: Variant = _parse(path).get("stats")
+	if not stats is Dictionary:
+		return false
+	var found: Dictionary = stats
+	var found_heroes: Variant = found.get("heroes")
+	if not found_heroes is Dictionary or (found_heroes as Dictionary).size() != heroes.size():
+		return false
+	for hero: String in heroes:
+		if int((found_heroes as Dictionary).get(hero, -1)) != int(heroes[hero]):
+			return false
+	return int(found.get("matches", -1)) == matches and int(found.get("wins", -1)) == wins \
+		and int(found.get("eliminations", -1)) == eliminations and int(found.get("damage", -1)) == damage
 
 
 func _files() -> PackedStringArray:
