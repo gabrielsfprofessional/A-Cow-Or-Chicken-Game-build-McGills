@@ -157,18 +157,25 @@ func _add_team_marks() -> void:
 ## T31: with HeroData.body_texture, a BodySprite takes the Body square's place: centered, its
 ## longer side at body_size_px, never tinted or turned (the aim isn't on the wire). Body is hidden.
 ## Without a texture the Body square stays, tinted by player. The collider never changes.
+## A second setup() reuses the BodySprite (or removes it for no texture), never doubles it.
 func _add_body_sprite(hero: HeroData) -> void:
-	if hero.body_texture == null:
-		return
 	var body := $Body as ColorRect
-	var sprite := Sprite2D.new()
-	sprite.name = "BodySprite"
+	var sprite := get_node_or_null(^"BodySprite") as Sprite2D
+	if hero.body_texture == null:
+		if sprite != null:
+			remove_child(sprite)
+			sprite.free()
+		body.visible = true
+		return
+	if sprite == null:
+		sprite = Sprite2D.new()
+		sprite.name = "BodySprite"
+		add_child(sprite)
+		move_child(sprite, body.get_index() + 1)
 	sprite.texture = hero.body_texture
 	sprite.centered = true
 	sprite.scale = Vector2.ONE * HeroData.body_scale(hero.body_texture.get_size(), hero.body_size_px)
 	body.visible = false
-	add_child(sprite)
-	move_child(sprite, body.get_index() + 1)
 
 
 ## The hero's drawn body in its own coordinates: the BodySprite's rect when it has art, else
