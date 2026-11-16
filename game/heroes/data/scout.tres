@@ -3,6 +3,7 @@
 [ext_resource type="Script" path="res://game/heroes/hero_data.gd" id="1_hero"]
 [ext_resource type="Resource" path="res://game/weapons/data/rifle.tres" id="2_rifle"]
 [ext_resource type="Resource" path="res://game/heroes/data/jet_dash.tres" id="3_dash"]
+[ext_resource type="Texture2D" uid="uid://b0q2g4o8a84ww" path="res://assets/heroes/scout.png" id="4_body"]
 
 [resource]
 script = ExtResource("1_hero")
@@ -12,3 +13,4 @@ move_speed = 300.0
 max_health = 100
 default_weapon = ExtResource("2_rifle")
 ability = ExtResource("3_dash")
+body_texture = ExtResource("4_body")
