@@ -12,7 +12,7 @@ the hero's theme; its numbers don't (docs/PROJECT_PLAN.md, section 3).
 | File | Job | Default for | Damage | Seconds between shots | Shot speed (px/s) | Reach (px) |
 |---|---|---|---|---|---|---|
 | sidearm.tres | Backup | Medic, and Bruiser until Spread | 20 | 0.3 | 900 | 900 |
-| rifle.tres | All-round: hits harder and reaches farther, fires slower | Scout | 25 | 0.35 | 1400 | 1300 |
+| rifle.tres | All-round: reaches farther, fires slower | Scout | 20 | 0.4 | 1400 | 1300 |
 | rapid.tres | Close-range spray: fires fast, short reach | Mage | 10 | 0.12 | 1000 | 600 |
 
 The files are the truth; update this table when a number changes. T27 tunes the numbers.
