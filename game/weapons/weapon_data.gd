@@ -1,7 +1,7 @@
 class_name WeaponData
 extends Resource
 ## One weapon's numbers, tuned in the Inspector. Owner: Gabe (logic); the .tres
-## files in data/ are Adam's. Cards T08, T13. T19 adds the other five weapons.
+## files in data/ are Adam's. Cards T08, T13. T19 part 1 added Rifle and Rapid; Spread is part 2 (Alpha).
 
 ## Name shown in menus and the HUD.
 @export var display_name: String = ""

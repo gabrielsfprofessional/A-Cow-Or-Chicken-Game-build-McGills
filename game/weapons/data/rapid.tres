@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="WeaponData" format=3]
+
+[ext_resource type="Script" path="res://game/weapons/weapon_data.gd" id="1_weapon"]
+
+[resource]
+script = ExtResource("1_weapon")
+display_name = "Rapid"
+damage = 10
+fire_interval_sec = 0.12
+automatic = true
+projectile_speed = 1000.0
+projectile_radius = 5.0
+range_px = 600.0
+spread_deg = 0.0
+pellets = 1
