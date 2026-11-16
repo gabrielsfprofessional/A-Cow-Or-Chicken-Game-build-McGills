@@ -5,8 +5,8 @@
 [resource]
 script = ExtResource("1_weapon")
 display_name = "Rifle"
-damage = 25
-fire_interval_sec = 0.35
+damage = 20
+fire_interval_sec = 0.4
 automatic = true
 projectile_speed = 1400.0
 projectile_radius = 5.0
