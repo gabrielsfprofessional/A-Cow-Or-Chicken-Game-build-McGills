@@ -1,6 +1,7 @@
 extends Control
 ## Placeholder main menu. Owner: John (game/ui).
-## Play opens hero select (T16), which opens the Join screen (T10); Practice Range is wired in T20.
+## Play opens hero select (T16), which opens the Join screen (T10). The Practice Range
+## button is hidden in the scene until T20 wires it.
 ## Profile and "Playing as <name>" come from T11. With no profile yet, the profile
 ## screen opens first, except for servers and --join launches.
 

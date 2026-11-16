@@ -104,13 +104,13 @@ func _total() -> int:
 
 
 func _refresh() -> void:
-	var left := 0
-	var soonest := INF
+	var left: int = 0
+	var soonest: float = INF
 	for i: int in _total():
 		if _ready_at[i] <= _clock:
 			left += 1
 		soonest = minf(soonest, _ready_at[i])
-	var ready_in := 0.0 if left > 0 else maxf(0.0, soonest - _clock)
+	var ready_in: float = 0.0 if left > 0 else maxf(0.0, soonest - _clock)
 	_hud.set_health(_health, MAX_HEALTH)
 	_hud.set_ability("Jet Dash" if _scout else "Blink", ready_in, left, _total())
 	_hud.set_respawn(_respawn_left)
