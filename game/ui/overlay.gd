@@ -3,22 +3,30 @@ extends CanvasLayer
 ## Autoload "Overlay". Owner: John (game/ui).
 ##
 ## It finds your hero in the world's Heroes node and copies its numbers into the
-## Hud every frame. It decides nothing. Hidden in menus and on the server.
+## Hud every frame. It decides nothing. Hidden in menus and on the server. A headless
+## run (the server, test bots) has nobody to show it to, so it builds nothing and does
+## no work each frame.
 
 const HUD_SCENE: PackedScene = preload("res://game/ui/hud.tscn")
+## The canvas layer the HUD and the hit feedback draw on. Above it: nothing yet (a
+## pause or results screen would go higher). Below it: the game world and the heroes'
+## own labels (layer 0), and menus, which are never open during a match.
+const HUD_LAYER: int = 10
 
 var _hud: Hud = null
 var _hit_feedback: HitFeedback = null
 
 
 func _ready() -> void:
-	layer = 10
+	layer = HUD_LAYER
+	if DisplayServer.get_name() == "headless":
+		set_process(false)
+		return
 	_hud = HUD_SCENE.instantiate() as Hud
 	add_child(_hud)
 	_hud.visible = false
 	# Listen now, before this client is ready, so the late-join replay is not missed.
-	if DisplayServer.get_name() != "headless":
-		_hud.listen()
+	_hud.listen()
 	_hit_feedback = HitFeedback.new()
 	add_child(_hit_feedback)
 
@@ -30,7 +38,7 @@ func _process(_delta: float) -> void:
 		_hud.set_own_peer(multiplayer.get_unique_id())
 	else:
 		_hud.clear_match()
-	var hero := _own_hero()
+	var hero: NetHero = _own_hero()
 	_hud.visible = hero != null
 	_hit_feedback.active = hero != null
 	if hero == null:
@@ -39,7 +47,7 @@ func _process(_delta: float) -> void:
 	if health != null:
 		_hud.set_health(health.health(), health.max_health)
 	if hero.has_ability():
-		var ability := hero.hero_data.ability
+		var ability: AbilityData = hero.hero_data.ability
 		_hud.set_ability(ability.display_name, hero.ability_ready_in_sec(),
 			hero.ability_charges_left(), ability.charges)
 	else:
@@ -51,7 +59,7 @@ func _process(_delta: float) -> void:
 func _own_hero() -> NetHero:
 	if Net.state != Net.State.CLIENT:
 		return null
-	var world := get_tree().current_scene
+	var world: Node = get_tree().current_scene
 	if world == null:
 		return null
 	return world.get_node_or_null("Heroes/%d" % multiplayer.get_unique_id()) as NetHero

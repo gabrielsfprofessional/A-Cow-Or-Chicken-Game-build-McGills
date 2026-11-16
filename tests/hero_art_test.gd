@@ -8,6 +8,7 @@ extends SceneTree
 ##    centered, white (no tint), not turned; Body is hidden; the collider doesn't change.
 ## 3. A 96x32 texture keeps its shape: 48 x 16 px. body_rect() (the outline's rect) follows it.
 ## 4. body_size_px sets the longer side (96 px), and HeroData.body_scale() never divides by 0.
+## 5. setup() called twice keeps one BodySprite with the new texture, or none (Body shown) for no texture.
 ##
 ## NetHero uses the Events and Net autoloads, so this test never names it (see tests/README.md):
 ## it loads the hero scene at run time.
@@ -64,6 +65,7 @@ func _run() -> void:
 	await _square_texture()
 	await _wide_texture()
 	await _bigger_size()
+	_second_setup()
 	_world.free()
 	print("HERO ART TEST: %s (%d checks)" % ["PASS" if _failed == 0 else "FAIL, %d wrong" % _failed, _count])
 	quit(0 if _failed == 0 else 1)
@@ -161,6 +163,50 @@ func _bigger_size() -> void:
 	_expect(is_equal_approx(_collider_radius(hero), COLLIDER_RADIUS), "a bigger drawing keeps the collider at radius 20",
 		"radius %s" % _collider_radius(hero))
 	hero.free()
+
+
+## setup() called twice before the hero enters the tree: one BodySprite at most, never two.
+func _second_setup() -> void:
+	var roster := load(ROSTER_PATH) as HeroRoster
+	var square := roster.first().duplicate() as HeroData
+	square.body_texture = _texture(64, 64)
+	var wide := roster.first().duplicate() as HeroData
+	wide.body_texture = _texture(96, 32)
+	var plain := roster.first().duplicate() as HeroData
+	plain.body_texture = null
+	var scene := load(HERO_SCENE_PATH) as PackedScene
+
+	var hero := scene.instantiate() as Node2D
+	hero.call(&"setup", 50, Vector2.ZERO, TINT, square)
+	hero.call(&"setup", 50, Vector2.ZERO, TINT, wide)
+	_expect(_sprite_count(hero) == 1, "a second setup() with a texture keeps one BodySprite",
+		"%d Sprite2D children" % _sprite_count(hero))
+	_expect(_drawn_size(hero).is_equal_approx(Vector2(48.0, 16.0)), "a second setup() draws the new texture (48 x 16 px)",
+		"drawn at %s" % _drawn_size(hero))
+	_expect(not (hero.get_node(^"Body") as ColorRect).visible, "after a second setup() with a texture, Body stays hidden",
+		"it shows")
+	_expect(hero.get_node(^"BodySprite").get_index() == hero.get_node(^"Body").get_index() + 1,
+		"after a second setup(), the sprite keeps the Body's place in the draw order", "index %d, Body %d" % [
+			hero.get_node(^"BodySprite").get_index(), hero.get_node(^"Body").get_index()])
+	hero.free()
+
+	hero = scene.instantiate() as Node2D
+	hero.call(&"setup", 51, Vector2.ZERO, TINT, square)
+	hero.call(&"setup", 51, Vector2.ZERO, TINT, plain)
+	_expect(_sprite_count(hero) == 0, "a second setup() with no texture removes the BodySprite",
+		"%d Sprite2D children" % _sprite_count(hero))
+	_expect((hero.get_node(^"Body") as ColorRect).visible, "a second setup() with no texture shows the Body square again",
+		"it is hidden")
+	hero.free()
+
+
+## How many Sprite2D children a hero has (a doubled BodySprite gets a new name, so count by type).
+func _sprite_count(hero: Node2D) -> int:
+	var count: int = 0
+	for child: Node in hero.get_children():
+		if child is Sprite2D:
+			count += 1
+	return count
 
 
 func _expect(ok: bool, what: String, problem: String) -> void:

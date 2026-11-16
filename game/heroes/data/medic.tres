@@ -3,6 +3,7 @@
 [ext_resource type="Script" path="res://game/heroes/hero_data.gd" id="1_hero"]
 [ext_resource type="Resource" path="res://game/weapons/data/sidearm.tres" id="2_sidearm"]
 [ext_resource type="Resource" path="res://game/heroes/data/heal_drone.tres" id="3_drone"]
+[ext_resource type="Texture2D" uid="uid://w75bp4ldxq6w" path="res://assets/heroes/medic.png" id="4_body"]
 
 [resource]
 script = ExtResource("1_hero")
@@ -12,3 +13,4 @@ move_speed = 300.0
 max_health = 100
 default_weapon = ExtResource("2_sidearm")
 ability = ExtResource("3_drone")
+body_texture = ExtResource("4_body")
