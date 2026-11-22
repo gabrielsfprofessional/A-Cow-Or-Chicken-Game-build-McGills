@@ -5,6 +5,8 @@ This repo is public: the card never holds a link or an address.
 
 You need: a Windows PC, a mouse, and the link Gabe texted you.
 
+No link? Ask Gabe for the USB stick.
+
 ## 1. Install (once)
 
 1. Open the link Gabe texted you.
