@@ -178,7 +178,7 @@ func _on_hero_damaged(victim_peer_id: int, _attacker_peer_id: int, amount: int, 
 func _on_hero_eliminated(victim_peer_id: int, _attacker_peer_id: int) -> void:
 	if not active:
 		return
-	var hero := _hero(victim_peer_id)
+	var hero: Node2D = _hero(victim_peer_id)
 	var spot: Vector2 = _screen_middle_in_world()
 	if hero != null:
 		spot = hero.global_position
@@ -317,7 +317,7 @@ func _me() -> int:
 
 
 func _hero(peer_id: int) -> Node2D:
-	var world := get_tree().current_scene
+	var world: Node = get_tree().current_scene
 	if world == null:
 		return null
 	return world.get_node_or_null("Heroes/%d" % peer_id) as Node2D

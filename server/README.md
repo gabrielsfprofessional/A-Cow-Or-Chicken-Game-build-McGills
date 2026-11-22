@@ -82,18 +82,79 @@ Until then an older save reads as OLDER and is left alone.
   is locked or from another version (left alone).
 - The server logs `[Server] player saves in <folder>` at start and one `[Server]` line per
   peer, naming a player by the first 8 characters of their id, never the token.
-- `player_id(peer)` gives T22 the save to count stats into, and `player_name(peer)` the name
-  the test world sends to every peer in the hero's spawn data (names above heroes, T17).
+- `player_id(peer)` names the save, `add_stats(peer, delta)` adds a match's counts to it
+  (T22, below), and `player_name(peer)` is the name the test world sends to every peer in
+  the hero's spawn data (names above heroes, T17).
 
 Two players on one PC: start the second window with `-- --profile=<another profile.json>`
 (debug builds). With the same profile, the second window plays as a guest.
+
+## What a match records: `match_stats.gd` (T22)
+
+Each player's save counts `matches`, `wins`, `eliminations`, `damage` and `heroes` (matches
+per hero). The server records them; a client never sends a stat.
+
+- `MatchStats` counts between a mode's `match_started` and `match_ended` (signals on Events;
+  the arena mode, T15, emits them). Pure: no network, no files.
+  - Damage dealt: each `hero_damaged` with an amount above 0 (0 is a hit that spawn
+    protection absorbed) that isn't on yourself.
+  - Eliminations: each `hero_eliminated` by another peer.
+  - Teams come from `team_assigned`, whenever it arrives; the last one counts.
+- At `match_ended(winning_team)`, every player on a team gets `matches` +1, `wins` +1 when
+  their team won (nobody on a draw, -1), their eliminations and damage, and +1 for the
+  hero they play then, by its file name in game/heroes/data (`scout`; display names can change).
+- A player who leaves mid-match keeps their eliminations and damage, with no match, win
+  or hero. The same when the server shuts down mid-match the normal way (`Net.leave()`); a
+  server that is killed saves nothing for that match.
+- A match nobody finishes (everyone left) gives nobody a match. Hits before the first match
+  and between matches count nothing.
+- Guests and bots get nothing: they have no save.
+- Net (game/core/net.gd) wires it on the server, next to `PlayerRegistry`, and hands each
+  answer to `PlayerRegistry.add_stats()`. That merges it into the registry's copy and saves
+  at once with `ProfileStore`'s safe write, so the save on leaving keeps it. Counts that
+  would break a save's rules are refused whole. If the disk refuses, the counts stay in
+  the copy and the save on leaving writes them.
+- One log line per save, naming the player by the first 8 characters of their id:
+
+        [Record] Player 3eb1bd43: matches +1, wins +1, eliminations +3, damage +240, scout +1
+
+  A leaver's line has no hero. A refusal reads `[Record] Player 3eb1bd43: not recorded (<why>)`.
+- Tests (run in smoke): `tests/match_stats_test.gd` (every rule above) and
+  `tests/player_registry_test.gd` (`add_stats()`).
+
+## Hosting checklist
+
+Before a playtest, on the server laptop (Gabe's), in this order:
+
+1. The network cable is in; Wi-Fi is off; the VPN is off. The server then has one address:
+   the one the router's UDP 7777 forward points at. Check it in `ipconfig` against the
+   router's forward before players arrive; a build made for the house has that address inside.
+2. The laptop is on its charger.
+3. Nothing else runs on the server laptop: no game, Discord, browser, smoke test or bots.
+   A server on this laptop has frozen in two kinds of run. Every run with 16 bots on the same
+   PC froze for up to 0.9 s (Nov 11 and Nov 14). On Nov 14 a practice run with only 4 players
+   froze for 2.2 to 9.9 s, as if the whole PC paused. No 8-player run has frozen (218 ten-second
+   windows, Nov 14-15). The cause isn't proven yet.
+4. OneDrive and other backups are paused for the playtest.
+5. 4 GB or more of memory is free.
+6. Windows Firewall lets UDP 7777 in on Private networks (one inbound rule, set once per PC).
+7. UDP 7777 is free, then start the players' build's own server from its release folder:
+   `server\ACowOrChickenServer.console.exe --headless -- --map=arena`. A release build saves
+   to the family's folder by default: its log must say `player saves in` a folder ending in
+   `A Cow or Chicken/saves/`. A line naming `saves_test` means a debug build: stop it at once,
+   it must not host players.
+8. After the last match (its `[Mode] match over` line and its `[Record]` lines), stop the
+   server and run the backup (below) once by hand. Before any player with a profile has
+   joined, the saves folder is empty and the backup is a FAIL by design.
 
 ## Nightly backup
 
 `tools\backup_saves.ps1` copies the saves folder into `<name>.partial`, checks the copy,
 renames it to `saves-YYYYMMDD-HHMMSS`, keeps the newest 7 (`-Keep`), and logs one line per run
 to `backup-log.txt` in the destination and to `%LOCALAPPDATA%\acoc-backup-log.txt`. It only
-ever removes folders it named.
+ever removes folders it named. A saves folder with no files is a FAIL (exit 1) that makes no
+backup and removes none (it only logs the FAIL), so an empty run can never rotate out the real backups. Its test:
+`powershell -NoProfile -ExecutionPolicy Bypass -File tools\backup_saves_test.ps1`.
 
 1. Copy the script out of the repo, so a branch checkout can't take it away at 3 am:
 
@@ -101,12 +162,15 @@ ever removes folders it named.
 
 2. Try it once:
 
-        powershell -NoProfile -ExecutionPolicy Bypass -File C:\Dev\acoc-notes\backup_saves.ps1 -Destination "G:\My Drive\A Cow or Chicken\Backups"
+        powershell -NoProfile -ExecutionPolicy Bypass -File C:\Dev\acoc-notes\backup_saves.ps1 -Destination "$env:OneDrive\ACowOrChicken-Backups"
+
+   The backups go to a OneDrive folder only Gabe can open, never the shared folder that holds
+   the install zip.
 
 3. Schedule it for 3 am (Gabe's OK first; run once in PowerShell). It runs hidden, on battery
    too, and a missed run starts when the PC wakes up:
 
-        $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument '-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "C:\Dev\acoc-notes\backup_saves.ps1" -Destination "G:\My Drive\A Cow or Chicken\Backups"'
+        $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"C:\Dev\acoc-notes\backup_saves.ps1`" -Destination `"$env:OneDrive\ACowOrChicken-Backups`""
         $trigger = New-ScheduledTaskTrigger -Daily -At 3am
         $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
         Register-ScheduledTask -TaskName "A Cow or Chicken save backup" -Action $action -Trigger $trigger -Settings $settings
@@ -117,6 +181,12 @@ ever removes folders it named.
 
 1. Stop the server.
 2. Rename the saves folder to `saves-broken-<date>`. Never delete it.
-3. Copy the chosen `saves-YYYYMMDD-HHMMSS` folder (never a `.partial` one) from the Drive to
+3. Copy the chosen `saves-YYYYMMDD-HHMMSS` folder (never a `.partial` one) from the backup folder to
    the same place and name it `saves`.
 4. Start the server, and check that a player who saved before the backup still loads.
+
+Tried on Nov 15 on a throwaway saves folder (scripted check, Gabe's Claude): a test player
+saved, `tools\backup_saves.ps1` backed the folder up, the folder was renamed as in step 2 and
+the backup copied back as in step 3; the restarted server loaded the player as "returning",
+and the restored save was byte for byte the one backed up. A save holds the player's name,
+color, stats, dates and the SHA-256 of their device token, never the token itself.
