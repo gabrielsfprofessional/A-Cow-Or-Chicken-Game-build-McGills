@@ -29,6 +29,7 @@ func _ready() -> void:
 	_hud.listen()
 	_hit_feedback = HitFeedback.new()
 	add_child(_hit_feedback)
+	add_child(AbilitySounds.new())
 
 
 func _process(_delta: float) -> void:

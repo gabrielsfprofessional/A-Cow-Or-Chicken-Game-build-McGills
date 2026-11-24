@@ -103,3 +103,21 @@ The HUD (`hud.tscn`, built by the `Overlay` autoload) also shows the match, from
   going and the longest frame while the picture waited. It is for scripted checks.
 - Test: `game/ui/tools/test_hit_feedback.gd` (smoke runs it; by hand, point `APPDATA` at a
   temp folder). Preview without a server: `hit_feedback_preview.tscn`, keys on screen.
+
+## Ability sounds (card T32)
+
+`AbilitySounds` (`ability_sounds.gd`, built by the `Overlay` autoload) listens to
+`Events.ability_used`, which fires on every peer, and decides nothing.
+
+- A Q use by any hero plays that ability's sound at the hero (`Heroes/<peer id>` in the
+  current world). A hero that is not in the world plays nothing.
+- Which sound each ability plays is `game/ui/data/ability_sounds.tres` (`AbilitySoundSet`),
+  changed in the Inspector: `sounds` maps the ability's file name in `game/heroes/data`
+  (without `.tres`, for example `blink`) to a file in `audio/ability`. Volume, pitch
+  spread, voices and the silent distance are in the same file.
+- The voice rules are HitFeedback's: a fixed pool (`max_voices`), quieter with distance
+  from the middle of your screen (`silent_beyond_screens`), one more sound than voices is
+  dropped, and a headless run picks a voice the same way but never starts a sound.
+- Weapon shots have no sound yet: other players' shots have no Events signal (ask Gabe).
+- Test: `game/ui/tools/test_ability_sounds.gd` (smoke runs it; by hand, point `APPDATA` at
+  a temp folder). It fails when a hero on the roster has no ability sound.

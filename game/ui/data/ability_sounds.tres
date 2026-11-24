@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="AbilitySoundSet" format=3]
+
+[ext_resource type="Script" path="res://game/ui/ability_sound_set.gd" id="1_wa8ix"]
+[ext_resource type="AudioStream" path="res://audio/ability/shield_charge.ogg" id="2_age05"]
+[ext_resource type="AudioStream" path="res://audio/ability/blink.ogg" id="3_lb3mw"]
+[ext_resource type="AudioStream" path="res://audio/ability/jet_dash.ogg" id="4_5vt4s"]
+[ext_resource type="AudioStream" path="res://audio/ability/heal_drone.ogg" id="5_axqan"]
+
+[resource]
+script = ExtResource("1_wa8ix")
+sounds = Dictionary[String, AudioStream]({
+"blink": ExtResource("3_lb3mw"),
+"heal_drone": ExtResource("5_axqan"),
+"jet_dash": ExtResource("4_5vt4s"),
+"shield_charge": ExtResource("2_age05")
+})
