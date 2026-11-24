@@ -140,9 +140,10 @@ Before a playtest, on the server laptop (Gabe's), in this order:
 6. Windows Firewall lets UDP 7777 in on Private networks (one inbound rule, set once per PC).
 7. UDP 7777 is free, then start the players' build's own server from its release folder:
    `server\ACowOrChickenServer.console.exe --headless -- --map=arena`. A release build saves
-   to the family's folder by default: its log must say `player saves in` a folder ending in
-   `A Cow or Chicken/saves/`. A line naming `saves_test` means a debug build: stop it at once,
-   it must not host players.
+   to the family's folder by default, `user://saves/` (on Windows
+   `%APPDATA%\Godot\app_userdata\A Cow or Chicken\saves\`), so its log must read exactly
+   `[Server] player saves in user://saves/`. A line naming `saves_test` means a debug build:
+   stop it at once, it must not host players.
 8. After the last match (its `[Mode] match over` line and its `[Record]` lines), stop the
    server and run the backup (below) once by hand. Before any player with a profile has
    joined, the saves folder is empty and the backup is a FAIL by design.
