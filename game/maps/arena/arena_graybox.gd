@@ -1,16 +1,13 @@
 @tool
 class_name ArenaMap
 extends GrayboxMap
-## Graybox arena: Floor, Walls, Cover, Spawns, FlyCamera. Owner: Adam (game/maps).
+## Graybox arena: Floor, Dressing (T34, looks only), Walls, Cover, Spawns, FlyCamera. Owner: Adam (game/maps).
 ## The shared map rules live in GrayboxMap; this adds the arena-only ones:
 ## 10-14 cover blocks, 8 team spawns on the right sides and no sight line between enemy spawns.
 
 const MIN_COVER: int = 10
 const MAX_COVER: int = 14
 const SPAWN_NAMES: Array[String] = ["SpawnA1", "SpawnA2", "SpawnA3", "SpawnA4", "SpawnB1", "SpawnB2", "SpawnB3", "SpawnB4"]
-## Team colors from PROJECT_PLAN (decided Oct 9): Blue and Orange.
-const TEAM_A_COLOR: Color = Color("#3B82F6")
-const TEAM_B_COLOR: Color = Color("#F97316")
 ## The world's node that holds the heroes (game/net/README.md, "Match scene").
 const HEROES_NODE: NodePath = ^"Heroes"
 
@@ -92,8 +89,12 @@ func _marker_groups() -> Array[String]:
 	return ["Spawns"]
 
 
+## A spawn dot's color: its team's, from the hero rings' file (ArenaDressing.team_colors());
+## white when that file can't be read.
 func _marker_color(marker: Marker2D) -> Color:
-	return TEAM_A_COLOR if marker.name.begins_with("SpawnA") else TEAM_B_COLOR
+	var teams: Array[Color] = ArenaDressing.team_colors()
+	var team: int = MapList.team_of_spawn(String(marker.name))
+	return teams[team] if team >= 0 and team < teams.size() else Color.WHITE
 
 
 ## Returns spawn name -> position for every spawn inside the walls.

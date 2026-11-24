@@ -16,13 +16,36 @@ const COLOR: Color = Color(0.45, 0.47, 0.5, 1)
 		_apply_size()
 
 
+## The look a map gave this block with set_look(); the plain graybox look until then.
+var _fill: Color = COLOR
+var _edge: Color = COLOR
+var _edge_px: float = 0.0
+
+
 func _ready() -> void:
 	set_notify_transform(Engine.is_editor_hint())
 	_apply_size()
 
 
+## Gives this block a color, and a line of `edge_px` just inside its edge (none at 0).
+## Drawing only: its size, position and collision shape stay as they are.
+func set_look(fill: Color, edge: Color, edge_px: float) -> void:
+	_fill = fill
+	_edge = edge
+	_edge_px = maxf(0.0, edge_px)
+	queue_redraw()
+
+
+## The color this block is filled with.
+func fill() -> Color:
+	return _fill
+
+
 func _draw() -> void:
-	draw_rect(Rect2(Vector2.ZERO, size), COLOR)
+	draw_rect(Rect2(Vector2.ZERO, size), _fill)
+	var line: float = minf(_edge_px, minf(size.x, size.y) / 2.0)
+	if line > 0.0:
+		draw_rect(Rect2(Vector2.ONE * line / 2.0, size - Vector2.ONE * line), _edge, false, line)
 
 
 func _notification(what: int) -> void:

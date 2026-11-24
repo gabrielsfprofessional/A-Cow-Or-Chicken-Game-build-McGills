@@ -29,8 +29,12 @@ func _marker_groups() -> Array[String]:
 	return ["Spawns", "Dummies"]
 
 
+## The player's spawn dot is Blue, from the hero rings' file (white when it can't be read).
 func _marker_color(marker: Marker2D) -> Color:
-	return ArenaMap.TEAM_A_COLOR if marker.name == SPAWN_NAME else DUMMY_COLOR
+	if marker.name != SPAWN_NAME:
+		return DUMMY_COLOR
+	var teams: Array[Color] = ArenaDressing.team_colors()
+	return teams[0] if not teams.is_empty() else Color.WHITE
 
 
 func _check_spawn(blocks: Array[ArenaBlock], points: Dictionary, problems: PackedStringArray) -> void:

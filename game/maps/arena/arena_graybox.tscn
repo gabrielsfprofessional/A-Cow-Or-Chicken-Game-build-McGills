@@ -3,6 +3,7 @@
 [ext_resource type="Script" path="res://game/maps/arena/arena_graybox.gd" id="1_arena"]
 [ext_resource type="PackedScene" path="res://game/maps/arena/block.tscn" id="2_block"]
 [ext_resource type="PackedScene" path="res://game/maps/arena/fly_camera.tscn" id="3_camera"]
+[ext_resource type="PackedScene" path="res://game/maps/arena/arena_dressing.tscn" id="4_dressing"]
 
 [node name="ArenaGraybox" type="Node2D"]
 script = ExtResource("1_arena")
@@ -12,6 +13,8 @@ offset_right = 3840.0
 offset_bottom = 2160.0
 mouse_filter = 2
 color = Color(0.16, 0.17, 0.19, 1)
+
+[node name="Dressing" parent="." instance=ExtResource("4_dressing")]
 
 [node name="Walls" type="Node2D" parent="."]
 
