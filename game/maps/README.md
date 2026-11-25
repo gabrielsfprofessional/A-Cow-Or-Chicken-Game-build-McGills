@@ -16,6 +16,10 @@ blocks, no dead ends). Each map script adds its own: the arena needs 8 team spaw
 and no sight line between enemy spawns; the practice range needs exactly one PlayerSpawn and 1-8 dummy spots.
 
 Map check: open a map in Godot; a yellow warning next to its root node in the Scene panel means a problem.
+The editor checks again once you stop moving things (the layout is the same at two looks, `RECHECK_SECONDS` apart),
+never during a drag. The check costs the map's cells plus the cells its blocks cover (each block's rect is worked
+out once per check), so a Battle Royale-size map (320 x 180 cells, 400 blocks) checks in under 250 ms.
+`test_graybox_grid.gd` proves it finds exactly what the old cell-by-block check found, on 300 seeded random layouts.
 Run from the repo folder (each exits with 1 on a problem):
 
 - Check every map (the smoke test runs this): `godot --headless --path . --script res://game/maps/tools/check_arena.gd`.

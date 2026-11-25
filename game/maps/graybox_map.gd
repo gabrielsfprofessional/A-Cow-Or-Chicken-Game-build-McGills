@@ -14,14 +14,19 @@ const SPAWN_ROOM: float = 48.0
 ## The smallest map: walls all around and one open cell in the middle.
 const MIN_MAP_CELLS: int = 3
 const DOT_RADIUS: float = 18.0
-## How often the editor looks for changes, in seconds.
+## How often the editor looks for changes, in seconds. It checks again only once a layout
+## has stayed the same for one look, so never while a block is being dragged.
 const RECHECK_SECONDS: float = 0.25
 
 ## The whole map including the outer walls, in px, a multiple of 48. Walls must ring its edge.
 @export var map_size: Vector2 = Vector2(3840, 2160)
 
 var _since_check: float = 0.0
+## The layout at the editor's last look, and the layout last checked.
+var _seen_layout: int = 0
 var _last_layout: int = 0
+## Each block's rect, worked out once per find_problems() and read by block_rect(); empty between checks.
+var _rects: Dictionary[ArenaBlock, Rect2] = {}
 
 
 func _ready() -> void:
@@ -61,7 +66,9 @@ func _process(delta: float) -> void:
 		return
 	_since_check = 0.0
 	var layout: int = _layout_hash()
-	if layout == _last_layout:
+	var due: bool = recheck_due(layout, _seen_layout, _last_layout)
+	_seen_layout = layout
+	if not due:
 		return
 	_last_layout = layout
 	update_configuration_warnings()
@@ -69,6 +76,12 @@ func _process(delta: float) -> void:
 		var group: Node2D = get_node_or_null(group_name) as Node2D
 		if group != null:
 			group.queue_redraw()
+
+
+## True when the editor should check again: the layout is the same as at the last look
+## (so it has stopped changing) and differs from the one last checked.
+static func recheck_due(layout: int, seen_layout: int, checked_layout: int) -> bool:
+	return layout == seen_layout and layout != checked_layout
 
 
 func _get_configuration_warnings() -> PackedStringArray:
@@ -84,19 +97,35 @@ func find_problems() -> PackedStringArray:
 	var walls: Array[ArenaBlock] = _blocks("Walls", problems)
 	var cover: Array[ArenaBlock] = _blocks("Cover", problems)
 	var all: Array[ArenaBlock] = walls + cover
+	_rects.clear()
+	for block: ArenaBlock in all:
+		_rects[block] = block_rect(block)
 	_check_strays(problems)
 	_check_blocks(all, problems)
-	_check_walls(walls, problems)
+	_check_walls(_rects_of(walls), problems)
 	_check_gaps(all, problems)
 	var points: Dictionary = _check_layout(all, cover, problems)
 	var start: String = _walk_start()
 	if points.has(start):
-		_check_walkable(all, points, start, problems)
+		_check_walkable(_rects_of(all), points, start, problems)
+	_rects.clear()
 	return problems
 
 
+## The block's rect in map space: its top-left corner and Size. Inside find_problems() it is
+## read from the rects worked out once at the start.
 func block_rect(block: ArenaBlock) -> Rect2:
+	if _rects.has(block):
+		return _rects[block]
 	return Rect2(to_local(block.global_position), block.size)
+
+
+## The rects of blocks, in the same order.
+func _rects_of(blocks: Array[ArenaBlock]) -> Array[Rect2]:
+	var rects: Array[Rect2] = []
+	for block: ArenaBlock in blocks:
+		rects.append(block_rect(block))
+	return rects
 
 
 ## The map's own rules. Adds its problems and returns marker label -> position
@@ -183,13 +212,10 @@ func _check_blocks(blocks: Array[ArenaBlock], problems: PackedStringArray) -> vo
 			problems.append("%s collision shape does not match its Size." % label)
 
 
-func _check_walls(walls: Array[ArenaBlock], problems: PackedStringArray) -> void:
-	if walls.is_empty():
+func _check_walls(rects: Array[Rect2], problems: PackedStringArray) -> void:
+	if rects.is_empty():
 		problems.append("There are no outer walls.")
 		return
-	var rects: Array[Rect2] = []
-	for wall: ArenaBlock in walls:
-		rects.append(block_rect(wall))
 	var cols: int = int(map_size.x / ArenaBlock.GRID)
 	var rows: int = int(map_size.y / ArenaBlock.GRID)
 	# Every 48 px cell on the outer ring must sit fully inside one wall block.
@@ -209,35 +235,28 @@ func _check_walls(walls: Array[ArenaBlock], problems: PackedStringArray) -> void
 
 
 func _check_gaps(blocks: Array[ArenaBlock], problems: PackedStringArray) -> void:
+	var rects: Array[Rect2] = _rects_of(blocks)
 	for i: int in blocks.size():
 		for j: int in range(i + 1, blocks.size()):
-			var gap: float = _gap(block_rect(blocks[i]), block_rect(blocks[j]))
+			var gap: float = _gap(rects[i], rects[j])
 			if gap > 0.0 and gap < MIN_GAP:
 				problems.append("%s and %s are %.0f px apart. Make them touch or leave at least %.0f px." % [_label(blocks[i]), _label(blocks[j]), gap, MIN_GAP])
 
 
 ## Flood fill over 48 px cells from the start marker. A cell is open when no block covers any of it.
 ## Every open cell and every marker must be reachable, so there are no sealed-off spots.
-func _check_walkable(blocks: Array[ArenaBlock], points: Dictionary, start_label: String, problems: PackedStringArray) -> void:
+## Each block marks only the cells near it, so the cost is the map's cells plus the blocks' cells.
+func _check_walkable(rects: Array[Rect2], points: Dictionary, start_label: String, problems: PackedStringArray) -> void:
 	var cols: int = int(map_size.x / ArenaBlock.GRID)
 	var rows: int = int(map_size.y / ArenaBlock.GRID)
-	var rects: Array[Rect2] = []
-	for block: ArenaBlock in blocks:
-		rects.append(block_rect(block))
+	var blocked: PackedByteArray = blocked_cells(rects, cols, rows)
 	var open: PackedByteArray = PackedByteArray()
 	open.resize(cols * rows)
 	var open_count: int = 0
-	for row: int in rows:
-		for col: int in cols:
-			var cell: Rect2 = Rect2(Vector2(col, row) * ArenaBlock.GRID, Vector2.ONE * ArenaBlock.GRID)
-			var free: bool = true
-			for rect: Rect2 in rects:
-				if cell.intersects(rect):
-					free = false
-					break
-			if free:
-				open[row * cols + col] = 1
-				open_count += 1
+	for index: int in open.size():
+		if blocked[index] == 0:
+			open[index] = 1
+			open_count += 1
 	var start: int = _cell_index(points[start_label], cols)
 	if open[start] == 0:
 		return
@@ -271,6 +290,23 @@ func _check_walkable(blocks: Array[ArenaBlock], points: Dictionary, start_label:
 				var spot: Vector2 = Vector2(index % cols, index / cols) * ArenaBlock.GRID
 				problems.append("%d open spots can't be reached from %s, for example at %s." % [open_count - reached_count, start_label, spot])
 				break
+
+
+## A cols x rows grid of 48 px cells, row by row: 1 where a cell overlaps any of rects
+## (touching an edge is not overlapping), 0 elsewhere. Each rect tests only its own cells and
+## the ring of cells around them, with the same Rect2 test a cell-by-block loop would use.
+static func blocked_cells(rects: Array[Rect2], cols: int, rows: int) -> PackedByteArray:
+	var blocked: PackedByteArray = PackedByteArray()
+	blocked.resize(cols * rows)
+	var size: Vector2 = Vector2.ONE * ArenaBlock.GRID
+	for rect: Rect2 in rects:
+		var first: Vector2i = Vector2i((rect.position / ArenaBlock.GRID).floor()) - Vector2i.ONE
+		var last: Vector2i = Vector2i((rect.end / ArenaBlock.GRID).ceil())
+		for row: int in range(maxi(first.y, 0), mini(last.y, rows - 1) + 1):
+			for col: int in range(maxi(first.x, 0), mini(last.x, cols - 1) + 1):
+				if blocked[row * cols + col] == 0 and Rect2(Vector2(col, row) * ArenaBlock.GRID, size).intersects(rect):
+					blocked[row * cols + col] = 1
+	return blocked
 
 
 func _draw_markers(group: Node2D) -> void:
