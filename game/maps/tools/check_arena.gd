@@ -12,6 +12,7 @@ extends SceneTree
 const MAPS_FOLDER: String = "res://game/maps"
 ## Scenes under game/maps that are parts of maps, not maps. Every other .tscn there must be a graybox map.
 const NOT_MAPS: PackedStringArray = [
+	"res://game/maps/arena/arena_dressing.tscn",
 	"res://game/maps/arena/block.tscn",
 	"res://game/maps/arena/fly_camera.tscn",
 ]
