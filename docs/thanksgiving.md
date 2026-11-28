@@ -12,25 +12,25 @@ No street addresses, phone numbers, Wi-Fi names or passwords. Those stay in the 
 - The server runs on site.
 
 ## Wi-Fi checklist
-- [ ] Someone at the house confirms the Wi-Fi works in the room we will play in.
+- [x] Someone at the house confirms the Wi-Fi works in the room we will play in. (It worked on Nov 26: reported by Gabe, Nov 26.)
 - [ ] Wi-Fi details are shared by family text, not in this repo.
-- [ ] Tested at the Nov 21 rehearsal with 8 or more laptops.
+- [ ] Tested at the Nov 21 rehearsal with 8 or more laptops. (The rehearsal did not run; Thanksgiving was the first match.)
 
 ## Laptop list
-Works = it runs the game. Windows = it is a Windows PC. Goal: 10 or more Windows laptops named by Nov 1. Works is checked with the first installer (card T29, from Nov 14).
+Works = it ran 0.2.1 (2fea92a) at the Thanksgiving house on Nov 26. Windows = it is a Windows PC. Goal: 10 or more Windows laptops named by Nov 1.
 
 | Person (first name) | Windows? | Works? | Tested by |
 |---|---|---|---|
-| John (desktop) | yes | yes | John, many times |
-| Gabe (laptop) | yes | yes | Gabe and the team, many times |
-| Gabe (second laptop) | yes | not tested | |
-| Gabe (third laptop) | yes | not tested | |
-| Adam (laptop) | yes | yes | Adam and the team, many times |
-| Frank (laptop) | yes | yes | Frank and the team, many times |
-| Frank (desktop) | yes | not tested | |
-| Frank (second laptop) | yes | not tested | |
-| Frank (third laptop) | yes | not tested | |
-| Frank (fourth laptop) | yes | not tested | |
+| John (desktop) | yes | yes | reported by Gabe, Nov 26 |
+| Gabe (laptop) | yes | yes | reported by Gabe, Nov 26 |
+| Gabe (second laptop) | yes | yes | reported by Gabe, Nov 26 |
+| Gabe (third laptop) | yes | yes | reported by Gabe, Nov 26 |
+| Adam (laptop) | yes | yes | reported by Gabe, Nov 26 |
+| Frank (laptop) | yes | yes | reported by Gabe, Nov 26 |
+| Frank (desktop) | yes | yes | reported by Gabe, Nov 26 |
+| Frank (second laptop) | yes | yes | reported by Gabe, Nov 26 |
+| Frank (third laptop) | yes | yes | reported by Gabe, Nov 26 |
+| Frank (fourth laptop) | yes | yes | reported by Gabe, Nov 26 |
 
 ## If we are short
 - Fewer than 10 working laptops by Nov 1: borrow laptops.
