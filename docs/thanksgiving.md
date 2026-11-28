@@ -13,7 +13,7 @@ No street addresses, phone numbers, Wi-Fi names or passwords. Those stay in the 
 
 ## Wi-Fi checklist
 - [x] Someone at the house confirms the Wi-Fi works in the room we will play in. (It worked on Nov 26: reported by Gabe, Nov 26.)
-- [ ] Wi-Fi details are shared by family text, not in this repo.
+- [x] Wi-Fi details are shared by family text, not in this repo. (Reported by John, Nov 26.)
 - [ ] Tested at the Nov 21 rehearsal with 8 or more laptops. (The rehearsal did not run; Thanksgiving was the first match.)
 
 ## Laptop list
